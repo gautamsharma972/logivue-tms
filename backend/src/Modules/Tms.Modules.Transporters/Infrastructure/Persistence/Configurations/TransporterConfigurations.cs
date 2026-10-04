@@ -26,6 +26,7 @@ internal sealed class TransporterConfiguration : IEntityTypeConfiguration<Transp
         builder.Property(t => t.State).HasMaxLength(100).IsRequired();
         builder.Property(t => t.Pincode).HasMaxLength(6).IsRequired();
         builder.Property(t => t.ServiceModes).HasConversion<int>();
+        builder.Property(t => t.TypeCode).HasMaxLength(MasterItem.MaxCodeLength);
         builder.Property(t => t.BankAccountHolder).HasMaxLength(200);
         builder.Property(t => t.BankIfsc).HasMaxLength(11);
         builder.Property(t => t.BankName).HasMaxLength(100);

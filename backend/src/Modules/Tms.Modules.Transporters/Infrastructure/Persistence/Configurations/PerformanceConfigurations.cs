@@ -20,7 +20,7 @@ internal sealed class TenderInvitationConfiguration : IEntityTypeConfiguration<T
         builder.Property(t => t.OriginCity).HasMaxLength(100);
         builder.Property(t => t.DestinationState).HasMaxLength(100);
         builder.Property(t => t.DestinationCity).HasMaxLength(100);
-        builder.HasIndex(t => new { t.TenantId, t.ShipmentId, t.SentAt }).IsUnique(); // a re-delivered event cannot add a second row
+        builder.HasIndex(t => new { t.TenantId, t.ShipmentId, t.TransporterId, t.SentAt }).IsUnique(); // a re-delivered event cannot add a second row (a broadcast tender invites several at the same moment)
         builder.HasIndex(t => new { t.TenantId, t.TransporterId, t.SentAt });
     }
 }
@@ -295,5 +295,32 @@ internal sealed class TransporterBranchConfiguration : IEntityTypeConfiguration<
         builder.Property(b => b.ContactName).HasMaxLength(150);
         builder.Property(b => b.ContactPhone).HasMaxLength(15);
         builder.HasIndex(b => new { b.TenantId, b.TransporterId, b.Code }).IsUnique();
+    }
+}
+
+internal sealed class MasterItemConfiguration : IEntityTypeConfiguration<MasterItem>
+{
+    public void Configure(EntityTypeBuilder<MasterItem> builder)
+    {
+        builder.ToTable("master_items");
+        builder.HasKey(m => m.Id);
+        builder.Property(m => m.Id).ValueGeneratedNever();
+        builder.Property(m => m.Kind).HasConversion<string>().HasMaxLength(20);
+        builder.Property(m => m.Code).HasMaxLength(MasterItem.MaxCodeLength).IsRequired();
+        builder.Property(m => m.Name).HasMaxLength(100).IsRequired();
+        builder.HasIndex(m => new { m.TenantId, m.Kind, m.Code }).IsUnique();
+    }
+}
+
+internal sealed class DocumentRuleConfiguration : IEntityTypeConfiguration<DocumentRule>
+{
+    public void Configure(EntityTypeBuilder<DocumentRule> builder)
+    {
+        builder.ToTable("document_rules");
+        builder.HasKey(r => r.Id);
+        builder.Property(r => r.Id).ValueGeneratedNever();
+        builder.Property(r => r.Kind).HasConversion<string>().HasMaxLength(30);
+        builder.Ignore(r => r.Values);
+        builder.HasIndex(r => new { r.TenantId, r.Kind }).IsUnique();
     }
 }

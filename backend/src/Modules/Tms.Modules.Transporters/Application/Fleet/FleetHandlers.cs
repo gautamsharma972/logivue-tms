@@ -131,7 +131,8 @@ internal sealed class VehicleHandler(
     ICurrentUser currentUser,
     TransporterAccess access,
     VehicleTypeSeeder seeder,
-    TimeProvider clock)
+    TimeProvider clock,
+    Application.MasterData.DocumentPolicyProvider policies)
 {
     public async Task<Result<PagedResult<VehicleDto>>> ListAsync(Guid transporterId, string? search, int page, int pageSize, CancellationToken cancellationToken)
     {
@@ -247,12 +248,13 @@ internal sealed class VehicleHandler(
         var typeIds = vehicles.Select(v => v.VehicleTypeId).Distinct().ToList();
         var types = await db.VehicleTypes.AsNoTracking().Where(t => typeIds.Contains(t.Id)).ToDictionaryAsync(t => t.Id, cancellationToken);
         var today = clock.TodayInIndia();
+        var policy = await policies.GetAsync(cancellationToken);
 
         return vehicles.Select(v =>
         {
             types.TryGetValue(v.VehicleTypeId, out var type);
             return new VehicleDto(v.Id, v.TransporterId, v.RegistrationNumber, v.VehicleTypeId, type?.Name ?? "Unknown", type?.PayloadKg ?? 0,
-                v.Ownership, v.Make, v.YearOfManufacture, v.IsActive, ComplianceEvaluator.ForVehicle(documents[v.Id], today).ToDto(), v.Version,
+                v.Ownership, v.Make, v.YearOfManufacture, v.IsActive, ComplianceEvaluator.ForVehicle(documents[v.Id], today, policy).ToDto(), v.Version,
                 v.Availability, v.AvailableFrom, v.AvailableTo, v.AvailabilityNote);
         }).ToList();
     }
@@ -260,7 +262,7 @@ internal sealed class VehicleHandler(
     private static string IndianIdentifiersFor(string search) => Tms.SharedKernel.India.IndianIdentifiers.NormaliseVehicleRegistration(search);
 }
 
-internal sealed class DriverHandler(TransportersDbContext db, ICurrentUser currentUser, TransporterAccess access, TimeProvider clock)
+internal sealed class DriverHandler(TransportersDbContext db, ICurrentUser currentUser, TransporterAccess access, TimeProvider clock, Application.MasterData.DocumentPolicyProvider policies)
 {
     public async Task<Result<PagedResult<DriverDto>>> ListAsync(Guid transporterId, string? search, int page, int pageSize, CancellationToken cancellationToken)
     {
@@ -350,7 +352,8 @@ internal sealed class DriverHandler(TransportersDbContext db, ICurrentUser curre
     {
         var documents = await OwnerDocuments.LoadAsync(db, OwnerKind.Driver, drivers.Select(d => d.Id).ToList(), cancellationToken);
         var today = clock.TodayInIndia();
+        var policy = await policies.GetAsync(cancellationToken);
         return drivers.Select(d => new DriverDto(d.Id, d.TransporterId, d.FullName, d.Phone, d.LicenseNumber, d.IsActive,
-            ComplianceEvaluator.ForDriver(documents[d.Id], today).ToDto(), d.Version)).ToList();
+            ComplianceEvaluator.ForDriver(documents[d.Id], today, policy).ToDto(), d.Version)).ToList();
     }
 }

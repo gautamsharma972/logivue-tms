@@ -79,6 +79,6 @@ internal sealed class SelectionRequestValidator : AbstractValidator<SelectionReq
         RuleFor(x => x.Date).NotEmpty();
         RuleFor(x => x.VehicleTypeId).NotNull().When(x => x.Mode == FreightMode.Ftl).WithMessage("Choose the vehicle type for a full-truck load.");
         RuleFor(x => x.DeliverBy).GreaterThan(x => x.PickupBy!.Value).When(x => x.PickupBy.HasValue && x.DeliverBy.HasValue).WithMessage("Delivery must be after pickup.");
-        RuleForEach(x => x.RequiredCapabilities).Must(c => CapabilityCatalog.IsKnown(c)).WithMessage("Unknown capability '{PropertyValue}'.");
+        RuleForEach(x => x.RequiredCapabilities).NotEmpty().MaximumLength(MasterItem.MaxCodeLength);
     }
 }

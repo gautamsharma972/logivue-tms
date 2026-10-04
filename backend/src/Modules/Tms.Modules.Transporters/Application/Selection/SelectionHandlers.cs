@@ -60,9 +60,11 @@ internal sealed class SelectionHandler(SelectionService selection, PerformanceAc
     }
 }
 
-internal sealed class CapabilityHandler(TransportersDbContext db, PerformanceAccess access, ICurrentUser user, TimeProvider clock)
+internal sealed class CapabilityHandler(TransportersDbContext db, PerformanceAccess access, ICurrentUser user, TimeProvider clock, Application.MasterData.DocumentPolicyProvider policies)
 {
-    public static IReadOnlyList<CapabilityTypeDto> Catalog() => CapabilityCatalog.Items.Select(i => new CapabilityTypeDto(i.Code, i.Name)).ToList();
+    /// <summary>The built-in list only; the endpoint merges the tenant's own entries (see <see cref="Catalog(CancellationToken)"/>).</summary>
+    public async Task<IReadOnlyList<CapabilityTypeDto>> Catalog(CancellationToken cancellationToken) =>
+        MasterCatalog.Merge(MasterKind.Capability, await policies.ItemsAsync(cancellationToken)).Where(e => e.IsActive).Select(e => new CapabilityTypeDto(e.Code, e.Name)).ToList();
 
     public async Task<Result<IReadOnlyList<CapabilityDto>>> ListAsync(Guid transporterId, CancellationToken cancellationToken)
     {
@@ -72,7 +74,8 @@ internal sealed class CapabilityHandler(TransportersDbContext db, PerformanceAcc
         }
 
         var items = await db.Capabilities.AsNoTracking().Where(c => c.TransporterId == transporterId).OrderBy(c => c.Code).ThenByDescending(c => c.EffectiveFrom).ToListAsync(cancellationToken);
-        return items.Select(ToDto).ToList();
+        var names = await NamesAsync(cancellationToken);
+        return items.Select(c => ToDto(c, names)).ToList();
     }
 
     public async Task<Result<CapabilityDto>> AddAsync(Guid transporterId, AddCapabilityRequest request, CancellationToken cancellationToken)
@@ -85,6 +88,14 @@ internal sealed class CapabilityHandler(TransportersDbContext db, PerformanceAcc
         if (!await db.TransporterExistsAsync(transporterId, cancellationToken) || user.TenantId is not { } tenantId)
         {
             return PerformanceAccess.NotFound;
+        }
+
+        if (!await policies.IsActiveAsync(MasterKind.Capability, request.Code, cancellationToken))
+        {
+            return Error.Validation("capabilities.unknown", "Choose a capability from the list.") with
+            {
+                ValidationErrors = new Dictionary<string, string[]> { ["code"] = ["Choose a capability from the list."] },
+            };
         }
 
         var capability = TransporterCapability.Create(tenantId, transporterId, request.Code, request.EffectiveFrom, request.EffectiveTo);
@@ -100,7 +111,7 @@ internal sealed class CapabilityHandler(TransportersDbContext db, PerformanceAcc
 
         db.Capabilities.Add(capability.Value);
         await db.SaveChangesAsync(cancellationToken);
-        return ToDto(capability.Value);
+        return ToDto(capability.Value, await NamesAsync(cancellationToken));
     }
 
     public async Task<Result<CapabilityDto>> EndAsync(Guid capabilityId, CancellationToken cancellationToken)
@@ -118,11 +129,14 @@ internal sealed class CapabilityHandler(TransportersDbContext db, PerformanceAcc
         }
 
         await db.SaveChangesAsync(cancellationToken);
-        return ToDto(capability);
+        return ToDto(capability, await NamesAsync(cancellationToken));
     }
 
-    private static CapabilityDto ToDto(TransporterCapability c) =>
-        new(c.Id, c.TransporterId, c.Code, CapabilityCatalog.Items.FirstOrDefault(i => i.Code == c.Code).Name ?? c.Code, c.EffectiveFrom, c.EffectiveTo, c.IsActive);
+    private async Task<Dictionary<string, string>> NamesAsync(CancellationToken cancellationToken) =>
+        MasterCatalog.Merge(MasterKind.Capability, await policies.ItemsAsync(cancellationToken)).ToDictionary(e => e.Code, e => e.Name);
+
+    private static CapabilityDto ToDto(TransporterCapability c, Dictionary<string, string> names) =>
+        new(c.Id, c.TransporterId, c.Code, names.GetValueOrDefault(c.Code, c.Code), c.EffectiveFrom, c.EffectiveTo, c.IsActive);
 }
 
 internal sealed class PlanningRuleHandler(TransportersDbContext db, PerformanceAccess access, ICurrentUser user, TimeProvider clock)

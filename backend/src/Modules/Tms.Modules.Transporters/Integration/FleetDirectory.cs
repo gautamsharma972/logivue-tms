@@ -7,7 +7,7 @@ using Tms.SharedKernel.Contracts;
 namespace Tms.Modules.Transporters.Integration;
 
 /// <summary>Lets planning see a transporter's vehicles and drivers together with whether their papers are in order.</summary>
-internal sealed class FleetDirectory(TransportersDbContext db, TimeProvider clock) : IFleetDirectory
+internal sealed class FleetDirectory(TransportersDbContext db, TimeProvider clock, Application.MasterData.DocumentPolicyProvider policies) : IFleetDirectory
 {
     public async Task<FleetVehicle?> GetVehicleAsync(Guid vehicleId, CancellationToken cancellationToken = default)
     {
@@ -33,10 +33,11 @@ internal sealed class FleetDirectory(TransportersDbContext db, TimeProvider cloc
         var typeIds = vehicles.Select(v => v.VehicleTypeId).Distinct().ToList();
         var types = await db.VehicleTypes.AsNoTracking().Where(t => typeIds.Contains(t.Id)).ToDictionaryAsync(t => t.Id, cancellationToken);
         var today = clock.TodayInIndia();
+        var policy = await policies.GetAsync(cancellationToken);
 
         return vehicles.Select(v =>
         {
-            var compliance = ComplianceEvaluator.ForVehicle(documents[v.Id], today);
+            var compliance = ComplianceEvaluator.ForVehicle(documents[v.Id], today, policy);
             types.TryGetValue(v.VehicleTypeId, out var type);
             return new FleetVehicle(v.Id, v.TransporterId, v.RegistrationNumber, v.VehicleTypeId, type?.Name ?? "Unknown", type?.PayloadKg ?? 0,
                 v.IsActive, Map(compliance.Status), compliance.Issues, v.Availability, v.AvailableFrom, v.AvailableTo, v.AvailabilityNote);
@@ -47,10 +48,11 @@ internal sealed class FleetDirectory(TransportersDbContext db, TimeProvider cloc
     {
         var documents = await Application.Fleet.OwnerDocuments.LoadAsync(db, OwnerKind.Driver, drivers.Select(d => d.Id).ToList(), cancellationToken);
         var today = clock.TodayInIndia();
+        var policy = await policies.GetAsync(cancellationToken);
 
         return drivers.Select(d =>
         {
-            var compliance = ComplianceEvaluator.ForDriver(documents[d.Id], today);
+            var compliance = ComplianceEvaluator.ForDriver(documents[d.Id], today, policy);
             return new FleetDriver(d.Id, d.TransporterId, d.FullName, d.Phone, d.LicenseNumber, d.IsActive, Map(compliance.Status), compliance.Issues);
         }).ToList();
     }

@@ -6,6 +6,7 @@ using Tms.BuildingBlocks.Web.Http;
 using Tms.Modules.Transporters.Application;
 using Tms.Modules.Transporters.Application.Documents;
 using Tms.Modules.Transporters.Application.Fleet;
+using Tms.Modules.Transporters.Application.MasterData;
 using Tms.Modules.Transporters.Application.Operations;
 using Tms.Modules.Transporters.Application.Performance;
 using Tms.Modules.Transporters.Application.Selection;
@@ -76,7 +77,26 @@ internal static class TransporterEndpoints
         group.MapPost("/recommendation", async (SelectionRequest body, SelectionHandler h, CancellationToken ct) => (await h.RecommendAsync(body, ct)).ToHttpResult())
             .WithName("RecommendTransporter").Produces<RecommendationResult>().ProducesValidationProblem();
 
-        group.MapGet("/capability-catalog", () => Results.Ok(CapabilityHandler.Catalog())).WithName("CapabilityCatalog").Produces<IReadOnlyList<CapabilityTypeDto>>();
+        group.MapGet("/capability-catalog", async (CapabilityHandler h, CancellationToken ct) => Results.Ok(await h.Catalog(ct))).WithName("CapabilityCatalog").Produces<IReadOnlyList<CapabilityTypeDto>>();
+
+        // Master lists and document rules: built-in defaults that each tenant can extend or override.
+        group.MapGet("/types", async (MasterDataHandler h, CancellationToken ct) => (await h.ListAsync(MasterKind.TransporterType, ct)).ToHttpResult())
+            .WithName("ListTransporterTypes").Produces<IReadOnlyList<MasterEntryDto>>();
+
+        group.MapPut("/types", async (SaveMasterItemRequest body, MasterDataHandler h, CancellationToken ct) => (await h.SaveAsync(MasterKind.TransporterType, body, ct)).ToHttpResult())
+            .WithValidation<SaveMasterItemRequest>().WithName("SaveTransporterType").Produces<MasterEntryDto>().ProducesValidationProblem();
+
+        group.MapGet("/capability-types", async (MasterDataHandler h, CancellationToken ct) => (await h.ListAsync(MasterKind.Capability, ct)).ToHttpResult())
+            .WithName("ListCapabilityTypes").Produces<IReadOnlyList<MasterEntryDto>>();
+
+        group.MapPut("/capability-types", async (SaveMasterItemRequest body, MasterDataHandler h, CancellationToken ct) => (await h.SaveAsync(MasterKind.Capability, body, ct)).ToHttpResult())
+            .WithValidation<SaveMasterItemRequest>().WithName("SaveCapabilityType").Produces<MasterEntryDto>().ProducesValidationProblem();
+
+        group.MapGet("/document-rules", async (MasterDataHandler h, CancellationToken ct) => (await h.ListRulesAsync(ct)).ToHttpResult())
+            .WithName("ListDocumentRules").Produces<IReadOnlyList<DocumentRuleDto>>();
+
+        group.MapPut("/document-rules/{kind}", async (DocumentKind kind, SaveDocumentRuleRequest body, MasterDataHandler h, CancellationToken ct) => (await h.SaveRuleAsync(kind, body, ct)).ToHttpResult())
+            .WithValidation<SaveDocumentRuleRequest>().WithName("SaveDocumentRule").Produces<DocumentRuleDto>().ProducesValidationProblem();
 
         group.MapGet("/{id:guid}/capabilities", async (Guid id, CapabilityHandler h, CancellationToken ct) => (await h.ListAsync(id, ct)).ToHttpResult())
             .WithName("ListTransporterCapabilities").Produces<IReadOnlyList<CapabilityDto>>();

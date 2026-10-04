@@ -30,6 +30,12 @@ public static class CapabilityCatalog
     public const string HighValue = "HIGH_VALUE";
     public const string FoodGrade = "FOOD_GRADE";
     public const string Odc = "ODC";
+    public const string Fragile = "FRAGILE";
+    public const string HeavyCargo = "HEAVY_CARGO";
+    public const string ReverseLogistics = "REVERSE_LOGISTICS";
+    public const string MilkRun = "MILK_RUN";
+    public const string Express = "EXPRESS";
+    public const string Dedicated = "DEDICATED";
 
     public static IReadOnlyList<(string Code, string Name)> Items { get; } =
     [
@@ -38,6 +44,12 @@ public static class CapabilityCatalog
         (OverDimensional, "Over-dimensional cargo"),
         (HighValue, "High-value goods"),
         (FoodGrade, "Food-grade transport"),
+        (Fragile, "Fragile goods"),
+        (HeavyCargo, "Heavy cargo"),
+        (ReverseLogistics, "Reverse logistics"),
+        (MilkRun, "Milk runs"),
+        (Express, "Express"),
+        (Dedicated, "Dedicated fleet"),
     ];
 
     public static bool IsKnown(string code) => Items.Any(i => string.Equals(i.Code, code.Trim(), StringComparison.OrdinalIgnoreCase));
@@ -65,7 +77,7 @@ public sealed class TransporterCapability : AggregateRoot, ITenantScoped
     public static Result<TransporterCapability> Create(Guid tenantId, Guid transporterId, string code, DateOnly from, DateOnly? to)
     {
         var normal = code?.Trim().ToUpperInvariant() ?? string.Empty;
-        if (!CapabilityCatalog.IsKnown(normal))
+        if (normal.Length is 0 or > 40 || !normal.All(c => c is (>= 'A' and <= 'Z') or (>= '0' and <= '9') or '_'))
         {
             return Error.Validation("capabilities.unknown", "Choose a capability from the list.") with
             {

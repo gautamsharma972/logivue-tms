@@ -17,7 +17,8 @@ public sealed record TransporterSummaryDto(
     string State,
     TransporterStatus Status,
     IReadOnlyList<string> ServiceModes,
-    string Phone);
+    string Phone,
+    string? TypeCode = null);
 
 public sealed record TransporterDto(
     Guid Id,
@@ -38,7 +39,8 @@ public sealed record TransporterDto(
     DateTimeOffset? ActivatedAt,
     DateTimeOffset CreatedAt,
     long Version,
-    IReadOnlyList<string> MissingForSubmission);
+    IReadOnlyList<string> MissingForSubmission,
+    string? TypeCode = null);
 
 public sealed record TransporterLookupDto(Guid Id, string Code, string LegalName);
 
@@ -60,7 +62,8 @@ public sealed record SaveTransporterRequest(
     string State,
     string Pincode,
     IReadOnlyList<string> ServiceModes,
-    long? Version);
+    long? Version,
+    string? TypeCode = null);
 
 public sealed record SaveBankRequest(string AccountHolder, string AccountNumber, string Ifsc, string BankName, long Version);
 

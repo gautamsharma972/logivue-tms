@@ -195,7 +195,7 @@ public class SelectionTests
     [Fact]
     public void Capabilities_and_planning_rules_validate_their_input()
     {
-        TransporterCapability.Create(Tenant, Guid.NewGuid(), "TELEPORTATION", new DateOnly(2026, 1, 1), null).Error.Code.ShouldBe("capabilities.unknown");
+        TransporterCapability.Create(Tenant, Guid.NewGuid(), "not a code!", new DateOnly(2026, 1, 1), null).Error.Code.ShouldBe("capabilities.unknown");
         PlanningRule.Create(Tenant, Guid.NewGuid(), PlanningRuleType.Restricted, null, " ", new DateOnly(2026, 1, 1), null).Error.ValidationErrors!.ShouldContainKey("reason");
         PlanningRule.Create(Tenant, Guid.NewGuid(), PlanningRuleType.PreferredLane, null, "x", new DateOnly(2026, 1, 1), null).Error.ValidationErrors!.ShouldContainKey("laneId");
     }

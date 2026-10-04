@@ -58,6 +58,10 @@ public sealed class TransportersDbContext(DbContextOptions<TransportersDbContext
 
     public DbSet<TransporterBranch> Branches => Set<TransporterBranch>();
 
+    public DbSet<MasterItem> MasterItems => Set<MasterItem>();
+
+    public DbSet<DocumentRule> DocumentRules => Set<DocumentRule>();
+
     protected override void ConfigureModel(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Schema);

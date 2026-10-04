@@ -86,10 +86,6 @@ public sealed class ComplianceDocument : AggregateRoot, ITenantScoped
 
     public static IReadOnlyList<DocumentKind> KindsFor(OwnerKind owner) => KindsByOwner[owner];
 
-    /// <summary>Kinds that are meaningless without a validity date.</summary>
-    public static bool RequiresExpiry(DocumentKind kind) =>
-        kind is DocumentKind.Insurance or DocumentKind.Fitness or DocumentKind.Permit or DocumentKind.Puc or DocumentKind.DrivingLicense;
-
     public static Result<ComplianceDocument> Create(
         Guid tenantId,
         Guid transporterId,
@@ -102,7 +98,8 @@ public sealed class ComplianceDocument : AggregateRoot, ITenantScoped
         string fileKey,
         string fileName,
         string contentType,
-        long sizeBytes)
+        long sizeBytes,
+        DocumentPolicy? policy = null)
     {
         var errors = new FieldErrors();
         if (!KindsByOwner[ownerKind].Contains(kind))
@@ -110,7 +107,7 @@ public sealed class ComplianceDocument : AggregateRoot, ITenantScoped
             errors.Add("kind", $"{kind} is not a valid document for a {ownerKind.ToString().ToLowerInvariant()}.");
         }
 
-        if (RequiresExpiry(kind) && expiresOn is null)
+        if ((policy ?? DocumentPolicy.Default).For(kind) is { IsActive: true, ExpiryRequired: true } && expiresOn is null)
         {
             errors.Add("expiresOn", "An expiry date is required for this document.");
         }
@@ -150,7 +147,7 @@ public sealed class ComplianceDocument : AggregateRoot, ITenantScoped
     public void Supersede(DateTimeOffset now) => SupersededAt ??= now;
 
     /// <summary>A document is valid through its expiry date inclusive.</summary>
-    public ExpiryStatus StatusOn(DateOnly today)
+    public ExpiryStatus StatusOn(DateOnly today, int? reminderDays = null)
     {
         if (ExpiresOn is not { } expires)
         {
@@ -162,7 +159,7 @@ public sealed class ComplianceDocument : AggregateRoot, ITenantScoped
             return ExpiryStatus.Expired;
         }
 
-        return expires <= today.AddDays(ExpiringSoonDays) ? ExpiryStatus.ExpiringSoon : ExpiryStatus.Valid;
+        return expires <= today.AddDays(reminderDays ?? ExpiringSoonDays) ? ExpiryStatus.ExpiringSoon : ExpiryStatus.Valid;
     }
 }
 
@@ -175,36 +172,34 @@ public enum ComplianceStatus
 
 public sealed record ComplianceResult(ComplianceStatus Status, IReadOnlyList<string> Issues);
 
-/// <summary>Decides whether a vehicle or driver may be put to work, from the papers on file.</summary>
+/// <summary>Decides whether a vehicle or driver may be put to work, from the papers on file and the tenant's document rules.</summary>
 public static class ComplianceEvaluator
 {
-    private static readonly DocumentKind[] RequiredForVehicle =
-        [DocumentKind.RegistrationCertificate, DocumentKind.Insurance, DocumentKind.Fitness, DocumentKind.Permit];
+    public static ComplianceResult ForVehicle(IEnumerable<ComplianceDocument> documents, DateOnly today, DocumentPolicy? policy = null) =>
+        Evaluate(documents, OwnerKind.Vehicle, today, policy ?? DocumentPolicy.Default);
 
-    public static ComplianceResult ForVehicle(IEnumerable<ComplianceDocument> documents, DateOnly today) =>
-        Evaluate(documents, RequiredForVehicle, today);
+    public static ComplianceResult ForDriver(IEnumerable<ComplianceDocument> documents, DateOnly today, DocumentPolicy? policy = null) =>
+        Evaluate(documents, OwnerKind.Driver, today, policy ?? DocumentPolicy.Default);
 
-    public static ComplianceResult ForDriver(IEnumerable<ComplianceDocument> documents, DateOnly today) =>
-        Evaluate(documents, [DocumentKind.DrivingLicense], today);
-
-    private static ComplianceResult Evaluate(IEnumerable<ComplianceDocument> documents, DocumentKind[] required, DateOnly today)
+    private static ComplianceResult Evaluate(IEnumerable<ComplianceDocument> documents, OwnerKind owner, DateOnly today, DocumentPolicy policy)
     {
         var current = documents.Where(d => d.IsCurrent).GroupBy(d => d.Kind).ToDictionary(g => g.Key, g => g.OrderByDescending(d => d.CreatedAt).First());
         var blocking = new List<string>();
         var warnings = new List<string>();
 
-        foreach (var kind in required)
+        foreach (var kind in policy.RequiredFor(owner))
         {
+            var rule = policy.For(kind);
             if (!current.TryGetValue(kind, out var document))
             {
                 blocking.Add($"{Label(kind)} missing");
                 continue;
             }
 
-            switch (document.StatusOn(today))
+            switch (document.StatusOn(today, rule.RenewalReminderDays))
             {
                 case ExpiryStatus.Expired:
-                    blocking.Add($"{Label(kind)} expired on {document.ExpiresOn:dd MMM yyyy}");
+                    (rule.BlockWhenExpired ? blocking : warnings).Add($"{Label(kind)} expired on {document.ExpiresOn:dd MMM yyyy}");
                     break;
                 case ExpiryStatus.ExpiringSoon:
                     warnings.Add($"{Label(kind)} expires on {document.ExpiresOn:dd MMM yyyy}");

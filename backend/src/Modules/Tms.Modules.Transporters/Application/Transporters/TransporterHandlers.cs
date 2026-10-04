@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Tms.Modules.Transporters.Application.MasterData;
 using Tms.Modules.Transporters.Domain;
 using Tms.Modules.Transporters.Infrastructure.Persistence;
 using Tms.SharedKernel.Contracts;
@@ -65,7 +66,7 @@ internal sealed class LookupTransportersHandler(TransportersDbContext db, Transp
     }
 }
 
-internal sealed class GetTransporterHandler(TransportersDbContext db, TransporterAccess access)
+internal sealed class GetTransporterHandler(TransportersDbContext db, TransporterAccess access, DocumentPolicyProvider policies)
 {
     public async Task<Result<TransporterDto>> HandleAsync(Guid id, CancellationToken cancellationToken)
     {
@@ -77,7 +78,7 @@ internal sealed class GetTransporterHandler(TransportersDbContext db, Transporte
 
         var transporter = found.Value;
         var missing = transporter.Status is TransporterStatus.Draft or TransporterStatus.Rejected
-            ? transporter.MissingForSubmission(await db.TransporterDocumentKindsAsync(id, cancellationToken))
+            ? transporter.MissingForSubmission(await db.TransporterDocumentKindsAsync(id, cancellationToken), await policies.GetAsync(cancellationToken))
             : [];
         return transporter.ToDto(missing);
     }
@@ -85,15 +86,37 @@ internal sealed class GetTransporterHandler(TransportersDbContext db, Transporte
 
 internal sealed class CreateTransporterHandler(
     TransportersDbContext db,
+    DocumentPolicyProvider policies,
     ICurrentUser currentUser,
     TransporterAccess access,
     NumberSequence sequence)
 {
+    /// <summary>A type must come from the active transporter-type list; keeping the one already set is always fine (it may have been switched off since).</summary>
+    internal static async Task<Error?> InvalidTypeAsync(string? code, string? current, DocumentPolicyProvider policies, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(code) || string.Equals(MasterItem.NormaliseCode(code), current, StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        return await policies.IsActiveAsync(MasterKind.TransporterType, code, cancellationToken)
+            ? null
+            : Error.Validation("transporters.type_unknown", "Choose a transporter type from the list.") with
+            {
+                ValidationErrors = new Dictionary<string, string[]> { ["typeCode"] = ["Choose a transporter type from the list."] },
+            };
+    }
+
     public async Task<Result<TransporterDto>> HandleAsync(SaveTransporterRequest request, CancellationToken cancellationToken)
     {
         if (!access.CanManageInternally)
         {
             return TransporterAccess.Forbidden;
+        }
+
+        if (await InvalidTypeAsync(request.TypeCode, null, policies, cancellationToken) is { } badType)
+        {
+            return badType;
         }
 
         var tenantId = currentUser.TenantId!.Value;
@@ -121,7 +144,7 @@ internal sealed class CreateTransporterHandler(
             return DuplicateCheck.FromException(ex);
         }
 
-        return transporter.ToDto(transporter.MissingForSubmission([]));
+        return transporter.ToDto(transporter.MissingForSubmission([], await policies.GetAsync(cancellationToken)));
     }
 }
 
@@ -148,7 +171,7 @@ internal static class DuplicateCheck
             : Error.Conflict("transporters.pan_exists", "A transporter with this PAN already exists.");
 }
 
-internal sealed class UpdateTransporterHandler(TransportersDbContext db, TransporterAccess access)
+internal sealed class UpdateTransporterHandler(TransportersDbContext db, TransporterAccess access, DocumentPolicyProvider policies)
 {
     public async Task<Result<TransporterDto>> HandleAsync(Guid id, SaveTransporterRequest request, CancellationToken cancellationToken)
     {
@@ -167,8 +190,12 @@ internal sealed class UpdateTransporterHandler(TransportersDbContext db, Transpo
         var profile = request.ToProfile();
         if (access.IsVendor)
         {
-            // Vendors maintain contact details only; who the company *is* stays under the buyer's control.
-            profile = profile with { LegalName = transporter.LegalName, Pan = transporter.Pan, Gstin = transporter.Gstin };
+            // Vendors maintain contact details only; who the company *is* (and what type of operator) stays under the buyer's control.
+            profile = profile with { LegalName = transporter.LegalName, Pan = transporter.Pan, Gstin = transporter.Gstin, TypeCode = transporter.TypeCode };
+        }
+        else if (await CreateTransporterHandler.InvalidTypeAsync(request.TypeCode, transporter.TypeCode, policies, cancellationToken) is { } badType)
+        {
+            return badType;
         }
 
         db.Entry(transporter).Property(t => t.Version).OriginalValue = request.Version.Value;
@@ -194,13 +221,13 @@ internal sealed class UpdateTransporterHandler(TransportersDbContext db, Transpo
         }
 
         var missing = transporter.Status is TransporterStatus.Draft or TransporterStatus.Rejected
-            ? transporter.MissingForSubmission(await db.TransporterDocumentKindsAsync(id, cancellationToken))
+            ? transporter.MissingForSubmission(await db.TransporterDocumentKindsAsync(id, cancellationToken), await policies.GetAsync(cancellationToken))
             : [];
         return transporter.ToDto(missing);
     }
 }
 
-internal sealed class UpdateBankHandler(TransportersDbContext db, TransporterAccess access)
+internal sealed class UpdateBankHandler(TransportersDbContext db, TransporterAccess access, DocumentPolicyProvider policies)
 {
     public async Task<Result<TransporterDto>> HandleAsync(Guid id, SaveBankRequest request, CancellationToken cancellationToken)
     {
@@ -226,7 +253,7 @@ internal sealed class UpdateBankHandler(TransportersDbContext db, TransporterAcc
         await db.SaveChangesAsync(cancellationToken);
 
         var missing = transporter.Status is TransporterStatus.Draft or TransporterStatus.Rejected
-            ? transporter.MissingForSubmission(await db.TransporterDocumentKindsAsync(id, cancellationToken))
+            ? transporter.MissingForSubmission(await db.TransporterDocumentKindsAsync(id, cancellationToken), await policies.GetAsync(cancellationToken))
             : [];
         return transporter.ToDto(missing);
     }
@@ -236,6 +263,7 @@ internal sealed class UpdateBankHandler(TransportersDbContext db, TransporterAcc
 internal sealed class SubmitTransporterHandler(
     TransportersDbContext db,
     TransporterAccess access,
+    DocumentPolicyProvider policies,
     IApprovalGateway approvals,
     TimeProvider clock)
 {
@@ -260,7 +288,7 @@ internal sealed class SubmitTransporterHandler(
             return Error.Conflict("transporters.not_submittable", "Only a draft or rejected transporter can be submitted for approval.");
         }
 
-        var missing = transporter.MissingForSubmission(await db.TransporterDocumentKindsAsync(id, cancellationToken));
+        var missing = transporter.MissingForSubmission(await db.TransporterDocumentKindsAsync(id, cancellationToken), await policies.GetAsync(cancellationToken));
         if (missing.Count > 0)
         {
             return Error.Validation("transporters.onboarding_incomplete", "Complete the onboarding requirements before submitting.") with

@@ -35,7 +35,8 @@ internal sealed class DocumentHandler(
     ICurrentUser currentUser,
     TransporterAccess access,
     IFileStore files,
-    TimeProvider clock)
+    TimeProvider clock,
+    Application.MasterData.DocumentPolicyProvider policies)
 {
     public async Task<Result<IReadOnlyList<DocumentDto>>> ListAsync(Guid transporterId, OwnerKind? ownerKind, Guid? ownerId, bool includeSuperseded, CancellationToken cancellationToken)
     {
@@ -63,7 +64,8 @@ internal sealed class DocumentHandler(
 
         var today = clock.TodayInIndia();
         var rows = await documents.OrderBy(d => d.OwnerKind).ThenBy(d => d.Kind).ThenByDescending(d => d.CreatedAt).ToListAsync(cancellationToken);
-        return Result.Success<IReadOnlyList<DocumentDto>>(rows.Select(d => d.ToDto(today)).ToList());
+        var policy = await policies.GetAsync(cancellationToken);
+        return Result.Success<IReadOnlyList<DocumentDto>>(rows.Select(d => d.ToDto(today, policy)).ToList());
     }
 
     public async Task<Result<DocumentDto>> UploadAsync(Guid transporterId, UploadDocumentForm form, CancellationToken cancellationToken)
@@ -105,7 +107,8 @@ internal sealed class DocumentHandler(
 
         var created = ComplianceDocument.Create(
             tenantId, transporterId, form.OwnerKind, form.OwnerId, form.Kind, form.Number, form.IssuedOn, form.ExpiresOn,
-            key, string.IsNullOrWhiteSpace(fileName) ? $"document{extension}" : fileName[..Math.Min(fileName.Length, 255)], contentType, file.Length);
+            key, string.IsNullOrWhiteSpace(fileName) ? $"document{extension}" : fileName[..Math.Min(fileName.Length, 255)], contentType, file.Length,
+            await policies.GetAsync(cancellationToken));
         if (created.IsFailure)
         {
             return created.Error;
@@ -130,7 +133,7 @@ internal sealed class DocumentHandler(
             throw;
         }
 
-        return created.Value.ToDto(clock.TodayInIndia());
+        return created.Value.ToDto(clock.TodayInIndia(), await policies.GetAsync(cancellationToken));
     }
 
     public async Task<Result<DownloadedFile>> DownloadAsync(Guid documentId, CancellationToken cancellationToken)
@@ -171,7 +174,7 @@ internal sealed class DocumentHandler(
 }
 
 /// <summary>Everything that has expired or expires soon, oldest first — the worklist for chasing renewals.</summary>
-internal sealed class ComplianceReportHandler(TransportersDbContext db, TransporterAccess access, TimeProvider clock)
+internal sealed class ComplianceReportHandler(TransportersDbContext db, TransporterAccess access, TimeProvider clock, Application.MasterData.DocumentPolicyProvider policies)
 {
     public async Task<Result<PagedResult<ComplianceItemDto>>> HandleAsync(ComplianceReportQuery query, CancellationToken cancellationToken)
     {
@@ -199,8 +202,9 @@ internal sealed class ComplianceReportHandler(TransportersDbContext db, Transpor
         var drivers = await db.Drivers.AsNoTracking().Where(d => driverIds.Contains(d.Id)).ToDictionaryAsync(d => d.Id, d => d.FullName, cancellationToken);
         var transporters = await db.Transporters.AsNoTracking().Where(t => transporterIds.Contains(t.Id)).ToDictionaryAsync(t => t.Id, t => t.LegalName, cancellationToken);
 
+        var policy = await policies.GetAsync(cancellationToken);
         var items = page.Items.Select(d => new ComplianceItemDto(
-            d.ToDto(today),
+            d.ToDto(today, policy),
             d.OwnerKind switch
             {
                 OwnerKind.Vehicle => vehicles.GetValueOrDefault(d.OwnerId, "Vehicle"),

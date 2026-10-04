@@ -54,6 +54,7 @@ public static class TransportersModule
         services.AddScoped<ITransporterPlanningPolicy>(sp => sp.GetRequiredService<Application.Selection.TransporterPlanningPolicy>());
         services.AddScoped<IDomainEventHandler<ShipmentTendered>, ShipmentTenderedSubscriber>();
         services.AddScoped<IDomainEventHandler<ShipmentAccepted>, ShipmentAcceptedSubscriber>();
+        services.AddScoped<Application.MasterData.DocumentPolicyProvider>();
         services.AddScoped<IDomainEventHandler<ShipmentRejected>, ShipmentRejectedSubscriber>();
         services.AddScoped<IDomainEventHandler<ShipmentTenderExpired>, ShipmentTenderExpiredSubscriber>();
         services.AddScoped<IDomainEventHandler<ShipmentTenderWithdrawn>, ShipmentTenderWithdrawnSubscriber>();

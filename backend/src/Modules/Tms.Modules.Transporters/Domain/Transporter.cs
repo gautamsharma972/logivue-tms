@@ -45,7 +45,8 @@ public sealed record TransporterProfile(
     string Phone,
     string Email,
     Address Address,
-    ServiceModes ServiceModes);
+    ServiceModes ServiceModes,
+    string? TypeCode = null);
 
 /// <summary>
 /// A freight vendor. Moves Draft → PendingApproval → Active through the approval engine; identity details
@@ -89,6 +90,9 @@ public sealed class Transporter : AggregateRoot, ITenantScoped
     public string Pincode { get; private set; } = null!;
 
     public ServiceModes ServiceModes { get; private set; }
+
+    /// <summary>What sort of operator this is (a code from the transporter-type list); optional.</summary>
+    public string? TypeCode { get; private set; }
 
     public string? BankAccountHolder { get; private set; }
 
@@ -166,8 +170,9 @@ public sealed class Transporter : AggregateRoot, ITenantScoped
     }
 
     /// <summary>What is still missing before this transporter can be sent for approval. Empty means ready.</summary>
-    public IReadOnlyList<string> MissingForSubmission(IReadOnlyCollection<DocumentKind> documentsOnFile)
+    public IReadOnlyList<string> MissingForSubmission(IReadOnlyCollection<DocumentKind> documentsOnFile, DocumentPolicy? policy = null)
     {
+        policy ??= DocumentPolicy.Default;
         var missing = new List<string>();
         if (!HasBankDetails)
         {
@@ -179,21 +184,14 @@ public sealed class Transporter : AggregateRoot, ITenantScoped
             missing.Add("At least one service mode (FTL / PTL / Dedicated)");
         }
 
-        if (!documentsOnFile.Contains(DocumentKind.PanCard))
+        // A GST certificate is expected whenever the transporter has a GSTIN, unless the tenant has switched that paper off.
+        var required = policy.RequiredFor(OwnerKind.Transporter).ToList();
+        if (Gstin is not null && policy.For(DocumentKind.GstCertificate).IsActive && !required.Contains(DocumentKind.GstCertificate))
         {
-            missing.Add("PAN card");
+            required.Add(DocumentKind.GstCertificate);
         }
 
-        if (!documentsOnFile.Contains(DocumentKind.CancelledCheque))
-        {
-            missing.Add("Cancelled cheque");
-        }
-
-        if (Gstin is not null && !documentsOnFile.Contains(DocumentKind.GstCertificate))
-        {
-            missing.Add("GST registration certificate");
-        }
-
+        missing.AddRange(required.Where(k => !documentsOnFile.Contains(k)).Select(k => k == DocumentKind.GstCertificate ? "GST registration certificate" : ComplianceEvaluator.Label(k)));
         return missing;
     }
 
@@ -358,6 +356,7 @@ public sealed class Transporter : AggregateRoot, ITenantScoped
         State = p.Address.State.Trim();
         Pincode = p.Address.Pincode.Trim();
         ServiceModes = p.ServiceModes;
+        TypeCode = string.IsNullOrWhiteSpace(p.TypeCode) ? null : MasterItem.NormaliseCode(p.TypeCode);
         return Result.Success();
     }
 }
