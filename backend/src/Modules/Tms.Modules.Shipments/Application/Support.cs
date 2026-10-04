@@ -34,6 +34,9 @@ internal sealed class ShipmentAccess(ICurrentUser user)
             ? Has(ShipmentPermissions.Respond) && shipment.TransporterId == VendorTransporterId && shipment.Status != ShipmentStatus.Draft
             : CanRead;
 
+    /// <summary>A vendor with the respond permission may see a shipment out to broadcast tender; the loader then checks it was invited.</summary>
+    public bool MayBeInvitedTo(Shipment shipment) => IsVendor && Has(ShipmentPermissions.Respond) && shipment.Status == ShipmentStatus.Bidding;
+
     public static readonly Error Forbidden = Error.Forbidden("shipments.forbidden", "You are not allowed to do that.");
 
     public static readonly Error ShipmentNotFound = Error.NotFound("shipments.not_found", "Shipment not found.");

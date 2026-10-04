@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Tms.Modules.Shipments.Application.Tendering;
 using Tms.Modules.Shipments.Domain;
 using Tms.Modules.Shipments.Infrastructure.Persistence;
 using Tms.SharedKernel.Contracts;
@@ -8,10 +9,11 @@ using Tms.SharedKernel.Security;
 
 namespace Tms.Modules.Shipments.Application.Shipments;
 
-internal sealed class ListShipmentsHandler(ShipmentsDbContext db, ShipmentAccess access, ShipmentLoader loader)
+internal sealed class ListShipmentsHandler(ShipmentsDbContext db, ShipmentAccess access, ShipmentLoader loader, TenderLifecycle tenders)
 {
     public async Task<Result<PagedResult<ShipmentSummaryDto>>> HandleAsync(ListShipmentsQuery query, CancellationToken cancellationToken)
     {
+        await tenders.SweepAsync(cancellationToken);
         var shipments = db.Shipments.AsNoTracking().Include(s => s.Orders).AsQueryable();
         if (access.IsVendor)
         {
@@ -20,7 +22,11 @@ internal sealed class ListShipmentsHandler(ShipmentsDbContext db, ShipmentAccess
                 return ShipmentAccess.Forbidden;
             }
 
-            shipments = shipments.Where(s => s.TransporterId == mine && s.Status != ShipmentStatus.Draft);
+            // Their own loads once offered to them, and loads out to broadcast tender that invite them.
+            shipments = shipments.Where(s =>
+                (s.TransporterId == mine && s.Status != ShipmentStatus.Draft)
+                || (s.Status == ShipmentStatus.Bidding
+                    && db.TenderInvitees.Any(i => i.ShipmentId == s.Id && i.TransporterId == mine && (i.Status == InviteeStatus.Sent || i.Status == InviteeStatus.Bid))));
         }
         else if (!access.CanRead)
         {
@@ -47,10 +53,11 @@ internal sealed class ListShipmentsHandler(ShipmentsDbContext db, ShipmentAccess
     }
 }
 
-internal sealed class GetShipmentHandler(ShipmentLoader loader)
+internal sealed class GetShipmentHandler(ShipmentLoader loader, TenderLifecycle tenders)
 {
     public async Task<Result<ShipmentDto>> HandleAsync(Guid id, CancellationToken cancellationToken)
     {
+        await tenders.SweepAsync(cancellationToken);
         var shipment = await loader.FindAsync(id, tracked: false, cancellationToken);
         return shipment.IsFailure ? shipment.Error : await loader.ToDtoAsync(shipment.Value, cancellationToken);
     }
@@ -241,16 +248,35 @@ internal sealed class TenderShipmentHandler(ShipmentsDbContext db, ShipmentAcces
 
 /// <summary>Lifecycle moves after tendering: withdraw, accept, reject, reassign, dispatch, deliver, cancel.</summary>
 internal sealed class ShipmentLifecycleHandler(
-    ShipmentsDbContext db, ShipmentAccess access, ShipmentLoader loader, IFleetDirectory fleet, ISequenceGenerator sequences, ICurrentUser user, TimeProvider clock)
+    ShipmentsDbContext db, ShipmentAccess access, ShipmentLoader loader, IFleetDirectory fleet, ISequenceGenerator sequences, ICurrentUser user, TimeProvider clock,
+    TenderLifecycle tenders)
 {
     public Task<Result<ShipmentDto>> WithdrawAsync(Guid id, CancellationToken ct) =>
-        PlannerAsync(id, (s, _) => Task.FromResult(s.Withdraw()), ct);
+        PlannerAsync(id, async (s, c) =>
+        {
+            var withdrawn = s.Withdraw();
+            if (withdrawn.IsSuccess)
+            {
+                await tenders.AfterWithdrawnAsync(s, "The offer was withdrawn.", c);
+            }
+
+            return withdrawn;
+        }, ct);
 
     public Task<Result<ShipmentDto>> DeliverAsync(Guid id, CancellationToken ct) =>
         PlannerAsync(id, async (s, c) => s.Deliver((await loader.LoadOrdersAsync(s, c)).Values, clock.GetUtcNow()), ct);
 
     public Task<Result<ShipmentDto>> CancelAsync(Guid id, ReasonRequest request, CancellationToken ct) =>
-        PlannerAsync(id, async (s, c) => s.Cancel(request.Reason, (await loader.LoadOrdersAsync(s, c)).Values), ct);
+        PlannerAsync(id, async (s, c) =>
+        {
+            var cancelled = s.Cancel(request.Reason, (await loader.LoadOrdersAsync(s, c)).Values);
+            if (cancelled.IsSuccess)
+            {
+                await tenders.AfterWithdrawnAsync(s, request.Reason.Trim(), c);
+            }
+
+            return cancelled;
+        }, ct);
 
     public Task<Result<ShipmentDto>> DispatchAsync(Guid id, CancellationToken ct) =>
         PlannerAsync(id, async (s, c) =>
@@ -273,11 +299,27 @@ internal sealed class ShipmentLifecycleHandler(
         ResponderAsync(id, async (s, c) =>
         {
             var fleetPick = await ResolveFleetAsync(request, c);
-            return fleetPick.IsFailure ? fleetPick.Error : s.Accept(fleetPick.Value.Vehicle, fleetPick.Value.Driver, clock.GetUtcNow());
+            var accepted = fleetPick.IsFailure ? fleetPick.Error : s.Accept(fleetPick.Value.Vehicle, fleetPick.Value.Driver, clock.GetUtcNow());
+            if (accepted.IsSuccess)
+            {
+                await tenders.AfterAcceptedAsync(s, c);
+            }
+
+            return accepted;
         }, ct);
 
     public Task<Result<ShipmentDto>> RejectAsync(Guid id, ReasonRequest request, CancellationToken ct) =>
-        ResponderAsync(id, (s, _) => Task.FromResult(s.Reject(request.Reason, clock.GetUtcNow())), ct);
+        ResponderAsync(id, async (s, c) =>
+        {
+            var carrier = s.TransporterId;
+            var rejected = s.Reject(request.Reason, clock.GetUtcNow());
+            if (rejected.IsSuccess && carrier is { } declinedBy)
+            {
+                await tenders.AfterRejectedAsync(s, declinedBy, request.Reason.Trim(), c);
+            }
+
+            return rejected;
+        }, ct);
 
     public Task<Result<ShipmentDto>> ReassignAsync(Guid id, AcceptRequest request, CancellationToken ct) =>
         ResponderAsync(id, async (s, c) =>
@@ -303,6 +345,7 @@ internal sealed class ShipmentLifecycleHandler(
 
     private async Task<Result<ShipmentDto>> RunAsync(Guid id, Func<Shipment, CancellationToken, Task<Result>> act, CancellationToken cancellationToken)
     {
+        await tenders.SweepAsync(cancellationToken); // a missed deadline must be settled before anyone answers
         var found = await loader.FindAsync(id, tracked: true, cancellationToken);
         if (found.IsFailure)
         {
@@ -337,7 +380,10 @@ internal sealed class FleetOptionsHandler(ShipmentAccess access, ShipmentLoader 
         }
 
         var shipment = found.Value;
-        if (shipment.TransporterId is not { } transporterId)
+
+        // Out to broadcast tender nobody holds the load yet: a vendor sees its own fleet.
+        var holder = shipment.Status == ShipmentStatus.Bidding && access.IsVendor ? access.VendorTransporterId : shipment.TransporterId;
+        if (holder is not { } transporterId)
         {
             return Error.Conflict("shipments.not_tendered", "This shipment has not been tendered to a transporter yet.");
         }

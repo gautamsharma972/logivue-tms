@@ -9,6 +9,12 @@ public sealed record ShipmentAccepted(Guid ShipmentId, Guid TenantId, string Num
 
 public sealed record ShipmentRejected(Guid ShipmentId, Guid TenantId, string Number, Guid TransporterId, DateTimeOffset RejectedAt, string Reason) : DomainEvent;
 
+/// <summary>A transporter did not answer an offer before its deadline. Counted as a tender that was not accepted.</summary>
+public sealed record ShipmentTenderExpired(Guid ShipmentId, Guid TenantId, string Number, Guid TransporterId, DateTimeOffset ExpiredAt) : DomainEvent;
+
+/// <summary>An offer was closed without the transporter's fault (another carrier was awarded, or the tender was cancelled). Not counted either way.</summary>
+public sealed record ShipmentTenderWithdrawn(Guid ShipmentId, Guid TenantId, string Number, Guid TransporterId, string Reason) : DomainEvent;
+
 /// <summary>A shipment that had been offered or accepted was cancelled. Open placements and loads for it are closed.</summary>
 public sealed record ShipmentCancelled(Guid ShipmentId, Guid TenantId, string Number, Guid TransporterId, string Reason) : DomainEvent;
 

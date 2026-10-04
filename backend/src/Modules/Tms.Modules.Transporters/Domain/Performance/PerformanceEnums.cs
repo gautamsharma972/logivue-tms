@@ -53,4 +53,10 @@ public enum InvitationOutcome
     Open = 0,
     Accepted = 1,
     Rejected = 2,
+
+    /// <summary>No answer before the deadline.</summary>
+    Expired = 3,
+
+    /// <summary>Closed by the buyer (another carrier was awarded, or the tender was cancelled). Not held against the transporter.</summary>
+    Withdrawn = 4,
 }

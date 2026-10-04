@@ -12,6 +12,7 @@ using Tms.Modules.Shipments.Application.Planning;
 using Tms.Modules.Shipments.Application.PlanningRuns;
 using Tms.Modules.Shipments.Domain;
 using Tms.Modules.Shipments.Application.Shipments;
+using Tms.Modules.Shipments.Application.Tendering;
 using Tms.SharedKernel.Paging;
 using Tms.SharedKernel.Results;
 
@@ -272,6 +273,31 @@ internal static class ShipmentEndpoints
 
         group.MapPost("/{id:guid}/tender", async (Guid id, TenderRequest body, TenderShipmentHandler h, CancellationToken ct) => (await h.HandleAsync(id, body, ct)).ToHttpResult())
             .WithValidation<TenderRequest>().WithName("TenderShipment").Produces<ShipmentDto>().ProducesValidationProblem();
+
+        // Tenders to several transporters: sequential (one after another) or broadcast (all at once, a planner awards a bid).
+        group.MapGet("/{id:guid}/tenders", async (Guid id, ListTendersHandler h, CancellationToken ct) => (await h.HandleAsync(id, ct)).ToHttpResult())
+            .WithName("ListShipmentTenders").Produces<IReadOnlyList<TenderDto>>();
+
+        group.MapPost("/{id:guid}/tenders", async (Guid id, StartTenderRequest body, StartTenderHandler h, CancellationToken ct) => (await h.HandleAsync(id, body, ct)).ToHttpResult())
+            .WithValidation<StartTenderRequest>().WithName("StartShipmentTender").Produces<TenderDto>().ProducesValidationProblem();
+
+        group.MapPost("/{id:guid}/tenders/award", async (Guid id, AwardTenderRequest body, TenderDecisionHandler h, CancellationToken ct) => (await h.AwardAsync(id, body, ct)).ToHttpResult())
+            .WithValidation<AwardTenderRequest>().WithName("AwardShipmentTender").Produces<TenderDto>();
+
+        group.MapPost("/{id:guid}/tenders/counter-decision", async (Guid id, CounterDecisionRequest body, TenderDecisionHandler h, CancellationToken ct) => (await h.DecideCounterAsync(id, body, ct)).ToHttpResult())
+            .WithValidation<CounterDecisionRequest>().WithName("DecideTenderCounterOffer").Produces<TenderDto>();
+
+        group.MapPost("/{id:guid}/tenders/cancel", async (Guid id, ReasonRequest body, TenderDecisionHandler h, CancellationToken ct) => (await h.CancelAsync(id, body, ct)).ToHttpResult())
+            .WithValidation<ReasonRequest>().WithName("CancelShipmentTender").Produces<TenderDto>();
+
+        group.MapPost("/{id:guid}/tenders/bid", async (Guid id, BidRequest body, TenderResponseHandler h, CancellationToken ct) => (await h.BidAsync(id, body, ct)).ToHttpResult())
+            .WithValidation<BidRequest>().WithName("BidOnShipmentTender").Produces<TenderDto>();
+
+        group.MapPost("/{id:guid}/tenders/counter", async (Guid id, CounterOfferRequest body, TenderResponseHandler h, CancellationToken ct) => (await h.CounterAsync(id, body, ct)).ToHttpResult())
+            .WithValidation<CounterOfferRequest>().WithName("CounterShipmentTender").Produces<TenderDto>();
+
+        group.MapPost("/{id:guid}/tenders/decline", async (Guid id, DeclineTenderRequest body, TenderResponseHandler h, CancellationToken ct) => (await h.DeclineAsync(id, body, ct)).ToHttpResult())
+            .WithValidation<DeclineTenderRequest>().WithName("DeclineShipmentTender").Produces<TenderDto>();
 
         group.MapPost("/{id:guid}/withdraw", async (Guid id, ShipmentLifecycleHandler h, CancellationToken ct) => (await h.WithdrawAsync(id, ct)).ToHttpResult())
             .WithName("WithdrawShipment").Produces<ShipmentDto>();

@@ -55,6 +55,8 @@ public static class TransportersModule
         services.AddScoped<IDomainEventHandler<ShipmentTendered>, ShipmentTenderedSubscriber>();
         services.AddScoped<IDomainEventHandler<ShipmentAccepted>, ShipmentAcceptedSubscriber>();
         services.AddScoped<IDomainEventHandler<ShipmentRejected>, ShipmentRejectedSubscriber>();
+        services.AddScoped<IDomainEventHandler<ShipmentTenderExpired>, ShipmentTenderExpiredSubscriber>();
+        services.AddScoped<IDomainEventHandler<ShipmentTenderWithdrawn>, ShipmentTenderWithdrawnSubscriber>();
         services.AddScoped<IDomainEventHandler<ShipmentDispatched>, ShipmentDispatchedSubscriber>();
         services.AddScoped<IDomainEventHandler<ShipmentDelivered>, ShipmentDeliveredSubscriber>();
         services.AddScoped<IDomainEventHandler<ShipmentVehicleReassigned>, ShipmentVehicleReassignedSubscriber>();

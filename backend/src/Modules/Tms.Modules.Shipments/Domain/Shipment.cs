@@ -20,6 +20,9 @@ public enum ShipmentStatus
     Delivered = 5,
 
     Cancelled = 6,
+
+    /// <summary>Offered to several transporters at once (a broadcast tender); no one holds it until a planner awards a bid.</summary>
+    Bidding = 7,
 }
 
 /// <summary>An order's place on a shipment: its drop sequence and, once the shipment leaves, its lorry-receipt number.</summary>
@@ -556,6 +559,96 @@ public sealed class Shipment : AggregateRoot, ITenantScoped
         return Result.Success();
     }
 
+    /// <summary>Opens the shipment to a broadcast tender: locked for editing, visible to every invited transporter.</summary>
+    public Result StartBidding(DateTimeOffset now)
+    {
+        if (EnsureDraft() is { } locked)
+        {
+            return locked;
+        }
+
+        if (_orders.Count == 0)
+        {
+            return Error.Validation("shipments.no_orders", "The shipment has no orders.");
+        }
+
+        TenderedAt = now;
+        Status = ShipmentStatus.Bidding;
+        return Result.Success();
+    }
+
+    /// <summary>A broadcast tender ended without an award (cancelled, or nobody answered): back to Draft.</summary>
+    public Result EndBidding()
+    {
+        if (Status != ShipmentStatus.Bidding)
+        {
+            return Error.Conflict("shipments.not_bidding", "This shipment is not out to tender.");
+        }
+
+        TenderedAt = null;
+        Status = ShipmentStatus.Draft;
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// A broadcast tender was awarded: the winning bid's contract, vehicle and driver become the allocation, as if it had been tendered and accepted.
+    /// </summary>
+    /// <param name="agreedRate">A counter-offer the planner agreed; it replaces the contract price as the estimate.</param>
+    public Result Award(Guid transporterId, FreightQuoteResult chosen, decimal? agreedRate, FleetVehicle vehicle, FleetDriver driver, DateTimeOffset now)
+    {
+        if (Status != ShipmentStatus.Bidding)
+        {
+            return Error.Conflict("shipments.not_bidding", "This shipment is not out to tender.");
+        }
+
+        TransporterId = transporterId;
+        var assigned = AssignFleet(vehicle, driver);
+        if (assigned.IsFailure)
+        {
+            TransporterId = null;
+            return assigned;
+        }
+
+        ContractId = chosen.ContractId;
+        ContractReference = chosen.ContractReference;
+        FreightEstimate = agreedRate ?? chosen.Total;
+        EstimateLines = chosen.Lines;
+        OverrideReason = agreedRate is { } rate && rate != chosen.Total ? $"Awarded from a broadcast tender at the agreed rate ₹{rate:0.00} (contract price ₹{chosen.Total:0.00})." : "Awarded from a broadcast tender.";
+        AcceptedAt = now;
+        Status = ShipmentStatus.Accepted;
+        Raise(new ShipmentAccepted(Id, TenantId, Number, transporterId, now));
+        return Result.Success();
+    }
+
+    /// <summary>Records that the planner agreed the rate the transporter proposed instead of the contract's.</summary>
+    public Result ApplyAgreedRate(decimal rate)
+    {
+        if (Status != ShipmentStatus.Tendered)
+        {
+            return Error.Conflict("shipments.not_tendered", "This shipment is not waiting for a transporter to respond.");
+        }
+
+        OverrideReason = $"Counter-offer agreed at ₹{rate:0.00} (contract price ₹{FreightEstimate:0.00}).";
+        FreightEstimate = rate;
+        return Result.Success();
+    }
+
+    /// <summary>The transporter did not answer before the deadline: the load comes back to Draft so the next one can be tried.</summary>
+    public Result ExpireTender(DateTimeOffset now)
+    {
+        if (Status != ShipmentStatus.Tendered)
+        {
+            return Error.Conflict("shipments.not_tendered", "This shipment is not waiting for a transporter to respond.");
+        }
+
+        RejectionCount++;
+        LastRejectionReason = "No response before the deadline.";
+        Raise(new ShipmentTenderExpired(Id, TenantId, Number, TransporterId!.Value, now));
+        ClearAllocation();
+        Status = ShipmentStatus.Draft;
+        return Result.Success();
+    }
+
     /// <summary>Takes a tendered shipment back to Draft, e.g. to choose someone else.</summary>
     public Result Withdraw()
     {
@@ -564,6 +657,7 @@ public sealed class Shipment : AggregateRoot, ITenantScoped
             return Error.Conflict("shipments.not_tendered", "Only a tendered shipment can be withdrawn.");
         }
 
+        Raise(new ShipmentTenderWithdrawn(Id, TenantId, Number, TransporterId!.Value, "The offer was withdrawn."));
         ClearAllocation();
         Status = ShipmentStatus.Draft;
         return Result.Success();
@@ -606,9 +700,10 @@ public sealed class Shipment : AggregateRoot, ITenantScoped
         return assigned;
     }
 
-    private Result AssignFleet(FleetVehicle vehicle, FleetDriver driver)
+    /// <summary>Whether a vehicle and driver may carry a load of this weight for the transporter: theirs, active, papers in order, big enough.</summary>
+    internal static Result CheckFleet(FleetVehicle vehicle, FleetDriver driver, Guid? transporterId, decimal loadKg)
     {
-        if (vehicle.TransporterId != TransporterId || driver.TransporterId != TransporterId)
+        if (vehicle.TransporterId != transporterId || driver.TransporterId != transporterId)
         {
             return Error.Forbidden("shipments.fleet_not_theirs", "The vehicle and driver must belong to the transporter this load was tendered to.");
         }
@@ -628,9 +723,20 @@ public sealed class Shipment : AggregateRoot, ITenantScoped
             return Error.Conflict("shipments.driver_non_compliant", $"{driver.FullName} cannot drive this load: {string.Join("; ", driver.Issues)}.");
         }
 
-        if (vehicle.PayloadKg > 0 && LoadKg > vehicle.PayloadKg)
+        if (vehicle.PayloadKg > 0 && loadKg > vehicle.PayloadKg)
         {
-            return Error.Conflict("shipments.overload", $"The load is {LoadKg:0.##} kg but {vehicle.RegistrationNumber} can carry {vehicle.PayloadKg} kg.");
+            return Error.Conflict("shipments.overload", $"The load is {loadKg:0.##} kg but {vehicle.RegistrationNumber} can carry {vehicle.PayloadKg} kg.");
+        }
+
+        return Result.Success();
+    }
+
+    private Result AssignFleet(FleetVehicle vehicle, FleetDriver driver)
+    {
+        var usable = CheckFleet(vehicle, driver, TransporterId, LoadKg);
+        if (usable.IsFailure)
+        {
+            return usable;
         }
 
         VehicleId = vehicle.Id;
@@ -798,7 +904,7 @@ public sealed class Shipment : AggregateRoot, ITenantScoped
     /// <summary>Cancels a shipment that has not left. Its orders go back to Open so they can be planned again.</summary>
     public Result Cancel(string reason, IReadOnlyCollection<Order> orders)
     {
-        if (Status is not (ShipmentStatus.Draft or ShipmentStatus.Tendered or ShipmentStatus.Accepted))
+        if (Status is not (ShipmentStatus.Draft or ShipmentStatus.Tendered or ShipmentStatus.Accepted or ShipmentStatus.Bidding))
         {
             return Error.Conflict("shipments.not_cancellable", "A shipment that has left cannot be cancelled.");
         }
@@ -810,7 +916,7 @@ public sealed class Shipment : AggregateRoot, ITenantScoped
 
         orders.Where(o => _orders.Any(l => l.OrderId == o.Id)).ToList().ForEach(o => o.Release());
         CancelReason = reason.Trim();
-        var offeredTo = Status == ShipmentStatus.Draft ? null : TransporterId;
+        var offeredTo = Status is ShipmentStatus.Draft or ShipmentStatus.Bidding ? null : TransporterId;
         Status = ShipmentStatus.Cancelled; // the transporter reference is kept so they can see it was cancelled
         if (offeredTo is { } carrier)
         {
@@ -854,5 +960,5 @@ public sealed class Shipment : AggregateRoot, ITenantScoped
     }
 
     private Error? EnsureDraft() =>
-        Status == ShipmentStatus.Draft ? null : Error.Conflict("shipments.not_draft", "Only a draft shipment can be changed. Withdraw it from the transporter first.");
+        Status == ShipmentStatus.Draft ? null : Error.Conflict("shipments.not_draft", "Only a draft shipment can be changed. Withdraw it from the transporter (or cancel its tender) first.");
 }

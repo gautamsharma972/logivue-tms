@@ -20,8 +20,17 @@ internal sealed class ShipmentLoader(
         }
 
         var shipment = await query.FirstOrDefaultAsync(s => s.Id == id, cancellationToken);
-        return shipment is not null && access.CanSee(shipment) ? shipment : ShipmentAccess.ShipmentNotFound;
+        if (shipment is not null && (access.CanSee(shipment) || await IsInvitedAsync(shipment, cancellationToken)))
+        {
+            return shipment;
+        }
+
+        return ShipmentAccess.ShipmentNotFound;
     }
+
+    private async Task<bool> IsInvitedAsync(Shipment shipment, CancellationToken cancellationToken) =>
+        access.MayBeInvitedTo(shipment) && access.VendorTransporterId is { } mine
+        && await db.TenderInvitees.AnyAsync(i => i.ShipmentId == shipment.Id && i.TransporterId == mine && (i.Status == InviteeStatus.Sent || i.Status == InviteeStatus.Bid), cancellationToken);
 
     public async Task<Dictionary<Guid, Order>> LoadOrdersAsync(Shipment shipment, CancellationToken cancellationToken)
     {

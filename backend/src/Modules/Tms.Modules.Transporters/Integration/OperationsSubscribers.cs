@@ -18,7 +18,7 @@ internal sealed class ShipmentTenderedSubscriber(TransportersDbContext db, IShip
 {
     public async Task HandleAsync(ShipmentTendered e, CancellationToken cancellationToken)
     {
-        if (await db.Invitations.AnyAsync(i => i.ShipmentId == e.ShipmentId && i.SentAt == e.TenderedAt, cancellationToken))
+        if (await db.Invitations.AnyAsync(i => i.ShipmentId == e.ShipmentId && i.TransporterId == e.TransporterId && i.SentAt == e.TenderedAt, cancellationToken))
         {
             return;
         }
@@ -80,6 +80,38 @@ internal sealed class ShipmentRejectedSubscriber(TransportersDbContext db, Perfo
 
         await db.SaveChangesAsync(cancellationToken);
         await engine.RefreshAsync(e.TransporterId, [invitation.SentAt, e.RejectedAt], cancellationToken);
+    }
+}
+
+internal sealed class ShipmentTenderExpiredSubscriber(TransportersDbContext db, PerformanceEngine engine) : IDomainEventHandler<ShipmentTenderExpired>
+{
+    public async Task HandleAsync(ShipmentTenderExpired e, CancellationToken cancellationToken)
+    {
+        var invitation = await db.Invitations.Where(i => i.ShipmentId == e.ShipmentId && i.TransporterId == e.TransporterId && i.Outcome == InvitationOutcome.Open)
+            .OrderByDescending(i => i.SentAt).FirstOrDefaultAsync(cancellationToken);
+        if (invitation is null || !invitation.Respond(InvitationOutcome.Expired, e.ExpiredAt, "No response before the deadline."))
+        {
+            return;
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
+        await engine.RefreshAsync(e.TransporterId, [invitation.SentAt, e.ExpiredAt], cancellationToken);
+    }
+}
+
+internal sealed class ShipmentTenderWithdrawnSubscriber(TransportersDbContext db, PerformanceEngine engine) : IDomainEventHandler<ShipmentTenderWithdrawn>
+{
+    public async Task HandleAsync(ShipmentTenderWithdrawn e, CancellationToken cancellationToken)
+    {
+        var invitation = await db.Invitations.Where(i => i.ShipmentId == e.ShipmentId && i.TransporterId == e.TransporterId && i.Outcome == InvitationOutcome.Open)
+            .OrderByDescending(i => i.SentAt).FirstOrDefaultAsync(cancellationToken);
+        if (invitation is null || !invitation.Respond(InvitationOutcome.Withdrawn, DateTimeOffset.UtcNow, e.Reason))
+        {
+            return;
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
+        await engine.RefreshAsync(e.TransporterId, [invitation.SentAt], cancellationToken);
     }
 }
 

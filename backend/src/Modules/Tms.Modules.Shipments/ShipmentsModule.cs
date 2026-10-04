@@ -56,6 +56,8 @@ public static class ShipmentsModule
         services.AddSingleton<Infrastructure.Routing.EstimatedRoutingProvider>();
         services.AddScoped<IRoutingProvider, Infrastructure.Routing.ResilientRoutingProvider>();
         services.AddScoped<Application.Shipments.ShipmentLoader>();
+        services.AddScoped<Application.Tendering.TenderLifecycle>();
+        services.AddScoped<Application.Tendering.TenderMapper>();
         services.AddHandlers(typeof(ShipmentsModule).Assembly, "Tms.Modules.Shipments.Application");
         services.AddValidatorsFrom<ShipmentsDbContext>();
         return services;

@@ -88,7 +88,7 @@ public static class OperationalKpiCalculator
 
         // Tender acceptance: invitations sent in the period that were answered. Open ones are not yet a verdict either way.
         var decided = input.Invitations
-            .Where(t => t.SentAt >= input.From && t.SentAt < input.To && t.Outcome != InvitationOutcome.Open)
+            .Where(t => t.SentAt >= input.From && t.SentAt < input.To && t.Outcome != InvitationOutcome.Open && t.Outcome != InvitationOutcome.Withdrawn)
             .ToList();
         kpis.Add(new OperationalKpi(KpiType.TenderAcceptance, decided.Count(t => t.Outcome == InvitationOutcome.Accepted), decided.Count));
 

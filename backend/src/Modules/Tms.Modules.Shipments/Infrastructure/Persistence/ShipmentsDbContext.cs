@@ -28,6 +28,12 @@ public sealed class ShipmentsDbContext(DbContextOptions<ShipmentsDbContext> opti
 
     public DbSet<ProductCompatibilityRule> CompatibilityRules => Set<ProductCompatibilityRule>();
 
+    public DbSet<TenderRound> TenderRounds => Set<TenderRound>();
+
+    public DbSet<TenderInvitee> TenderInvitees => Set<TenderInvitee>();
+
+    public DbSet<TenderEvent> TenderEvents => Set<TenderEvent>();
+
     protected override void ConfigureModel(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Schema);
