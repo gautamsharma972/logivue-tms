@@ -6,6 +6,7 @@ using Tms.BuildingBlocks.Web.Http;
 using Tms.Modules.Transporters.Application;
 using Tms.Modules.Transporters.Application.Documents;
 using Tms.Modules.Transporters.Application.Fleet;
+using Tms.Modules.Transporters.Application.Operations;
 using Tms.Modules.Transporters.Application.Performance;
 using Tms.Modules.Transporters.Application.Selection;
 using Tms.Modules.Transporters.Application.Transporters;
@@ -107,6 +108,51 @@ internal static class TransporterEndpoints
             .WithValidation<RecordExecutionEventRequest>().WithName("RecordExecutionEvent").Produces<ExecutionDto>();
         executions.MapPost("/{id:guid}/delay", async (Guid id, AttributeDelayRequest body, ExecutionHandler h, CancellationToken ct) => (await h.AttributeAsync(id, body, ct)).ToHttpResult())
             .WithValidation<AttributeDelayRequest>().WithName("AttributeExecutionDelay").Produces<ExecutionDto>();
+
+        var placements = api.MapGroup("/placements");
+        placements.MapGet("/", async ([AsParameters] ListPlacementsQuery query, PlacementHandler h, CancellationToken ct) => (await h.ListAsync(query, ct)).ToHttpResult())
+            .WithName("ListPlacements").Produces<PagedResult<PlacementDto>>();
+        placements.MapGet("/{id:guid}", async (Guid id, PlacementHandler h, CancellationToken ct) => (await h.GetAsync(id, ct)).ToHttpResult())
+            .WithName("GetPlacement").Produces<PlacementDto>().ProducesProblem(StatusCodes.Status404NotFound);
+        placements.MapPost("/{id:guid}/report", async (Guid id, PlacementHandler h, CancellationToken ct) => (await h.ReportAsync(id, ct)).ToHttpResult())
+            .WithName("ReportPlacement").Produces<PlacementDto>();
+        placements.MapPost("/{id:guid}/place", async (Guid id, PlacementHandler h, CancellationToken ct) => (await h.PlaceAsync(id, ct)).ToHttpResult())
+            .WithName("PlacePlacement").Produces<PlacementDto>();
+        placements.MapPost("/{id:guid}/no-show", async (Guid id, ReasonRequest body, PlacementHandler h, CancellationToken ct) => (await h.NoShowAsync(id, body, ct)).ToHttpResult())
+            .WithValidation<ReasonRequest>().WithName("PlacementNoShow").Produces<PlacementDto>();
+        placements.MapPost("/{id:guid}/cancel", async (Guid id, ReasonRequest body, PlacementHandler h, CancellationToken ct) => (await h.CancelAsync(id, body, ct)).ToHttpResult())
+            .WithValidation<ReasonRequest>().WithName("CancelPlacement").Produces<PlacementDto>();
+
+        group.MapGet("/{id:guid}/claims", async (Guid id, DateOnly from, DateOnly to, ClaimHandler h, CancellationToken ct) => (await h.ListAsync(id, from, to, ct)).ToHttpResult())
+            .WithName("ListTransporterClaims").Produces<IReadOnlyList<ClaimDto>>();
+        group.MapPost("/{id:guid}/claims", async (Guid id, RecordClaimRequest body, ClaimHandler h, CancellationToken ct) =>
+                (await h.RecordAsync(id, body, ct)).ToCreatedResult(c => $"/api/v1/claims/{c.Id}"))
+            .WithName("RecordTransporterClaim").Produces<ClaimDto>(StatusCodes.Status201Created).ProducesValidationProblem();
+        api.MapPost("/claims/{claimId:guid}/resolve", async (Guid claimId, ClaimHandler h, CancellationToken ct) => (await h.ResolveAsync(claimId, ct)).ToHttpResult())
+            .WithName("ResolveTransporterClaim").Produces<ClaimDto>();
+        api.MapPut("/claims/{claimId:guid}/value", async (Guid claimId, SetClaimValueRequest body, ClaimHandler h, CancellationToken ct) => (await h.SetValueAsync(claimId, body, ct)).ToHttpResult())
+            .WithName("SetTransporterClaimValue").Produces<ClaimDto>().ProducesValidationProblem();
+
+        group.MapGet("/{id:guid}/costs", async (Guid id, DateOnly from, DateOnly to, LoadCostHandler h, CancellationToken ct) => (await h.ListAsync(id, from, to, ct)).ToHttpResult())
+            .WithName("ListTransporterCosts").Produces<IReadOnlyList<LoadCostDto>>();
+        group.MapPost("/{id:guid}/costs", async (Guid id, RecordLoadCostRequest body, LoadCostHandler h, CancellationToken ct) =>
+                (await h.RecordAsync(id, body, ct)).ToCreatedResult(c => $"/api/v1/transporters/{id}/costs"))
+            .WithValidation<RecordLoadCostRequest>().WithName("RecordTransporterCost").Produces<LoadCostDto>(StatusCodes.Status201Created).ProducesValidationProblem();
+
+        group.MapGet("/{id:guid}/capacity", async (Guid id, DateOnly from, DateOnly to, CapacityHandler h, CancellationToken ct) => (await h.ListAsync(id, from, to, ct)).ToHttpResult())
+            .WithName("ListTransporterCapacity").Produces<IReadOnlyList<CapacityDayDto>>();
+        group.MapPut("/{id:guid}/capacity", async (Guid id, SaveCapacityRequest body, CapacityHandler h, CancellationToken ct) => (await h.SaveAsync(id, body, ct)).ToHttpResult())
+            .WithValidation<SaveCapacityRequest>().WithName("SaveTransporterCapacity").Produces<CapacityDayDto>().ProducesValidationProblem();
+
+        var alerts = api.MapGroup("/transporter-alerts");
+        alerts.MapGet("/", async ([AsParameters] ListAlertsQuery query, AlertHandler h, CancellationToken ct) => (await h.ListAsync(query, ct)).ToHttpResult())
+            .WithName("ListTransporterAlerts").Produces<PagedResult<AlertDto>>();
+        alerts.MapPost("/evaluate", async (AlertHandler h, CancellationToken ct) => (await h.EvaluateAsync(ct)).ToHttpResult())
+            .WithName("EvaluateTransporterAlerts").Produces<int>();
+        alerts.MapPost("/{id:guid}/acknowledge", async (Guid id, AlertHandler h, CancellationToken ct) => (await h.AcknowledgeAsync(id, ct)).ToHttpResult())
+            .WithName("AcknowledgeTransporterAlert").Produces<AlertDto>();
+        alerts.MapPost("/{id:guid}/resolve", async (Guid id, ResolveAlertRequest body, AlertHandler h, CancellationToken ct) => (await h.ResolveAsync(id, body, ct)).ToHttpResult())
+            .WithName("ResolveTransporterAlert").Produces<AlertDto>();
 
         var settings = api.MapGroup("/transporter-settings");
         settings.MapGet("/", async (SettingsHandler h, CancellationToken ct) => (await h.ListAsync(ct)).ToHttpResult())

@@ -1,4 +1,5 @@
 import {
+  AlertOutlined,
   AuditOutlined,
   BankOutlined,
   CheckSquareOutlined,
@@ -50,6 +51,9 @@ export const navigation: NavGroup[] = [
       { path: '/transporters/vehicle-types', label: 'Vehicle types', icon: <CarOutlined />, anyPermission: ['transporters.read', 'transporters.manage'], audience: 'internal' },
       { path: '/transporters/rankings', label: 'Rankings', icon: <TrophyOutlined />, anyPermission: ['transporters.performance.read', 'transporters.performance.manage'], audience: 'internal' },
       { path: '/transporters/selection', label: 'Find a transporter', icon: <SearchOutlined />, anyPermission: ['transporters.select', 'transporters.performance.manage'], audience: 'internal' },
+      { path: '/transporters/placements', label: 'Vehicle placements', icon: <CarOutlined />, anyPermission: ['transporters.performance.read', 'transporters.performance.manage'], audience: 'internal' },
+      { path: '/transporters/placements', label: 'Placements', icon: <CarOutlined />, anyPermission: ['transporters.performance.self'], audience: 'vendor' },
+      { path: '/transporters/alerts', label: 'Transporter alerts', icon: <AlertOutlined />, anyPermission: ['transporters.performance.read', 'transporters.performance.manage'], audience: 'internal' },
       { path: '/my-company', label: 'My company', icon: <BankOutlined />, anyPermission: ['transporters.self.manage'], audience: 'vendor' },
       { path: '/contracts', label: 'Contracts', icon: <FileProtectOutlined />, anyPermission: ['contracts.read', 'contracts.manage'], audience: 'internal' },
       { path: '/rate-finder', label: 'Rate finder', icon: <CalculatorOutlined />, anyPermission: ['contracts.read', 'contracts.manage'], audience: 'internal' },

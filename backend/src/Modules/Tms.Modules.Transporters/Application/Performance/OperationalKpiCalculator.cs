@@ -1,4 +1,5 @@
 using Tms.Modules.Transporters.Domain;
+using Tms.SharedKernel.Contracts;
 
 namespace Tms.Modules.Transporters.Application.Performance;
 
@@ -33,7 +34,9 @@ public sealed record OperationalMetrics(
 public sealed record OperationalPeriodResult(DateOnly PeriodStart, DateOnly PeriodEnd, IReadOnlyList<OperationalKpi> Kpis, OperationalMetrics Metrics);
 
 /// <summary>A vehicle placement as the KPIs see it.</summary>
-public sealed record PlacementInput(DateTimeOffset RequiredAt, DateTimeOffset? PlacedAt, bool NoShow, bool Cancelled, int ReplacementCount);
+public sealed record PlacementInput(
+    DateTimeOffset RequiredAt, DateTimeOffset? PlacedAt, bool NoShow, bool Cancelled, int ReplacementCount,
+    Guid? VehicleTypeId = null, FreightMode Mode = FreightMode.Ftl, string? OriginState = null, string? OriginCity = null, string? DestinationState = null, string? DestinationCity = null);
 
 /// <param name="DeliveriesRequiringPod">Deliveries whose proof is due: submitted, or past the SLA. Deliveries still inside the SLA are left out.</param>
 /// <param name="Rejected">Proofs refused at least once.</param>

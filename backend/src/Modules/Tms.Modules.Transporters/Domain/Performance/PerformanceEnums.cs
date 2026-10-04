@@ -43,6 +43,9 @@ public enum ExecutionStatus
     AtPickup = 1,
     PickedUp = 2,
     Delivered = 3,
+
+    /// <summary>The shipment was cancelled; the record is kept but nothing is measured against it.</summary>
+    Cancelled = 4,
 }
 
 public enum InvitationOutcome

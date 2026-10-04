@@ -42,6 +42,18 @@ public sealed class TransportersDbContext(DbContextOptions<TransportersDbContext
 
     public DbSet<PlanningFeedback> Feedback => Set<PlanningFeedback>();
 
+    public DbSet<VehiclePlacement> Placements => Set<VehiclePlacement>();
+
+    public DbSet<PlacementEvent> PlacementEvents => Set<PlacementEvent>();
+
+    public DbSet<ClaimRecord> Claims => Set<ClaimRecord>();
+
+    public DbSet<LoadCost> Costs => Set<LoadCost>();
+
+    public DbSet<CapacityDay> Capacity => Set<CapacityDay>();
+
+    public DbSet<TransporterAlert> Alerts => Set<TransporterAlert>();
+
     protected override void ConfigureModel(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Schema);

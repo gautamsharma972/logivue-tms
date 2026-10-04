@@ -34,7 +34,7 @@ internal sealed class PerformanceEngine(
     public async Task<OperationalPeriodResult> OperationsAsync(Guid transporterId, DateOnly from, DateOnly to, CancellationToken cancellationToken)
     {
         var data = await LoadAsync(transporterId, from, to, cancellationToken);
-        return OperationalKpiCalculator.Calculate(ToInputs(data, data.Invitations, data.Executions, data.Pod, transporterLevel: true), from, to);
+        return OperationalKpiCalculator.Calculate(ToInputs(data, data.Invitations, data.Placements, data.Executions, data.Pod, transporterLevel: true), from, to);
     }
 
     /// <summary>Rebuilds every monthly bucket that overlaps the range. Use this to correct historical data.</summary>
@@ -69,7 +69,7 @@ internal sealed class PerformanceEngine(
         var tenantId = data.TenantId;
         var rows = new List<PerformanceKpi>();
 
-        var whole = OperationalKpiCalculator.Calculate(ToInputs(data, data.Invitations, data.Executions, data.Pod, transporterLevel: true), month, monthEnd);
+        var whole = OperationalKpiCalculator.Calculate(ToInputs(data, data.Invitations, data.Placements, data.Executions, data.Pod, transporterLevel: true), month, monthEnd);
         rows.AddRange(ToRows(tenantId, transporterId, whole.Kpis, month, monthEnd, laneId: null, vehicleTypeId: null, includePod: true));
 
         // Lane and vehicle-type breakdowns carry no POD, claims, cost or availability figures: those are not split by lane or vehicle type.
@@ -78,17 +78,20 @@ internal sealed class PerformanceEngine(
         {
             bool OnLaneInvite(TenderInvitation t) => t.OriginState is not null && lane.Covers(t.OriginState, t.OriginCity ?? string.Empty, t.DestinationState, t.DestinationCity, t.Mode ?? FreightMode.Ftl);
             bool OnLaneExec(LoadExecution e) => e.OriginState is not null && lane.Covers(e.OriginState, e.OriginCity ?? string.Empty, e.DestinationState, e.DestinationCity, e.Mode);
+            bool OnLanePlacement(PlacementInput p) => p.OriginState is not null && lane.Covers(p.OriginState, p.OriginCity, p.DestinationState, p.DestinationCity, p.Mode);
             var result = OperationalKpiCalculator.Calculate(
-                ToInputs(data, data.Invitations.Where(OnLaneInvite).ToList(), data.Executions.Where(OnLaneExec).ToList(), noPod, transporterLevel: false), month, monthEnd);
+                ToInputs(data, data.Invitations.Where(OnLaneInvite).ToList(), data.Placements.Where(OnLanePlacement).ToList(), data.Executions.Where(OnLaneExec).ToList(), noPod, transporterLevel: false), month, monthEnd);
             rows.AddRange(ToRows(tenantId, transporterId, result.Kpis, month, monthEnd, laneId: lane.Id, vehicleTypeId: null, includePod: false));
         }
 
         var vehicleTypes = data.Invitations.Where(t => t.VehicleTypeId is not null).Select(t => t.VehicleTypeId!.Value)
-            .Concat(data.Executions.Where(e => e.VehicleTypeId is not null).Select(e => e.VehicleTypeId!.Value)).Distinct().ToList();
+            .Concat(data.Executions.Where(e => e.VehicleTypeId is not null).Select(e => e.VehicleTypeId!.Value))
+            .Concat(data.Placements.Where(p => p.VehicleTypeId is not null).Select(p => p.VehicleTypeId!.Value)).Distinct().ToList();
         foreach (var vehicleType in vehicleTypes)
         {
             var result = OperationalKpiCalculator.Calculate(
-                ToInputs(data, data.Invitations.Where(t => t.VehicleTypeId == vehicleType).ToList(), data.Executions.Where(e => e.VehicleTypeId == vehicleType).ToList(), noPod, transporterLevel: false),
+                ToInputs(data, data.Invitations.Where(t => t.VehicleTypeId == vehicleType).ToList(), data.Placements.Where(p => p.VehicleTypeId == vehicleType).ToList(),
+                    data.Executions.Where(e => e.VehicleTypeId == vehicleType).ToList(), noPod, transporterLevel: false),
                 month, monthEnd);
             rows.AddRange(ToRows(tenantId, transporterId, result.Kpis, month, monthEnd, laneId: null, vehicleTypeId: vehicleType, includePod: false));
         }
@@ -124,8 +127,9 @@ internal sealed class PerformanceEngine(
     }
 
     private static OperationalInputs ToInputs(
-        MonthData data, IReadOnlyCollection<TenderInvitation> invitations, IReadOnlyCollection<LoadExecution> executions, PodSummary pod, bool transporterLevel) =>
-        new(data.Start, data.End, data.AsOf, data.Grace, invitations, data.Placements, executions, pod,
+        MonthData data, IReadOnlyCollection<TenderInvitation> invitations, IReadOnlyCollection<PlacementInput> placements, IReadOnlyCollection<LoadExecution> executions, PodSummary pod,
+        bool transporterLevel) =>
+        new(data.Start, data.End, data.AsOf, data.Grace, invitations, placements, executions, pod,
             transporterLevel ? data.Claims : null, transporterLevel ? data.Cost : null, transporterLevel ? data.Availability : null);
 
     private async Task<MonthData> LoadAsync(Guid transporterId, DateOnly from, DateOnly to, CancellationToken cancellationToken)
@@ -147,8 +151,23 @@ internal sealed class PerformanceEngine(
             .Select(d => (d.DeliveredAt, d.FirstProofAt, d.ProofStatus, Rejections: d.ProofRejections)).ToList();
         var pod = OperationalKpiCalculator.SummarisePod(delivered, sla, asOf);
 
+        var placements = (await db.Placements.AsNoTracking().Where(p => p.TransporterId == transporterId && p.RequiredAt >= start && p.RequiredAt < end).ToListAsync(cancellationToken))
+            .Select(p => new PlacementInput(
+                p.RequiredAt, p.PlacedAt, p.Status == PlacementStatus.NoShow, p.Status == PlacementStatus.Cancelled, p.ReplacementCount,
+                p.VehicleTypeId, p.Mode, p.OriginState, p.OriginCity, p.DestinationState, p.DestinationCity)).ToList();
+
+        // Claims are measured against the shipments delivered in the period; cost and availability against what was recorded for it.
+        var claimCount = await db.Claims.AsNoTracking().CountAsync(c => c.TransporterId == transporterId && c.ClaimDate >= from && c.ClaimDate <= to, cancellationToken);
+        var deliveredShipments = facts.Count(f => f.DeliveredAt >= start && f.DeliveredAt < end);
+        var claims = deliveredShipments == 0 && claimCount == 0 ? null : new ClaimsSummary(deliveredShipments, claimCount);
+        var costs = await db.Costs.AsNoTracking().Where(c => c.TransporterId == transporterId && c.ServiceDate >= from && c.ServiceDate <= to).ToListAsync(cancellationToken);
+        var days = await db.Capacity.AsNoTracking().Where(c => c.TransporterId == transporterId && c.Date >= from && c.Date <= to).ToListAsync(cancellationToken);
+
         var tenantId = await db.Transporters.AsNoTracking().Where(t => t.Id == transporterId).Select(t => t.TenantId).FirstOrDefaultAsync(cancellationToken);
-        return new MonthData(tenantId, start, end, asOf, grace, invitations, [], executions, lanes, pod, null, null, null);
+        return new MonthData(
+            tenantId, start, end, asOf, grace, invitations, placements, executions, lanes, pod, claims,
+            costs.Count == 0 ? null : new CostSummary(costs.Count, costs.Count(c => c.OnBudget)),
+            days.Count == 0 ? null : new AvailabilitySummary(days.Sum(d => d.VehiclesCommitted), days.Sum(d => d.VehiclesAvailable)));
     }
 
     private sealed record MonthData(

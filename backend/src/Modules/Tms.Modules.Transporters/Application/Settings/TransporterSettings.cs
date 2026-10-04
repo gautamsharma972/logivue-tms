@@ -19,6 +19,7 @@ public static class SettingKeys
     public const string PodSubmissionSlaHours = "pod.submissionSlaHours";
     public const string PlacementGraceMinutes = "placement.graceMinutes";
     public const string PlacementAlertMinutesBefore = "placement.alertMinutesBefore";
+    public const string PlacementLeadMinutes = "placement.leadMinutes";
     public const string ExecutionDelayPolicy = "execution.delayPolicy";
     public const string PlannedTimes = "execution.plannedTimes";
     public const string RecommendationWeights = "recommendation.weights";
@@ -69,6 +70,7 @@ public static class SettingDefaults
         [SettingKeys.PodSubmissionSlaHours] = 24,
         [SettingKeys.PlacementGraceMinutes] = 15,
         [SettingKeys.PlacementAlertMinutesBefore] = 30,
+        [SettingKeys.PlacementLeadMinutes] = 120,
         [SettingKeys.PlannedTimes] = new PlannedTimesSetting("20:00", "20:00"),
         [SettingKeys.ExecutionDelayPolicy] = new DelayPolicySetting(15,
         [

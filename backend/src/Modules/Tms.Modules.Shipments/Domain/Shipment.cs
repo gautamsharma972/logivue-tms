@@ -589,10 +589,22 @@ public sealed class Shipment : AggregateRoot, ITenantScoped
     }
 
     /// <summary>Swaps the vehicle or driver before the shipment leaves (breakdown, sickness).</summary>
-    public Result Reassign(FleetVehicle vehicle, FleetDriver driver) =>
-        Status != ShipmentStatus.Accepted
-            ? Error.Conflict("shipments.not_accepted", "Only an accepted shipment that has not left can be reassigned.")
-            : AssignFleet(vehicle, driver);
+    public Result Reassign(FleetVehicle vehicle, FleetDriver driver)
+    {
+        if (Status != ShipmentStatus.Accepted)
+        {
+            return Error.Conflict("shipments.not_accepted", "Only an accepted shipment that has not left can be reassigned.");
+        }
+
+        var changed = VehicleId != vehicle.Id;
+        var assigned = AssignFleet(vehicle, driver);
+        if (assigned.IsSuccess && changed)
+        {
+            Raise(new ShipmentVehicleReassigned(Id, TenantId, Number, TransporterId!.Value, vehicle.Id, vehicle.RegistrationNumber));
+        }
+
+        return assigned;
+    }
 
     private Result AssignFleet(FleetVehicle vehicle, FleetDriver driver)
     {
@@ -798,7 +810,12 @@ public sealed class Shipment : AggregateRoot, ITenantScoped
 
         orders.Where(o => _orders.Any(l => l.OrderId == o.Id)).ToList().ForEach(o => o.Release());
         CancelReason = reason.Trim();
+        var offeredTo = Status == ShipmentStatus.Draft ? null : TransporterId;
         Status = ShipmentStatus.Cancelled; // the transporter reference is kept so they can see it was cancelled
+        if (offeredTo is { } carrier)
+        {
+            Raise(new ShipmentCancelled(Id, TenantId, Number, carrier, CancelReason));
+        }
         return Result.Success();
     }
 

@@ -15,6 +15,8 @@ const ApprovalsPage = lazy(() => import('@/features/approvals/ApprovalsPage').th
 const PoliciesPage = lazy(() => import('@/features/approvals/PoliciesPage').then((m) => ({ default: m.PoliciesPage })))
 const TransportersPage = lazy(() => import('@/features/transporters/TransportersPage').then((m) => ({ default: m.TransportersPage })))
 const TransporterDetailPage = lazy(() => import('@/features/transporters/TransporterDetailPage').then((m) => ({ default: m.TransporterDetailPage })))
+const PlacementsPage = lazy(() => import('@/features/transporters/PlacementsPage').then((m) => ({ default: m.PlacementsPage })))
+const AlertsPage = lazy(() => import('@/features/transporters/AlertsPage').then((m) => ({ default: m.AlertsPage })))
 const SelectionPage = lazy(() => import('@/features/transporters/SelectionPage').then((m) => ({ default: m.SelectionPage })))
 const RankingsPage = lazy(() => import('@/features/transporters/RankingsPage').then((m) => ({ default: m.RankingsPage })))
 const VehicleTypesPage = lazy(() => import('@/features/transporters/VehicleTypesPage').then((m) => ({ default: m.VehicleTypesPage })))
@@ -75,6 +77,12 @@ export function App() {
             </Route>
             <Route element={<RequireAnyPermission permissions={['transporters.performance.read', 'transporters.performance.manage']} />}>
               <Route path="rankings" element={<RankingsPage />} />
+            </Route>
+            <Route element={<RequireAnyPermission permissions={['transporters.performance.read', 'transporters.performance.manage']} />}>
+              <Route path="alerts" element={<AlertsPage />} />
+            </Route>
+            <Route element={<RequireAnyPermission permissions={['transporters.performance.read', 'transporters.performance.manage', 'transporters.performance.self']} />}>
+              <Route path="placements" element={<PlacementsPage />} />
             </Route>
             <Route element={<RequireAnyPermission permissions={['transporters.select', 'transporters.performance.manage']} />}>
               <Route path="selection" element={<SelectionPage />} />

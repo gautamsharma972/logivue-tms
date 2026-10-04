@@ -163,3 +163,103 @@ internal sealed class PlanningFeedbackConfiguration : IEntityTypeConfiguration<P
         builder.HasIndex(f => new { f.TenantId, f.TransporterId }).IsUnique();
     }
 }
+
+internal sealed class VehiclePlacementConfiguration : IEntityTypeConfiguration<VehiclePlacement>
+{
+    public void Configure(EntityTypeBuilder<VehiclePlacement> builder)
+    {
+        builder.ToTable("placements");
+        builder.HasKey(p => p.Id);
+        builder.Property(p => p.Id).ValueGeneratedNever();
+        builder.Property(p => p.ShipmentNumber).HasMaxLength(20).IsRequired();
+        builder.Property(p => p.Mode).HasConversion<string>().HasMaxLength(4);
+        builder.Property(p => p.Status).HasConversion<string>().HasMaxLength(16);
+        builder.Property(p => p.OriginState).HasMaxLength(100);
+        builder.Property(p => p.OriginCity).HasMaxLength(100);
+        builder.Property(p => p.DestinationState).HasMaxLength(100);
+        builder.Property(p => p.DestinationCity).HasMaxLength(100);
+        builder.Property(p => p.VehicleRegistration).HasMaxLength(20);
+        builder.Property(p => p.ExceptionReason).HasMaxLength(500);
+        builder.HasMany(p => p.Events).WithOne().HasForeignKey(e => e.PlacementId).OnDelete(DeleteBehavior.Cascade);
+        builder.Navigation(p => p.Events).UsePropertyAccessMode(PropertyAccessMode.Field);
+        builder.HasIndex(p => new { p.TenantId, p.ShipmentId }).IsUnique();
+        builder.HasIndex(p => new { p.TenantId, p.TransporterId, p.RequiredAt });
+        builder.HasIndex(p => new { p.TenantId, p.Status });
+    }
+}
+
+internal sealed class PlacementEventConfiguration : IEntityTypeConfiguration<PlacementEvent>
+{
+    public void Configure(EntityTypeBuilder<PlacementEvent> builder)
+    {
+        builder.ToTable("placement_events");
+        builder.HasKey(e => e.Id);
+        builder.Property(e => e.Id).ValueGeneratedNever();
+        builder.Property(e => e.EventType).HasMaxLength(24).IsRequired();
+        builder.Property(e => e.Remarks).HasMaxLength(500);
+    }
+}
+
+internal sealed class ClaimRecordConfiguration : IEntityTypeConfiguration<ClaimRecord>
+{
+    public void Configure(EntityTypeBuilder<ClaimRecord> builder)
+    {
+        builder.ToTable("claims");
+        builder.HasKey(c => c.Id);
+        builder.Property(c => c.Id).ValueGeneratedNever();
+        builder.Property(c => c.ShipmentNumber).HasMaxLength(20);
+        builder.Property(c => c.ClaimType).HasConversion<string>().HasMaxLength(10);
+        builder.Property(c => c.Status).HasConversion<string>().HasMaxLength(10);
+        builder.Property(c => c.ClaimValue).HasPrecision(14, 2);
+        builder.Property(c => c.Remarks).HasMaxLength(500);
+        builder.Property(c => c.SourceKey).HasMaxLength(80);
+        builder.HasIndex(c => new { c.TenantId, c.TransporterId, c.ClaimDate });
+        builder.HasIndex(c => new { c.TenantId, c.SourceKey }).IsUnique();
+    }
+}
+
+internal sealed class LoadCostConfiguration : IEntityTypeConfiguration<LoadCost>
+{
+    public void Configure(EntityTypeBuilder<LoadCost> builder)
+    {
+        builder.ToTable("load_costs");
+        builder.HasKey(c => c.Id);
+        builder.Property(c => c.Id).ValueGeneratedNever();
+        builder.Property(c => c.ShipmentNumber).HasMaxLength(20).IsRequired();
+        builder.Property(c => c.AgreedAmount).HasPrecision(14, 2);
+        builder.Property(c => c.InvoicedAmount).HasPrecision(14, 2);
+        builder.Ignore(c => c.OnBudget);
+        builder.HasIndex(c => new { c.TenantId, c.ShipmentId }).IsUnique(); // a load is counted once
+        builder.HasIndex(c => new { c.TenantId, c.TransporterId, c.ServiceDate });
+    }
+}
+
+internal sealed class CapacityDayConfiguration : IEntityTypeConfiguration<CapacityDay>
+{
+    public void Configure(EntityTypeBuilder<CapacityDay> builder)
+    {
+        builder.ToTable("capacity_days");
+        builder.HasKey(c => c.Id);
+        builder.Property(c => c.Id).ValueGeneratedNever();
+        builder.HasIndex(c => new { c.TenantId, c.TransporterId, c.Date }).IsUnique();
+    }
+}
+
+internal sealed class TransporterAlertConfiguration : IEntityTypeConfiguration<TransporterAlert>
+{
+    public void Configure(EntityTypeBuilder<TransporterAlert> builder)
+    {
+        builder.ToTable("alerts");
+        builder.HasKey(a => a.Id);
+        builder.Property(a => a.Id).ValueGeneratedNever();
+        builder.Property(a => a.AlertType).HasMaxLength(40).IsRequired();
+        builder.Property(a => a.Severity).HasConversion<string>().HasMaxLength(10);
+        builder.Property(a => a.Status).HasConversion<string>().HasMaxLength(14);
+        builder.Property(a => a.ShipmentNumber).HasMaxLength(20);
+        builder.Property(a => a.EntityKey).HasMaxLength(80).IsRequired();
+        builder.Property(a => a.Message).HasMaxLength(500).IsRequired();
+        builder.Property(a => a.Resolution).HasMaxLength(500);
+        builder.HasIndex(a => new { a.TenantId, a.Status, a.Severity });
+        builder.HasIndex(a => new { a.TenantId, a.AlertType, a.EntityKey });
+    }
+}

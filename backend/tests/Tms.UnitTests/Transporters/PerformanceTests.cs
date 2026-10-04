@@ -21,7 +21,7 @@ public class PerformanceTests
 
     private static ShipmentFact Fact(Guid? shipmentId = null) => new(
         shipmentId ?? Guid.NewGuid(), "SH-00001", Carrier, FreightMode.Ftl, Guid.NewGuid(), "Maharashtra", "Pune", "Gujarat", "Surat",
-        new DateOnly(2026, 7, 10), new DateOnly(2026, 7, 12), null, null, null, []);
+        new DateOnly(2026, 7, 10), new DateOnly(2026, 7, 12), 30_000m, null, null, null, []);
 
     private static LoadExecution Execution(DateTimeOffset plannedPickup, DateTimeOffset? departure, DelayReason? reason = null, DateTimeOffset? plannedDelivery = null, DateTimeOffset? delivery = null)
     {

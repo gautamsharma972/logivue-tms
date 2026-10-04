@@ -466,7 +466,7 @@ internal sealed class ExecutionHandler(TransportersDbContext db, PerformanceAcce
         }
 
         await db.SaveChangesAsync(cancellationToken);
-        await executions.RefreshKpisAsync(execution, cancellationToken);
+        await executions.AfterAttributionAsync(execution, cancellationToken);
         return execution.ToDto();
     }
 

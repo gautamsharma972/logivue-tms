@@ -57,6 +57,10 @@ public static class TransportersModule
         services.AddScoped<IDomainEventHandler<ShipmentRejected>, ShipmentRejectedSubscriber>();
         services.AddScoped<IDomainEventHandler<ShipmentDispatched>, ShipmentDispatchedSubscriber>();
         services.AddScoped<IDomainEventHandler<ShipmentDelivered>, ShipmentDeliveredSubscriber>();
+        services.AddScoped<IDomainEventHandler<ShipmentVehicleReassigned>, ShipmentVehicleReassignedSubscriber>();
+        services.AddScoped<IDomainEventHandler<ShipmentCancelled>, ShipmentCancelledSubscriber>();
+        services.AddScoped<IDomainEventHandler<DeliveryExceptionReported>, DeliveryExceptionSubscriber>();
+        services.AddScoped<Application.Operations.AlertService>();
         services.AddHandlers(typeof(TransportersModule).Assembly, "Tms.Modules.Transporters.Application");
         services.AddValidatorsFrom<TransportersDbContext>();
         return services;

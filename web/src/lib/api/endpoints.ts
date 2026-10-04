@@ -1,6 +1,15 @@
 import { http } from './client'
 import type {
   AgeingDto,
+  AlertDto,
+  AlertSeverity,
+  AlertStatus,
+  CapacityDayDto,
+  ClaimDto,
+  ClaimType,
+  LoadCostDto,
+  PlacementDto,
+  PlacementStatus,
   CandidateEvaluationDto,
   CapabilityDto,
   CapabilityTypeDto,
@@ -298,6 +307,27 @@ export const performanceApi = {
   endPlanningRule: (ruleId: string, reason: string) => http.post<PlanningRuleDto>(`${v1}/planning-rules/${ruleId}/end`, { reason }).then((r) => r.data),
   eligibility: (body: SelectionRequest) => http.post<CandidateEvaluationDto[]>(`${v1}/transporters/eligibility`, body).then((r) => r.data),
   recommend: (body: SelectionRequest) => http.post<RecommendationResultDto>(`${v1}/transporters/recommendation`, body).then((r) => r.data),
+  placements: (params: { transporterId?: string; status?: PlacementStatus; page?: number; pageSize?: number }) =>
+    http.get<PagedResult<PlacementDto>>(`${v1}/placements`, { params }).then((r) => r.data),
+  reportPlacement: (id: string) => http.post<PlacementDto>(`${v1}/placements/${id}/report`).then((r) => r.data),
+  placePlacement: (id: string) => http.post<PlacementDto>(`${v1}/placements/${id}/place`).then((r) => r.data),
+  noShow: (id: string, reason: string) => http.post<PlacementDto>(`${v1}/placements/${id}/no-show`, { reason }).then((r) => r.data),
+  cancelPlacement: (id: string, reason: string) => http.post<PlacementDto>(`${v1}/placements/${id}/cancel`, { reason }).then((r) => r.data),
+  claims: (id: string, from: string, to: string) => http.get<ClaimDto[]>(`${v1}/transporters/${id}/claims`, { params: { from, to } }).then((r) => r.data),
+  recordClaim: (id: string, body: { claimType: ClaimType; claimDate: string; claimValue: number; shipmentId: string | null; remarks: string | null }) =>
+    http.post<ClaimDto>(`${v1}/transporters/${id}/claims`, body).then((r) => r.data),
+  setClaimValue: (claimId: string, claimValue: number) => http.put<ClaimDto>(`${v1}/claims/${claimId}/value`, { claimValue }).then((r) => r.data),
+  resolveClaim: (claimId: string) => http.post<ClaimDto>(`${v1}/claims/${claimId}/resolve`).then((r) => r.data),
+  costs: (id: string, from: string, to: string) => http.get<LoadCostDto[]>(`${v1}/transporters/${id}/costs`, { params: { from, to } }).then((r) => r.data),
+  recordCost: (id: string, shipmentId: string, invoicedAmount: number, agreedAmount?: number) =>
+    http.post<LoadCostDto>(`${v1}/transporters/${id}/costs`, { shipmentId, invoicedAmount, agreedAmount }).then((r) => r.data),
+  capacity: (id: string, from: string, to: string) => http.get<CapacityDayDto[]>(`${v1}/transporters/${id}/capacity`, { params: { from, to } }).then((r) => r.data),
+  saveCapacity: (id: string, date: string, vehiclesCommitted: number, vehiclesAvailable: number) =>
+    http.put<CapacityDayDto>(`${v1}/transporters/${id}/capacity`, { date, vehiclesCommitted, vehiclesAvailable }).then((r) => r.data),
+  alerts: (params: { status?: AlertStatus; severity?: AlertSeverity; transporterId?: string; page?: number; pageSize?: number }) =>
+    http.get<PagedResult<AlertDto>>(`${v1}/transporter-alerts`, { params }).then((r) => r.data),
+  acknowledgeAlert: (id: string) => http.post<AlertDto>(`${v1}/transporter-alerts/${id}/acknowledge`).then((r) => r.data),
+  resolveAlert: (id: string, comments?: string) => http.post<AlertDto>(`${v1}/transporter-alerts/${id}/resolve`, { comments }).then((r) => r.data),
   settings: () => http.get<TransporterSettingDto[]>(`${v1}/transporter-settings`).then((r) => r.data),
   saveSetting: (key: string, value: unknown) => http.put<TransporterSettingDto>(`${v1}/transporter-settings/${key}`, { value }).then((r) => r.data),
 }

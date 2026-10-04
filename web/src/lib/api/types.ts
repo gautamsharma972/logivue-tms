@@ -1815,3 +1815,78 @@ export interface RecommendationResultDto {
   ranked: RankedCandidateDto[]
   candidates: CandidateEvaluationDto[]
 }
+
+// ---- Placements, claims, costs, capacity and alerts ----
+
+export type PlacementStatus = 'VehicleAssigned' | 'Reported' | 'Placed' | 'LoadingStarted' | 'NoShow' | 'Cancelled'
+export type ClaimType = 'Damage' | 'Shortage' | 'LossTheft'
+export type ClaimStatus = 'Open' | 'Resolved'
+export type AlertSeverity = 'Low' | 'Medium' | 'High' | 'Critical'
+export type AlertStatus = 'Open' | 'Acknowledged' | 'Resolved'
+
+export interface PlacementDto {
+  id: string
+  shipmentId: string
+  shipmentNumber: string
+  transporterId: string
+  vehicleId: string | null
+  vehicleRegistration: string | null
+  requiredAt: string
+  reportedAt: string | null
+  placedAt: string | null
+  loadingStartedAt: string | null
+  status: PlacementStatus
+  slaStatus: 'OnTime' | 'Late' | 'Pending' | 'Overdue' | 'NoShow' | 'Cancelled'
+  delayMinutes: number | null
+  replacementCount: number
+  reason: string | null
+  events: { eventType: string; eventAt: string; remarks: string | null }[]
+}
+
+export interface ClaimDto {
+  id: string
+  transporterId: string
+  shipmentId: string | null
+  shipmentNumber: string | null
+  claimType: ClaimType
+  claimDate: string
+  claimValue: number
+  status: ClaimStatus
+  remarks: string | null
+  resolvedAt: string | null
+}
+
+export interface LoadCostDto {
+  id: string
+  transporterId: string
+  shipmentId: string
+  shipmentNumber: string
+  serviceDate: string
+  agreedAmount: number
+  invoicedAmount: number
+  onBudget: boolean
+}
+
+export interface CapacityDayDto {
+  id: string
+  transporterId: string
+  date: string
+  vehiclesCommitted: number
+  vehiclesAvailable: number
+}
+
+export interface AlertDto {
+  id: string
+  alertType: string
+  severity: AlertSeverity
+  transporterId: string
+  transporterName: string | null
+  shipmentId: string | null
+  shipmentNumber: string | null
+  message: string
+  status: AlertStatus
+  createdAt: string
+  acknowledgedAt: string | null
+  resolvedAt: string | null
+  resolution: string | null
+}

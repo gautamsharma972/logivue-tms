@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Tms.Modules.Transporters.Application.Operations;
 using Tms.Modules.Transporters.Application.Settings;
 using Tms.Modules.Transporters.Domain;
 using Tms.Modules.Transporters.Infrastructure.Persistence;
@@ -13,7 +14,7 @@ namespace Tms.Modules.Transporters.Application.Performance;
 /// so a shipment that is accepted, dispatched and delivered builds its execution record without anyone typing it in.
 /// </summary>
 internal sealed class ExecutionService(
-    TransportersDbContext db, IShipmentOperationsFeed feed, ITransporterSettings settings, PerformanceEngine engine, ICurrentUser user, TimeProvider clock)
+    TransportersDbContext db, IShipmentOperationsFeed feed, ITransporterSettings settings, PerformanceEngine engine, AlertService alerts, ICurrentUser user, TimeProvider clock)
 {
     private static readonly TimeSpan India = TimeSpan.FromMinutes(330);
 
@@ -69,9 +70,30 @@ internal sealed class ExecutionService(
             return recorded;
         }
 
+        // Arriving at the pickup is the vehicle being placed; the loading milestone moves the placement on.
+        var placement = type is ExecutionEventType.VehicleArrival or ExecutionEventType.LoadingStart
+            ? await db.Placements.Include(p => p.Events).FirstOrDefaultAsync(p => p.ShipmentId == execution.ShipmentId, cancellationToken)
+            : null;
+        var anchors = Anchors(execution, at).ToList();
+        if (placement is not null)
+        {
+            _ = type == ExecutionEventType.VehicleArrival ? placement.Place(at) : placement.StartLoading(at);
+            anchors.Add(placement.RequiredAt);
+            await alerts.ResolveAsync($"placement:{placement.Id:N}", [AlertService.PlacementOverdue], cancellationToken);
+        }
+
+        await alerts.SyncDelaysAsync(execution, cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
-        await engine.RefreshAsync(execution.TransporterId, Anchors(execution, at), cancellationToken);
+        await engine.RefreshAsync(execution.TransporterId, anchors, cancellationToken);
         return Result.Success();
+    }
+
+    /// <summary>Brings the delay alerts and the KPIs in step after a person gave a late event its reason.</summary>
+    public async Task AfterAttributionAsync(LoadExecution execution, CancellationToken cancellationToken)
+    {
+        await alerts.SyncDelaysAsync(execution, cancellationToken);
+        await db.SaveChangesAsync(cancellationToken);
+        await RefreshKpisAsync(execution, cancellationToken);
     }
 
     public Task RefreshKpisAsync(LoadExecution execution, CancellationToken cancellationToken) =>

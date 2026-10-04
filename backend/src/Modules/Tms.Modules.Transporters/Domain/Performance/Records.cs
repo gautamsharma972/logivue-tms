@@ -208,6 +208,8 @@ public sealed class LoadExecution : AggregateRoot, ITenantScoped
         return Result.Success();
     }
 
+    public void Cancel() => Status = ExecutionStatus.Cancelled;
+
     /// <summary>Gives a late event a reason after the fact (the system records the time; a person says why). Changes attribution, never the minutes.</summary>
     public Result Attribute(bool delivery, DelayReason reason)
     {

@@ -62,7 +62,7 @@ internal sealed class ShipmentOperationsFeed(ShipmentsDbContext db) : IShipmentO
                 firstProof.TryGetValue((s.Id, o.OrderId), out var at) ? at : null, o.PodStatus.ToString(), o.PodRejectionCount, o.HasException)).ToList();
             return new ShipmentFact(
                 s.Id, s.Number, s.TransporterId!.Value, s.Mode, s.VehicleTypeId, s.OriginState, s.OriginCity, last?.DropState, last?.DropCity,
-                s.PlannedPickupDate, deadlines.Count == 0 ? null : deadlines.Min(), s.AcceptedAt, s.DispatchedAt, s.DeliveredAt, deliveries);
+                s.PlannedPickupDate, deadlines.Count == 0 ? null : deadlines.Min(), s.FreightEstimate, s.AcceptedAt, s.DispatchedAt, s.DeliveredAt, deliveries, s.VehicleId, s.VehicleRegistration);
         }).ToList();
     }
 }

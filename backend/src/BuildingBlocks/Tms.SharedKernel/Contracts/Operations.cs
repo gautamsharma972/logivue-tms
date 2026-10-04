@@ -9,6 +9,12 @@ public sealed record ShipmentAccepted(Guid ShipmentId, Guid TenantId, string Num
 
 public sealed record ShipmentRejected(Guid ShipmentId, Guid TenantId, string Number, Guid TransporterId, DateTimeOffset RejectedAt, string Reason) : DomainEvent;
 
+/// <summary>A shipment that had been offered or accepted was cancelled. Open placements and loads for it are closed.</summary>
+public sealed record ShipmentCancelled(Guid ShipmentId, Guid TenantId, string Number, Guid TransporterId, string Reason) : DomainEvent;
+
+/// <summary>The vehicle or driver on an accepted shipment was swapped before it left. Counted as a vehicle replacement.</summary>
+public sealed record ShipmentVehicleReassigned(Guid ShipmentId, Guid TenantId, string Number, Guid TransporterId, Guid VehicleId, string Registration) : DomainEvent;
+
 /// <summary>One delivered order of a shipment, as far as proof of delivery is concerned.</summary>
 /// <param name="FirstProofAt">When the first proof document was uploaded; null if none yet.</param>
 /// <param name="ProofStatus">Awaiting, Uploaded, Verified or Rejected.</param>
@@ -32,10 +38,13 @@ public sealed record ShipmentFact(
     string? DestinationCity,
     DateOnly PlannedPickupDate,
     DateOnly? DeliverBy,
+    decimal? FreightEstimate,
     DateTimeOffset? AcceptedAt,
     DateTimeOffset? DispatchedAt,
     DateTimeOffset? DeliveredAt,
-    IReadOnlyList<OrderDeliveryFact> Deliveries);
+    IReadOnlyList<OrderDeliveryFact> Deliveries,
+    Guid? VehicleId = null,
+    string? VehicleRegistration = null);
 
 public interface IShipmentOperationsFeed
 {
