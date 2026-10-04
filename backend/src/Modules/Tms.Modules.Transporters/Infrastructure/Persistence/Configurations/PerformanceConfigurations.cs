@@ -121,3 +121,45 @@ internal sealed class TransporterSettingConfiguration : IEntityTypeConfiguration
         builder.HasIndex(s => new { s.TenantId, s.Key }).IsUnique();
     }
 }
+
+internal sealed class TransporterCapabilityConfiguration : IEntityTypeConfiguration<TransporterCapability>
+{
+    public void Configure(EntityTypeBuilder<TransporterCapability> builder)
+    {
+        builder.ToTable("capabilities");
+        builder.HasKey(c => c.Id);
+        builder.Property(c => c.Id).ValueGeneratedNever();
+        builder.Property(c => c.Code).HasMaxLength(40).IsRequired();
+        builder.HasIndex(c => new { c.TenantId, c.TransporterId, c.Code });
+    }
+}
+
+internal sealed class PlanningRuleConfiguration : IEntityTypeConfiguration<PlanningRule>
+{
+    public void Configure(EntityTypeBuilder<PlanningRule> builder)
+    {
+        builder.ToTable("planning_rules");
+        builder.HasKey(r => r.Id);
+        builder.Property(r => r.Id).ValueGeneratedNever();
+        builder.Property(r => r.RuleType).HasConversion<string>().HasMaxLength(20);
+        builder.Property(r => r.Reason).HasMaxLength(300).IsRequired();
+        builder.Property(r => r.EndedBecause).HasMaxLength(300);
+        builder.HasIndex(r => new { r.TenantId, r.TransporterId, r.IsActive });
+    }
+}
+
+internal sealed class PlanningFeedbackConfiguration : IEntityTypeConfiguration<PlanningFeedback>
+{
+    public void Configure(EntityTypeBuilder<PlanningFeedback> builder)
+    {
+        builder.ToTable("planning_feedback");
+        builder.HasKey(f => f.Id);
+        builder.Property(f => f.Id).ValueGeneratedNever();
+        foreach (var column in new[] { nameof(PlanningFeedback.OverallScore), nameof(PlanningFeedback.OtpPct), nameof(PlanningFeedback.OtdPct), nameof(PlanningFeedback.PlacementCompliancePct), nameof(PlanningFeedback.PodCompliancePct), nameof(PlanningFeedback.TenderAcceptancePct), nameof(PlanningFeedback.ClaimsRatePct) })
+        {
+            builder.Property<decimal?>(column).HasPrecision(7, 2);
+        }
+
+        builder.HasIndex(f => new { f.TenantId, f.TransporterId }).IsUnique();
+    }
+}

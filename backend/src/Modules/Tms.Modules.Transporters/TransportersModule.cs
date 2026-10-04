@@ -49,6 +49,9 @@ public static class TransportersModule
         services.AddScoped<Application.Performance.PerformanceAccess>();
         services.AddScoped<Application.Performance.PerformanceEngine>();
         services.AddScoped<Application.Performance.ExecutionService>();
+        services.AddScoped<Application.Selection.SelectionService>();
+        services.AddScoped<Application.Selection.TransporterPlanningPolicy>();
+        services.AddScoped<ITransporterPlanningPolicy>(sp => sp.GetRequiredService<Application.Selection.TransporterPlanningPolicy>());
         services.AddScoped<IDomainEventHandler<ShipmentTendered>, ShipmentTenderedSubscriber>();
         services.AddScoped<IDomainEventHandler<ShipmentAccepted>, ShipmentAcceptedSubscriber>();
         services.AddScoped<IDomainEventHandler<ShipmentRejected>, ShipmentRejectedSubscriber>();

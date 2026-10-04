@@ -412,11 +412,22 @@ public sealed class TransporterLane : AggregateRoot, ITenantScoped
     }
 
     /// <summary>True when a load going from one place to another is on this lane.</summary>
-    public bool Covers(string originState, string originCity, string? destinationState, string? destinationCity, FreightMode mode) =>
+    public bool Covers(string originState, string? originCity, string? destinationState, string? destinationCity, FreightMode mode) =>
         IsActive
         && (Mode is null || Mode == mode)
         && Same(OriginState, originState) && (OriginCity is null || Same(OriginCity, originCity))
         && destinationState is not null && Same(DestinationState, destinationState) && (DestinationCity is null || Same(DestinationCity, destinationCity));
+
+    /// <summary>True when the lane is in service on a date.</summary>
+    public bool InServiceOn(DateOnly date) => IsActive && EffectiveFrom <= date && (EffectiveTo is null || EffectiveTo >= date);
+
+    /// <summary>Two lanes are the same route if they join the same places for the same service; they may not overlap in time.</summary>
+    public bool SameRouteAs(TransporterLane other) =>
+        Same(OriginState, other.OriginState) && Same(OriginCity, other.OriginCity) && Same(DestinationState, other.DestinationState)
+        && Same(DestinationCity, other.DestinationCity) && Mode == other.Mode;
+
+    public bool OverlapsPeriod(DateOnly from, DateOnly? to) =>
+        EffectiveFrom <= (to ?? DateOnly.MaxValue) && (EffectiveTo ?? DateOnly.MaxValue) >= from;
 
     private static bool Same(string? a, string? b) => string.Equals(a?.Trim(), b?.Trim(), StringComparison.OrdinalIgnoreCase);
 

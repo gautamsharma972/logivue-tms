@@ -1,6 +1,13 @@
 import { http } from './client'
 import type {
   AgeingDto,
+  CandidateEvaluationDto,
+  CapabilityDto,
+  CapabilityTypeDto,
+  PlanningRuleDto,
+  PlanningRuleType,
+  RecommendationResultDto,
+  SelectionRequest,
   BenchmarkDto,
   ExecutionDto,
   ExecutionEventType,
@@ -280,6 +287,17 @@ export const performanceApi = {
   lanes: (id: string) => http.get<LaneDto[]>(`${v1}/transporters/${id}/lanes`).then((r) => r.data),
   createLane: (id: string, body: SaveLaneRequest) => http.post<LaneDto>(`${v1}/transporters/${id}/lanes`, body).then((r) => r.data),
   updateLane: (laneId: string, body: SaveLaneRequest) => http.put<LaneDto>(`${v1}/lanes/${laneId}`, body).then((r) => r.data),
+  capabilityCatalog: () => http.get<CapabilityTypeDto[]>(`${v1}/transporters/capability-catalog`).then((r) => r.data),
+  capabilities: (id: string) => http.get<CapabilityDto[]>(`${v1}/transporters/${id}/capabilities`).then((r) => r.data),
+  addCapability: (id: string, code: string, effectiveFrom: string) =>
+    http.post<CapabilityDto>(`${v1}/transporters/${id}/capabilities`, { code, effectiveFrom, effectiveTo: null }).then((r) => r.data),
+  endCapability: (capabilityId: string) => http.post<CapabilityDto>(`${v1}/capabilities/${capabilityId}/end`).then((r) => r.data),
+  planningRules: (id: string) => http.get<PlanningRuleDto[]>(`${v1}/transporters/${id}/planning-rules`).then((r) => r.data),
+  addPlanningRule: (id: string, body: { ruleType: PlanningRuleType; laneId: string | null; reason: string; effectiveFrom: string; effectiveTo: string | null }) =>
+    http.post<PlanningRuleDto>(`${v1}/transporters/${id}/planning-rules`, body).then((r) => r.data),
+  endPlanningRule: (ruleId: string, reason: string) => http.post<PlanningRuleDto>(`${v1}/planning-rules/${ruleId}/end`, { reason }).then((r) => r.data),
+  eligibility: (body: SelectionRequest) => http.post<CandidateEvaluationDto[]>(`${v1}/transporters/eligibility`, body).then((r) => r.data),
+  recommend: (body: SelectionRequest) => http.post<RecommendationResultDto>(`${v1}/transporters/recommendation`, body).then((r) => r.data),
   settings: () => http.get<TransporterSettingDto[]>(`${v1}/transporter-settings`).then((r) => r.data),
   saveSetting: (key: string, value: unknown) => http.put<TransporterSettingDto>(`${v1}/transporter-settings/${key}`, { value }).then((r) => r.data),
 }

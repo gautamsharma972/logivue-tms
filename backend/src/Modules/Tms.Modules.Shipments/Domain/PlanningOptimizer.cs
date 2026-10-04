@@ -45,8 +45,10 @@ public sealed record GroupComparison(
 /// when capacity, time and detour allow. It is a constructive heuristic, so a plan is reported as Feasible, never as proven optimal.
 /// </summary>
 public sealed class RuleBasedPlanningOptimizer(
-    IFreightQuoteService quotes, IRoutingProvider? routing = null, IFleetDirectory? fleet = null, ITransporterDirectory? transporterDirectory = null) : IPlanningOptimizer
+    IFreightQuoteService quotes, IRoutingProvider? routing = null, IFleetDirectory? fleet = null, ITransporterDirectory? transporterDirectory = null,
+    ITransporterPlanningPolicy? policy = null) : IPlanningOptimizer
 {
+    private readonly Dictionary<string, TransporterStanding> _standings = [];
     // Fleet and compatibility state belongs to one run; both are replaced at the start of each public operation.
     private FleetAllocator _fleet = new(fleet, transporterDirectory);
     private CompatibilityPolicy _policy = CompatibilityPolicy.None;
@@ -75,6 +77,44 @@ public sealed class RuleBasedPlanningOptimizer(
     /// </summary>
     private Task<Evaluation> ReferenceAsync(PlannableOrder order, PlanOptions options, DateOnly date, IReadOnlyList<VehicleTypeInfo> types, CancellationToken cancellationToken) =>
         EvaluateAsync([order], date, types, options with { RequireAvailableVehicle = false }, cancellationToken);
+
+    private static string BarredNote(Dictionary<Guid, (string Name, string Reason)> barred) =>
+        barred.Count == 0 ? string.Empty : $" Not offered the load: {string.Join(" ", barred.Values.Select(b => $"{b.Name} ({b.Reason.TrimEnd('.')}).")) }";
+
+    private async Task<IReadOnlyDictionary<Guid, TransporterStanding>> StandingsAsync(
+        IReadOnlyList<FreightQuoteResult> quotes, DateOnly date, PlannableOrder first, PlannableOrder drop, FreightMode mode, bool urgent, CancellationToken cancellationToken)
+    {
+        var result = new Dictionary<Guid, TransporterStanding>();
+        if (policy is null)
+        {
+            return result;
+        }
+
+        string Key(Guid id) => string.Join('|', id, date, first.PickupState, first.PickupCity, drop.DropState, drop.DropCity, mode, urgent);
+        var missing = new List<Guid>();
+        foreach (var id in quotes.Select(q => q.TransporterId).Distinct())
+        {
+            if (_standings.TryGetValue(Key(id), out var known))
+            {
+                result[id] = known;
+            }
+            else
+            {
+                missing.Add(id);
+            }
+        }
+
+        if (missing.Count > 0)
+        {
+            foreach (var (id, standing) in await policy.GetStandingsAsync(missing, date, first.PickupState, first.PickupCity, drop.DropState, drop.DropCity, mode, urgent, cancellationToken))
+            {
+                _standings[Key(id)] = standing;
+                result[id] = standing;
+            }
+        }
+
+        return result;
+    }
 
     private async Task<FreightQuoteSet> PriceAsync(FreightQuoteRequest request, CancellationToken cancellationToken)
     {
@@ -494,19 +534,37 @@ public sealed class RuleBasedPlanningOptimizer(
         var drop = ordered[^1];
         decimal? distanceKm = route is null ? null : Math.Round((decimal)route.Sequence.TotalKm, 1);
         var priced = new List<(FreightMode Mode, VehicleTypeEvaluation? Type, FreightQuoteResult? Quote)>();
+        var barred = new Dictionary<Guid, (string Name, string Reason)>();
+        var urgent = group.Any(o => o.Priority == OrderPriority.Urgent);
         foreach (var (mode, type) in candidates)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var set = await PriceAsync(
                 new FreightQuoteRequest(date, first.PickupState, first.PickupCity, drop.DropState, drop.DropCity, type?.VehicleTypeId, mode, weight, volume, distanceKm, group.Count),
                 cancellationToken);
-            priced.Add((mode, type, set.Quotes.OrderBy(q => q.Total).FirstOrDefault()));
+
+            // A transporter the planning rules bar (suspended, expired papers, restricted, avoided for urgent loads) is not offered the load, whatever it charges.
+            // Among carriers at the same price, a preferred one wins, then the better-scored one.
+            var standings = await StandingsAsync(set.Quotes, date, first, drop, mode, urgent, cancellationToken);
+            foreach (var q in set.Quotes.Where(q => standings.TryGetValue(q.TransporterId, out var st) && !st.Allowed))
+            {
+                barred[q.TransporterId] = (q.TransporterName, standings[q.TransporterId].Reason ?? "not allowed");
+            }
+
+            var cheapestAllowed = set.Quotes.Where(q => !standings.TryGetValue(q.TransporterId, out var st) || st.Allowed)
+                .OrderBy(q => q.Total)
+                .ThenByDescending(q => standings.TryGetValue(q.TransporterId, out var st) && st.Preferred)
+                .ThenByDescending(q => standings.TryGetValue(q.TransporterId, out var st) ? st.Score ?? 0m : 0m)
+                .FirstOrDefault();
+            priced.Add((mode, type, cheapestAllowed));
         }
 
         var rated = priced.Where(p => p.Quote is not null).ToList();
         if (rated.Count == 0)
         {
-            return Fail(sizing, UnplannedCodes.NoRate, "No active contract has a rate for this lane, vehicle and load.");
+            return barred.Count > 0
+                ? Fail(sizing, UnplannedCodes.TransporterRestricted, $"Every transporter with a rate for this load is barred: {string.Join(" ", barred.Values.Select(b => $"{b.Name}: {b.Reason}"))}")
+                : Fail(sizing, UnplannedCodes.NoRate, "No active contract has a rate for this lane, vehicle and load.");
         }
 
         // Part load travels slower (terminal handling), so it can miss a deadline where a full truck makes it.
@@ -591,7 +649,7 @@ public sealed class RuleBasedPlanningOptimizer(
             new PlanAlternative(FreightMode.Ftl, s.VehicleTypeId, s.Name, null, null, null, null, null, [], false, s.Reason!)));
 
         var chosenAlt = alternatives.First(a => a.Chosen);
-        return new Evaluation(alternatives, chosenAlt, sizing, null, null, Explain(chosenAlt, best.Type, rated.Count, options.Objective, group.Count), route);
+        return new Evaluation(alternatives, chosenAlt, sizing, null, null, Explain(chosenAlt, best.Type, rated.Count, options.Objective, group.Count) + BarredNote(barred), route);
     }
 
     public async Task<GroupComparison> CompareAsync(
@@ -968,6 +1026,7 @@ public sealed class RuleBasedPlanningOptimizer(
         UnplannedCodes.NotCompatible => ["Add or approve a vehicle type that can carry this (hazardous / temperature-controlled)", "Check the product category and handling on the order"],
         UnplannedCodes.TooLong => ["Add a vehicle type with a longer body", "Correct the longest-item length on the order"],
         UnplannedCodes.NoAvailableVehicle => ["Register or return a vehicle of that type", "Plan a day when one is free", "Switch off \"require an available vehicle\" if the fleet list is incomplete"],
+        UnplannedCodes.TransporterRestricted => ["Lift or end the planning rule, or renew the expired documents", "Add a contract with another transporter on this lane", "Plan the order as non-urgent if only urgent loads are avoided"],
         UnplannedCodes.Incompatible => ["Split the products onto separate vehicles", "Review the compatibility rules"],
         UnplannedCodes.LockConflict => ["Unlock the vehicle, sequence or order, then re-plan"],
         _ => ["Enable consolidation", "Change the planning date"],

@@ -91,6 +91,9 @@ public static class UnplannedCodes
     public const string NotCompatible = "NO_COMPATIBLE_VEHICLE";
     public const string TooLong = "ITEM_TOO_LONG";
     public const string NoAvailableVehicle = "NO_AVAILABLE_VEHICLE";
+
+    /// <summary>Every transporter that has a rate is barred by the transporter planning rules (suspended, expired papers, restricted, avoided for urgent).</summary>
+    public const string TransporterRestricted = "TRANSPORTER_RESTRICTED";
     public const string Incompatible = "PRODUCTS_INCOMPATIBLE";
     public const string LockConflict = "LOCKED_ASSIGNMENT_CONFLICT";
 }

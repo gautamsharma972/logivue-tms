@@ -175,7 +175,7 @@ function AddLane({ transporterId, lane, onClose }: { transporterId: string; lane
   )
 }
 
-function Lanes({ transporterId }: { transporterId: string }) {
+export function Lanes({ transporterId }: { transporterId: string }) {
   const lanes = useQuery({ queryKey: queryKeys.performance.lanes(transporterId), queryFn: () => performanceApi.lanes(transporterId) })
   const [editing, setEditing] = useState<LaneDto | null>(null)
   const [adding, setAdding] = useState(false)
@@ -206,9 +206,6 @@ function Lanes({ transporterId }: { transporterId: string }) {
 
 export function OperationsPanel({ transporterId }: { transporterId: string }) {
   return (
-    <Flex vertical gap={16}>
-      <Loads transporterId={transporterId} />
-      <Lanes transporterId={transporterId} />
-    </Flex>
+    <Loads transporterId={transporterId} />
   )
 }

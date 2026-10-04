@@ -130,6 +130,16 @@ internal sealed class ScorecardHandler(TransportersDbContext db, PerformanceAcce
             tenantId, transporterId, request.From, request.To, overall,
             measured.Select(m => new ScorecardLine(m.Kpi, m.Value, m.Numerator, m.Denominator, m.Weight, m.WeightedScore)).ToList(), clock.GetUtcNow(), user.UserId, CalculationVersion);
         db.Scorecards.Add(card);
+
+        // Planning reads the latest figures from a small table rather than recomputing them.
+        var feedback = await db.Feedback.FirstOrDefaultAsync(f => f.TransporterId == transporterId, cancellationToken);
+        if (feedback is null)
+        {
+            feedback = PlanningFeedback.For(tenantId, transporterId);
+            db.Feedback.Add(feedback);
+        }
+
+        feedback.Refresh(overall, measured.ToDictionary(m => m.Kpi, m => m.Value), clock.GetUtcNow());
         await db.SaveChangesAsync(cancellationToken);
         return ToDto(card);
     }
@@ -496,6 +506,11 @@ internal sealed class LaneHandler(TransportersDbContext db, PerformanceAccess ac
             return lane.Error;
         }
 
+        if (await OverlapAsync(lane.Value, null, cancellationToken) is { } overlap)
+        {
+            return overlap;
+        }
+
         db.Lanes.Add(lane.Value);
         await db.SaveChangesAsync(cancellationToken);
         return lane.Value.ToDto();
@@ -522,6 +537,11 @@ internal sealed class LaneHandler(TransportersDbContext db, PerformanceAccess ac
             return set.Error;
         }
 
+        if (lane.IsActive && await OverlapAsync(lane, lane.Id, cancellationToken) is { } overlap)
+        {
+            return overlap;
+        }
+
         try
         {
             await db.SaveChangesAsync(cancellationToken);
@@ -532,6 +552,15 @@ internal sealed class LaneHandler(TransportersDbContext db, PerformanceAccess ac
         }
 
         return lane.ToDto();
+    }
+
+    /// <summary>A transporter may not have two active lanes for the same route and service whose periods overlap: eligibility would be ambiguous.</summary>
+    private async Task<Error?> OverlapAsync(TransporterLane lane, Guid? excludeId, CancellationToken cancellationToken)
+    {
+        var others = await db.Lanes.AsNoTracking().Where(l => l.TransporterId == lane.TransporterId && l.IsActive && l.Id != (excludeId ?? Guid.Empty)).ToListAsync(cancellationToken);
+        return others.Any(o => o.SameRouteAs(lane) && o.OverlapsPeriod(lane.EffectiveFrom, lane.EffectiveTo))
+            ? Error.Conflict("lanes.overlap", "An active lane for this route and service already overlaps that period.")
+            : null;
     }
 }
 

@@ -19,6 +19,9 @@ internal sealed class PerformanceAccess(ICurrentUser user)
     /// <summary>Staff who may compare transporters (rankings, benchmarks, all executions).</summary>
     public bool CanSeeAll => !IsVendor && (Has(TransporterPermissions.PerformanceRead) || Has(TransporterPermissions.PerformanceManage));
 
+    /// <summary>Staff who may check which transporters can take a load (planners). Separate from performance because planners need it without seeing scorecards.</summary>
+    public bool CanSelect => !IsVendor && (Has(TransporterPermissions.Select) || Has(TransporterPermissions.PerformanceManage));
+
     public bool CanManage => !IsVendor && Has(TransporterPermissions.PerformanceManage);
 
     public Result CheckRead(Guid transporterId) => Check(transporterId, write: false);

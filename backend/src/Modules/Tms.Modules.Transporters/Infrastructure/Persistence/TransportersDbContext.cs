@@ -36,6 +36,12 @@ public sealed class TransportersDbContext(DbContextOptions<TransportersDbContext
 
     public DbSet<TransporterSetting> Settings => Set<TransporterSetting>();
 
+    public DbSet<TransporterCapability> Capabilities => Set<TransporterCapability>();
+
+    public DbSet<PlanningRule> PlanningRules => Set<PlanningRule>();
+
+    public DbSet<PlanningFeedback> Feedback => Set<PlanningFeedback>();
+
     protected override void ConfigureModel(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Schema);

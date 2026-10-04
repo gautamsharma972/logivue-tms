@@ -7,6 +7,7 @@ using Tms.Modules.Transporters.Application;
 using Tms.Modules.Transporters.Application.Documents;
 using Tms.Modules.Transporters.Application.Fleet;
 using Tms.Modules.Transporters.Application.Performance;
+using Tms.Modules.Transporters.Application.Selection;
 using Tms.Modules.Transporters.Application.Transporters;
 using Tms.Modules.Transporters.Domain;
 using Tms.SharedKernel.Paging;
@@ -67,6 +68,34 @@ internal static class TransporterEndpoints
 
         group.MapGet("/{id:guid}/executions", async (Guid id, ExecutionHandler h, CancellationToken ct) => (await h.ListAsync(id, ct)).ToHttpResult())
             .WithName("ListTransporterExecutions").Produces<IReadOnlyList<ExecutionDto>>();
+
+        group.MapPost("/eligibility", async (SelectionRequest body, SelectionHandler h, CancellationToken ct) => (await h.EligibilityAsync(body, ct)).ToHttpResult())
+            .WithName("CheckTransporterEligibility").Produces<IReadOnlyList<CandidateEvaluation>>().ProducesValidationProblem();
+
+        group.MapPost("/recommendation", async (SelectionRequest body, SelectionHandler h, CancellationToken ct) => (await h.RecommendAsync(body, ct)).ToHttpResult())
+            .WithName("RecommendTransporter").Produces<RecommendationResult>().ProducesValidationProblem();
+
+        group.MapGet("/capability-catalog", () => Results.Ok(CapabilityHandler.Catalog())).WithName("CapabilityCatalog").Produces<IReadOnlyList<CapabilityTypeDto>>();
+
+        group.MapGet("/{id:guid}/capabilities", async (Guid id, CapabilityHandler h, CancellationToken ct) => (await h.ListAsync(id, ct)).ToHttpResult())
+            .WithName("ListTransporterCapabilities").Produces<IReadOnlyList<CapabilityDto>>();
+
+        group.MapPost("/{id:guid}/capabilities", async (Guid id, AddCapabilityRequest body, CapabilityHandler h, CancellationToken ct) =>
+                (await h.AddAsync(id, body, ct)).ToCreatedResult(c => $"/api/v1/capabilities/{c.Id}"))
+            .WithName("AddTransporterCapability").Produces<CapabilityDto>(StatusCodes.Status201Created).ProducesValidationProblem();
+
+        api.MapPost("/capabilities/{capabilityId:guid}/end", async (Guid capabilityId, CapabilityHandler h, CancellationToken ct) => (await h.EndAsync(capabilityId, ct)).ToHttpResult())
+            .WithName("EndTransporterCapability").Produces<CapabilityDto>();
+
+        group.MapGet("/{id:guid}/planning-rules", async (Guid id, PlanningRuleHandler h, CancellationToken ct) => (await h.ListAsync(id, ct)).ToHttpResult())
+            .WithName("ListPlanningRules").Produces<IReadOnlyList<PlanningRuleDto>>();
+
+        group.MapPost("/{id:guid}/planning-rules", async (Guid id, AddPlanningRuleRequest body, PlanningRuleHandler h, CancellationToken ct) =>
+                (await h.AddAsync(id, body, ct)).ToCreatedResult(r => $"/api/v1/planning-rules/{r.Id}"))
+            .WithName("AddPlanningRule").Produces<PlanningRuleDto>(StatusCodes.Status201Created).ProducesValidationProblem();
+
+        api.MapPost("/planning-rules/{ruleId:guid}/end", async (Guid ruleId, EndPlanningRuleRequest body, PlanningRuleHandler h, CancellationToken ct) => (await h.EndAsync(ruleId, body, ct)).ToHttpResult())
+            .WithName("EndPlanningRule").Produces<PlanningRuleDto>().ProducesValidationProblem();
 
         var executions = api.MapGroup("/executions");
         executions.MapGet("/{id:guid}", async (Guid id, ExecutionHandler h, CancellationToken ct) => (await h.GetAsync(id, ct)).ToHttpResult())

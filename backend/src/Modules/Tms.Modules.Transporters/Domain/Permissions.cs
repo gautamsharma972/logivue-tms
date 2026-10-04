@@ -25,8 +25,12 @@ public static class TransporterPermissions
     /// <summary>Vendor portal: see your own company's performance and record milestones on your own loads.</summary>
     public const string PerformanceSelf = "transporters.performance.self";
 
+    /// <summary>Check which transporters can take a load and see a recommendation (planners).</summary>
+    public const string Select = "transporters.select";
+
     public static IReadOnlyList<PermissionDefinition> All { get; } =
     [
+        new(Select, "Transporters", "Check which transporters can take a load and get a recommendation"),
         new(PerformanceSelf, "Transporters", "Vendor portal: view own performance and record load milestones", ExternalAllowed: true),
         new(PerformanceRead, "Transporters", "View transporter performance, scorecards, rankings and executions"),
         new(PerformanceManage, "Transporters", "Recalculate performance, record executions and manage lanes, planning rules and settings"),

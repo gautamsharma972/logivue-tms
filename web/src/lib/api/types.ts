@@ -1722,3 +1722,96 @@ export interface TransporterSettingDto {
   value: unknown
   isDefault: boolean
 }
+
+// ---- Transporter selection, coverage and planning rules ----
+
+export type PlanningRuleType = 'PreferredCarrier' | 'PreferredLane' | 'AvoidForUrgent' | 'Restricted' | 'DoNotAllocate'
+
+export interface CapabilityTypeDto {
+  code: string
+  name: string
+}
+
+export interface CapabilityDto {
+  id: string
+  transporterId: string
+  code: string
+  name: string
+  effectiveFrom: string
+  effectiveTo: string | null
+  isActive: boolean
+}
+
+export interface PlanningRuleDto {
+  id: string
+  transporterId: string
+  ruleType: PlanningRuleType
+  laneId: string | null
+  reason: string
+  effectiveFrom: string
+  effectiveTo: string | null
+  isActive: boolean
+  endedBecause: string | null
+}
+
+export interface SelectionRequest {
+  originState: string
+  originCity: string | null
+  destinationState: string
+  destinationCity: string | null
+  mode: FreightMode
+  vehicleTypeId: string | null
+  weightKg: number
+  volumeCbm: number | null
+  date: string
+  requiredCapabilities: string[]
+  isUrgent: boolean
+  distanceKm: number | null
+}
+
+export interface KpiPointDto {
+  value: number | null
+  denominator: number
+  sufficient: boolean
+  scope: string
+}
+
+export interface CandidateEvaluationDto {
+  transporterId: string
+  code: string
+  name: string
+  status: string
+  eligible: boolean
+  reasons: string[]
+  warnings: string[]
+  laneId: string | null
+  preferred: boolean
+  restrictedForPlanning: boolean
+  rate: { contractId: string; contractReference: string; total: number; note: string | null } | null
+  availableVehicles: number
+  kpis: Record<string, KpiPointDto>
+}
+
+export interface ScoreComponentDto {
+  factor: string
+  score: number
+  weight: number
+  contribution: number
+  basis: string
+  sufficient: boolean
+}
+
+export interface RankedCandidateDto {
+  rank: number
+  candidate: CandidateEvaluationDto
+  recommendationScore: number
+  components: ScoreComponentDto[]
+  explanations: string[]
+  comparisons: string[]
+}
+
+export interface RecommendationResultDto {
+  recommended: RankedCandidateDto | null
+  ranked: RankedCandidateDto[]
+  candidates: CandidateEvaluationDto[]
+}
