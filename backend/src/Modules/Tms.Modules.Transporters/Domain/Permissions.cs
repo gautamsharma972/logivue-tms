@@ -1,0 +1,27 @@
+using Tms.SharedKernel.Security;
+
+namespace Tms.Modules.Transporters.Domain;
+
+public static class TransporterPermissions
+{
+    public const string Read = "transporters.read";
+    public const string Manage = "transporters.manage";
+
+    /// <summary>Decides transporter onboarding approvals (referenced by the approval policy for <c>transporter_onboarding</c>).</summary>
+    public const string Approve = "transporters.approve";
+
+    /// <summary>Changes bank details. Separate because it is the classic payment-fraud lever.</summary>
+    public const string BankManage = "transporters.bank.manage";
+
+    /// <summary>Vendor-portal users: maintain your own company's profile, fleet, drivers and documents.</summary>
+    public const string SelfManage = "transporters.self.manage";
+
+    public static IReadOnlyList<PermissionDefinition> All { get; } =
+    [
+        new(Read, "Transporters", "View transporters, fleet and documents"),
+        new(Manage, "Transporters", "Create and edit transporters, vehicles, drivers and documents"),
+        new(Approve, "Transporters", "Approve transporter onboarding"),
+        new(BankManage, "Transporters", "Change transporter bank details"),
+        new(SelfManage, "Transporters", "Vendor portal: maintain own company, fleet, drivers and documents", ExternalAllowed: true),
+    ];
+}

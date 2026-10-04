@@ -1,0 +1,363 @@
+import { http } from './client'
+import type {
+  AgeingDto,
+  CommitMilkRunResult,
+  ModeChoice,
+  LockKind,
+  CompatibilityRuleDto,
+  SaveCompatibilityRuleRequest,
+  ListPodParams,
+  PodDocumentDto,
+  PodLineDto,
+  RecordDeliveryRequest,
+  DashboardDto,
+  MilkRunDto,
+  MilkRunPlan,
+  SaveMilkRunRequest,
+  EditPlanRequest,
+  DistanceDto,
+  ListLocationsParams,
+  LocationDto,
+  SaveLocationRequest,
+  ComparisonDto,
+  PlanOptions,
+  PlanSnapshot,
+  RunDto,
+  RunSummaryDto,
+  RunVersionDto,
+  AdviceDto,
+  AdviceRequest,
+  CreateShipmentRequest,
+  FleetOptionsDto,
+  ListOrdersParams,
+  ListShipmentsParams,
+  OrderDto,
+  ShipmentDto,
+  ShipmentQuotesDto,
+  ShipmentSummaryDto,
+  SaveOrderRequest,
+  SuggestedLoadDto,
+  UpdateShipmentPlanRequest,
+  UtilizationDto,
+  AuditLogDto,
+  ContractDocumentDto,
+  ContractDto,
+  ContractSummaryDto,
+  DieselPriceDto,
+  ListContractsParams,
+  QuoteRequest,
+  QuoteResultDto,
+  RateCardDto,
+  RateInputDto,
+  SaveContractRequest,
+  ZoneDto,
+  ZoneMember,
+  ComplianceItemDto,
+  DocumentDto,
+  DriverDto,
+  ListTransportersParams,
+  OwnerKind,
+  SaveBankRequest,
+  SaveDriverRequest,
+  SaveTransporterRequest,
+  SaveVehicleRequest,
+  TransporterDto,
+  TransporterLookupDto,
+  TransporterSummaryDto,
+  UploadDocumentInput,
+  VehicleDto,
+  SaveVehicleTypeRequest,
+  VehicleTypeDto,
+  CreateDelegationRequest,
+  DelegationDto,
+  DelegationsDto,
+  ListRequestsParams,
+  PolicyDto,
+  RequestDto,
+  RequestSummaryDto,
+  SavePolicyRequest,
+  UserLookupDto,
+  AuthResponse,
+  CreateUserRequest,
+  ListAuditLogsParams,
+  ListUsersParams,
+  PagedResult,
+  PermissionDefinition,
+  RoleDto,
+  SaveRoleRequest,
+  UpdateUserRequest,
+  UserDto,
+  UserProfile,
+} from './types'
+
+const v1 = '/api/v1'
+
+export const authApi = {
+  login: (body: { tenantCode: string; email: string; password: string }) =>
+    http.post<AuthResponse>(`${v1}/auth/login`, body).then((r) => r.data),
+  logout: () => http.post(`${v1}/auth/logout`),
+  changePassword: (body: { currentPassword: string; newPassword: string }) =>
+    http.post<AuthResponse>(`${v1}/auth/change-password`, body).then((r) => r.data),
+  forgotPassword: (body: { tenantCode: string; email: string }) => http.post(`${v1}/auth/forgot-password`, body),
+  resetPassword: (body: { token: string; newPassword: string }) => http.post(`${v1}/auth/reset-password`, body),
+  me: () => http.get<UserProfile>(`${v1}/auth/me`).then((r) => r.data),
+}
+
+export const usersApi = {
+  list: (params: ListUsersParams) =>
+    http.get<PagedResult<UserDto>>(`${v1}/users`, { params }).then((r) => r.data),
+  lookup: (search?: string) =>
+    http.get<UserLookupDto[]>(`${v1}/users/lookup`, { params: { search } }).then((r) => r.data),
+  create: (body: CreateUserRequest) => http.post<UserDto>(`${v1}/users`, body).then((r) => r.data),
+  update: (id: string, body: UpdateUserRequest) =>
+    http.put<UserDto>(`${v1}/users/${id}`, body).then((r) => r.data),
+}
+
+export const rolesApi = {
+  list: () => http.get<RoleDto[]>(`${v1}/roles`).then((r) => r.data),
+  create: (body: SaveRoleRequest) => http.post<RoleDto>(`${v1}/roles`, body).then((r) => r.data),
+  update: (id: string, body: SaveRoleRequest) =>
+    http.put<RoleDto>(`${v1}/roles/${id}`, body).then((r) => r.data),
+  permissions: () => http.get<PermissionDefinition[]>(`${v1}/permissions`).then((r) => r.data),
+}
+
+export const auditApi = {
+  list: (params: ListAuditLogsParams) =>
+    http.get<PagedResult<AuditLogDto>>(`${v1}/audit-logs`, { params }).then((r) => r.data),
+}
+
+export const approvalsApi = {
+  requests: (params: ListRequestsParams) =>
+    http.get<PagedResult<RequestSummaryDto>>(`${v1}/approvals/requests`, { params }).then((r) => r.data),
+  request: (id: string) => http.get<RequestDto>(`${v1}/approvals/requests/${id}`).then((r) => r.data),
+  approve: (id: string, comment?: string) =>
+    http.post<RequestDto>(`${v1}/approvals/requests/${id}/approve`, { comment }).then((r) => r.data),
+  reject: (id: string, comment: string) =>
+    http.post<RequestDto>(`${v1}/approvals/requests/${id}/reject`, { comment }).then((r) => r.data),
+  cancel: (id: string) => http.post<RequestDto>(`${v1}/approvals/requests/${id}/cancel`).then((r) => r.data),
+
+  policies: () => http.get<PolicyDto[]>(`${v1}/approvals/policies`).then((r) => r.data),
+  stepPermissions: () =>
+    http.get<PermissionDefinition[]>(`${v1}/approvals/policies/permissions`).then((r) => r.data),
+  savePolicy: (documentType: string, body: SavePolicyRequest) =>
+    http.put<PolicyDto>(`${v1}/approvals/policies/${documentType}`, body).then((r) => r.data),
+
+  delegations: () => http.get<DelegationsDto>(`${v1}/approvals/delegations`).then((r) => r.data),
+  createDelegation: (body: CreateDelegationRequest) =>
+    http.post<DelegationDto>(`${v1}/approvals/delegations`, body).then((r) => r.data),
+  revokeDelegation: (id: string) => http.delete(`${v1}/approvals/delegations/${id}`),
+}
+
+const t = (id: string) => `${v1}/transporters/${id}`
+
+export const transportersApi = {
+  list: (params: ListTransportersParams) =>
+    http.get<PagedResult<TransporterSummaryDto>>(`${v1}/transporters`, { params }).then((r) => r.data),
+  lookup: (search?: string) =>
+    http.get<TransporterLookupDto[]>(`${v1}/transporters/lookup`, { params: { search } }).then((r) => r.data),
+  get: (id: string) => http.get<TransporterDto>(t(id)).then((r) => r.data),
+  create: (body: SaveTransporterRequest) => http.post<TransporterDto>(`${v1}/transporters`, body).then((r) => r.data),
+  update: (id: string, body: SaveTransporterRequest) => http.put<TransporterDto>(t(id), body).then((r) => r.data),
+  updateBank: (id: string, body: SaveBankRequest) => http.put<TransporterDto>(`${t(id)}/bank`, body).then((r) => r.data),
+  submit: (id: string) => http.post<TransporterDto>(`${t(id)}/submit`).then((r) => r.data),
+  suspend: (id: string, reason: string) => http.post<TransporterDto>(`${t(id)}/suspend`, { reason }).then((r) => r.data),
+  reactivate: (id: string) => http.post<TransporterDto>(`${t(id)}/reactivate`).then((r) => r.data),
+
+  vehicleTypes: () => http.get<VehicleTypeDto[]>(`${v1}/vehicle-types`).then((r) => r.data),
+  createVehicleType: (body: SaveVehicleTypeRequest) => http.post<VehicleTypeDto>(`${v1}/vehicle-types`, body).then((r) => r.data),
+  updateVehicleType: (id: string, body: SaveVehicleTypeRequest) => http.put<VehicleTypeDto>(`${v1}/vehicle-types/${id}`, body).then((r) => r.data),
+  vehicles: (id: string, params: { search?: string; page?: number; pageSize?: number }) =>
+    http.get<PagedResult<VehicleDto>>(`${t(id)}/vehicles`, { params }).then((r) => r.data),
+  createVehicle: (id: string, body: SaveVehicleRequest) => http.post<VehicleDto>(`${t(id)}/vehicles`, body).then((r) => r.data),
+  updateVehicle: (vehicleId: string, body: SaveVehicleRequest) => http.put<VehicleDto>(`${v1}/vehicles/${vehicleId}`, body).then((r) => r.data),
+  drivers: (id: string, params: { search?: string; page?: number; pageSize?: number }) =>
+    http.get<PagedResult<DriverDto>>(`${t(id)}/drivers`, { params }).then((r) => r.data),
+  createDriver: (id: string, body: SaveDriverRequest) => http.post<DriverDto>(`${t(id)}/drivers`, body).then((r) => r.data),
+  updateDriver: (driverId: string, body: SaveDriverRequest) => http.put<DriverDto>(`${v1}/drivers/${driverId}`, body).then((r) => r.data),
+
+  documents: (id: string, params?: { ownerKind?: OwnerKind; ownerId?: string; includeSuperseded?: boolean }) =>
+    http.get<DocumentDto[]>(`${t(id)}/documents`, { params }).then((r) => r.data),
+  uploadDocument: (id: string, input: UploadDocumentInput) => {
+    const form = new FormData()
+    form.set('ownerKind', input.ownerKind)
+    form.set('ownerId', input.ownerId)
+    form.set('kind', input.kind)
+    if (input.number) form.set('number', input.number)
+    if (input.issuedOn) form.set('issuedOn', input.issuedOn)
+    if (input.expiresOn) form.set('expiresOn', input.expiresOn)
+    form.set('file', input.file)
+    return http.post<DocumentDto>(`${t(id)}/documents`, form).then((r) => r.data)
+  },
+  deleteDocument: (documentId: string) => http.delete(`${v1}/documents/${documentId}`),
+  /** Fetched with the bearer token (a plain link would be unauthenticated), then handed to the browser as a file. */
+  downloadDocument: async (documentId: string, fileName: string) => {
+    const { data } = await http.get<Blob>(`${v1}/documents/${documentId}/file`, { responseType: 'blob' })
+    const url = URL.createObjectURL(data)
+    const link = Object.assign(document.createElement('a'), { href: url, download: fileName })
+    link.click()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+  },
+  compliance: (params: { withinDays?: number; page?: number; pageSize?: number }) =>
+    http.get<PagedResult<ComplianceItemDto>>(`${v1}/transporters/compliance`, { params }).then((r) => r.data),
+}
+
+const c = (id: string) => `${v1}/contracts/${id}`
+
+export const contractsApi = {
+  list: (params: ListContractsParams) => http.get<PagedResult<ContractSummaryDto>>(`${v1}/contracts`, { params }).then((r) => r.data),
+  expiring: (withinDays: number, pageSize = 50) =>
+    http.get<PagedResult<ContractSummaryDto>>(`${v1}/contracts/expiring`, { params: { withinDays, pageSize } }).then((r) => r.data),
+  get: (id: string) => http.get<ContractDto>(c(id)).then((r) => r.data),
+  create: (body: SaveContractRequest) => http.post<ContractDto>(`${v1}/contracts`, body).then((r) => r.data),
+  update: (id: string, body: SaveContractRequest) => http.put<ContractDto>(c(id), body).then((r) => r.data),
+  rates: (id: string) => http.get<RateCardDto[]>(`${c(id)}/rates`).then((r) => r.data),
+  saveRates: (id: string, rates: RateInputDto[], version: number) =>
+    http.put<ContractDto>(`${c(id)}/rates`, { rates, version }).then((r) => r.data),
+  submit: (id: string) => http.post<ContractDto>(`${c(id)}/submit`).then((r) => r.data),
+  terminate: (id: string, reason: string) => http.post<ContractDto>(`${c(id)}/terminate`, { reason }).then((r) => r.data),
+  revise: (id: string, effectiveFrom: string, effectiveTo: string) =>
+    http.post<ContractDto>(`${c(id)}/revise`, { effectiveFrom, effectiveTo }).then((r) => r.data),
+
+  documents: (id: string) => http.get<ContractDocumentDto[]>(`${c(id)}/documents`).then((r) => r.data),
+  uploadDocument: (id: string, input: { kind: string; title: string; file: File }) => {
+    const form = new FormData()
+    form.set('kind', input.kind)
+    form.set('title', input.title)
+    form.set('file', input.file)
+    return http.post<ContractDocumentDto>(`${c(id)}/documents`, form).then((r) => r.data)
+  },
+  deleteDocument: (documentId: string) => http.delete(`${v1}/contract-documents/${documentId}`),
+  downloadDocument: async (documentId: string, fileName: string) => {
+    const { data } = await http.get<Blob>(`${v1}/contract-documents/${documentId}/file`, { responseType: 'blob' })
+    const url = URL.createObjectURL(data)
+    Object.assign(document.createElement('a'), { href: url, download: fileName }).click()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+  },
+
+  vehicleTypes: () => http.get<{ id: string; code: string; name: string; payloadKg: number }[]>(`${v1}/contracts/lookups/vehicle-types`).then((r) => r.data),
+  quote: (body: QuoteRequest) => http.post<QuoteResultDto>(`${v1}/freight/quote`, body).then((r) => r.data),
+
+  zones: () => http.get<ZoneDto[]>(`${v1}/zones`).then((r) => r.data),
+  createZone: (body: { code: string; name: string; members: ZoneMember[] }) => http.post<ZoneDto>(`${v1}/zones`, { ...body, version: null }).then((r) => r.data),
+  updateZone: (id: string, body: { code: string; name: string; members: ZoneMember[]; version: number }) =>
+    http.put<ZoneDto>(`${v1}/zones/${id}`, body).then((r) => r.data),
+  dieselPrices: (region?: string) => http.get<DieselPriceDto[]>(`${v1}/diesel-prices`, { params: { region } }).then((r) => r.data),
+  addDieselPrice: (body: { region: string; effectiveFrom: string; pricePerLitre: number }) =>
+    http.post<DieselPriceDto>(`${v1}/diesel-prices`, body).then((r) => r.data),
+}
+
+const sh = (id: string) => `${v1}/shipments/${id}`
+
+export const ordersApi = {
+  list: (params: ListOrdersParams) => http.get<PagedResult<OrderDto>>(`${v1}/orders`, { params }).then((r) => r.data),
+  create: (body: SaveOrderRequest) => http.post<OrderDto>(`${v1}/orders`, body).then((r) => r.data),
+  update: (id: string, body: SaveOrderRequest) => http.put<OrderDto>(`${v1}/orders/${id}`, body).then((r) => r.data),
+  cancel: (id: string, reason: string) => http.post<OrderDto>(`${v1}/orders/${id}/cancel`, { reason }).then((r) => r.data),
+}
+
+export const milkRunsApi = {
+  list: (params: { search?: string; active?: boolean; page?: number; pageSize?: number }) =>
+    http.get<PagedResult<MilkRunDto>>(`${v1}/planning/milk-runs`, { params }).then((r) => r.data),
+  create: (body: SaveMilkRunRequest) => http.post<MilkRunDto>(`${v1}/planning/milk-runs`, body).then((r) => r.data),
+  update: (id: string, body: SaveMilkRunRequest) => http.put<MilkRunDto>(`${v1}/planning/milk-runs/${id}`, body).then((r) => r.data),
+  preview: (milkRunId: string, date: string, keepTemplateOrder: boolean) =>
+    http.post<MilkRunPlan>(`${v1}/planning/milk-runs/preview`, { milkRunId, date, keepTemplateOrder }).then((r) => r.data),
+  /** Makes a draft shipment for each trip of the day's plan, from the orders that are still open. */
+  commit: (milkRunId: string, date: string, keepTemplateOrder: boolean) =>
+    http.post<CommitMilkRunResult>(`${v1}/planning/milk-runs/commit`, { milkRunId, date, keepTemplateOrder }).then((r) => r.data),
+}
+
+/** Fetches a file with the sign-in token attached and saves it, naming it from the server's header when present. */
+export async function downloadFile(url: string, fallbackName: string, params?: Record<string, string | undefined>): Promise<void> {
+  const response = await http.get<Blob>(url, { params, responseType: 'blob' })
+  const header = String(response.headers['content-disposition'] ?? '')
+  const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(header)
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(response.data)
+  link.download = match?.[1] ? decodeURIComponent(match[1]) : fallbackName
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(link.href)
+}
+
+export const planningApi = {
+  dashboard: (from?: string, to?: string) => http.get<DashboardDto>(`${v1}/planning/dashboard`, { params: { from, to } }).then((r) => r.data),
+  exportDashboard: (format: 'csv' | 'xlsx' | 'pdf', from?: string, to?: string) =>
+    downloadFile(`${v1}/planning/dashboard/export`, `planning-kpis.${format}`, { format, from, to }),
+  exportRun: (id: string, format: 'csv' | 'xlsx' | 'pdf', number: string) => downloadFile(`${v1}/planning/runs/${id}/export`, `${number}.${format}`, { format }),
+  preview: (planningDate: string, orderIds: string[], options: PlanOptions) =>
+    http.post<PlanSnapshot>(`${v1}/planning/preview`, { planningDate, orderIds, options }).then((r) => r.data),
+  /** `background` returns at once with a Running plan that finishes on the server; follow it with `run`. */
+  createRun: (planningDate: string, orderIds: string[], options: PlanOptions, background = false, modeChoice?: ModeChoice) =>
+    http.post<RunDto>(`${v1}/planning/runs`, { planningDate, orderIds, options, background, modeChoice }).then((r) => r.data),
+  runs: (params: { status?: string; page?: number; pageSize?: number }) =>
+    http.get<PagedResult<RunSummaryDto>>(`${v1}/planning/runs`, { params }).then((r) => r.data),
+  run: (id: string) => http.get<RunDto>(`${v1}/planning/runs/${id}`).then((r) => r.data),
+  versions: (id: string) => http.get<RunVersionDto[]>(`${v1}/planning/runs/${id}/versions`).then((r) => r.data),
+  reoptimize: (id: string, reason: string, options: PlanOptions | null) =>
+    http.post<RunDto>(`${v1}/planning/runs/${id}/reoptimize`, { reason, options }).then((r) => r.data),
+  edit: (id: string, body: EditPlanRequest) => http.post<RunDto>(`${v1}/planning/runs/${id}/edit`, body).then((r) => r.data),
+  lockVehicle: (id: string, vehicleKey: string, locked: boolean, kind: LockKind = 'Vehicle', orderId?: string) =>
+    http.post<RunDto>(`${v1}/planning/runs/${id}/lock`, { vehicleKey, locked, kind, orderId }).then((r) => r.data),
+  approve: (id: string) => http.post<RunDto>(`${v1}/planning/runs/${id}/approve`).then((r) => r.data),
+  commit: (id: string) => http.post<RunDto>(`${v1}/planning/runs/${id}/commit`).then((r) => r.data),
+  cancelRun: (id: string, reason: string) => http.post<RunDto>(`${v1}/planning/runs/${id}/cancel`, { reason }).then((r) => r.data),
+  compare: (orderIds: string[], options: PlanOptions | null) =>
+    http.post<ComparisonDto>(`${v1}/planning/ftl-ptl/compare`, { orderIds, options }).then((r) => r.data),
+  vehicleTypes: () => http.get<{ id: string; code: string; name: string; payloadKg: number; volumeCbm: number | null }[]>(`${v1}/planning/vehicle-types`).then((r) => r.data),
+  compatibilityRules: () => http.get<CompatibilityRuleDto[]>(`${v1}/planning/compatibility-rules`).then((r) => r.data),
+  addCompatibilityRule: (body: SaveCompatibilityRuleRequest) => http.post<CompatibilityRuleDto>(`${v1}/planning/compatibility-rules`, body).then((r) => r.data),
+  deleteCompatibilityRule: (id: string) => http.delete(`${v1}/planning/compatibility-rules/${id}`).then(() => undefined),
+  advice: (body: AdviceRequest) => http.post<AdviceDto>(`${v1}/planning/advice`, body).then((r) => r.data),
+  suggestions: () => http.get<SuggestedLoadDto[]>(`${v1}/planning/suggestions`).then((r) => r.data),
+  utilization: (params: { from?: string; to?: string; transporterId?: string }) =>
+    http.get<UtilizationDto>(`${v1}/planning/utilization`, { params }).then((r) => r.data),
+}
+
+export const shipmentsApi = {
+  list: (params: ListShipmentsParams) => http.get<PagedResult<ShipmentSummaryDto>>(`${v1}/shipments`, { params }).then((r) => r.data),
+  get: (id: string) => http.get<ShipmentDto>(sh(id)).then((r) => r.data),
+  create: (body: CreateShipmentRequest) => http.post<ShipmentDto>(`${v1}/shipments`, body).then((r) => r.data),
+  updatePlan: (id: string, body: UpdateShipmentPlanRequest) => http.put<ShipmentDto>(`${sh(id)}/plan`, body).then((r) => r.data),
+  addOrders: (id: string, orderIds: string[]) => http.post<ShipmentDto>(`${sh(id)}/orders`, { orderIds }).then((r) => r.data),
+  removeOrder: (id: string, orderId: string) => http.delete<ShipmentDto>(`${sh(id)}/orders/${orderId}`).then((r) => r.data),
+  sequence: (id: string, orderIds: string[]) => http.put<ShipmentDto>(`${sh(id)}/sequence`, { orderIds }).then((r) => r.data),
+  quotes: (id: string) => http.get<ShipmentQuotesDto>(`${sh(id)}/quotes`).then((r) => r.data),
+  tender: (id: string, contractId: string, overrideReason: string | null) =>
+    http.post<ShipmentDto>(`${sh(id)}/tender`, { contractId, overrideReason }).then((r) => r.data),
+  withdraw: (id: string) => http.post<ShipmentDto>(`${sh(id)}/withdraw`).then((r) => r.data),
+  fleetOptions: (id: string) => http.get<FleetOptionsDto>(`${sh(id)}/fleet-options`).then((r) => r.data),
+  accept: (id: string, vehicleId: string, driverId: string) => http.post<ShipmentDto>(`${sh(id)}/accept`, { vehicleId, driverId }).then((r) => r.data),
+  reassign: (id: string, vehicleId: string, driverId: string) => http.post<ShipmentDto>(`${sh(id)}/reassign`, { vehicleId, driverId }).then((r) => r.data),
+  reject: (id: string, reason: string) => http.post<ShipmentDto>(`${sh(id)}/reject`, { reason }).then((r) => r.data),
+  dispatch: (id: string) => http.post<ShipmentDto>(`${sh(id)}/dispatch`).then((r) => r.data),
+  deliver: (id: string) => http.post<ShipmentDto>(`${sh(id)}/deliver`).then((r) => r.data),
+  cancel: (id: string, reason: string) => http.post<ShipmentDto>(`${sh(id)}/cancel`, { reason }).then((r) => r.data),
+}
+
+export const locationsApi = {
+  list: (params: ListLocationsParams) => http.get<PagedResult<LocationDto>>(`${v1}/locations`, { params }).then((r) => r.data),
+  create: (body: SaveLocationRequest) => http.post<LocationDto>(`${v1}/locations`, body).then((r) => r.data),
+  update: (id: string, body: SaveLocationRequest) => http.put<LocationDto>(`${v1}/locations/${id}`, body).then((r) => r.data),
+  distance: (fromLocationId: string, toLocationId: string) =>
+    http.post<DistanceDto>(`${v1}/locations/distance`, { fromLocationId, toLocationId }).then((r) => r.data),
+}
+
+const order = (shipmentId: string, orderId: string) => `${v1}/shipments/${shipmentId}/orders/${orderId}`
+
+export const deliveryApi = {
+  record: (shipmentId: string, orderId: string, body: RecordDeliveryRequest) => http.post<ShipmentDto>(`${order(shipmentId, orderId)}/delivery`, body).then((r) => r.data),
+  documents: (shipmentId: string, orderId: string) => http.get<PodDocumentDto[]>(`${order(shipmentId, orderId)}/pod`).then((r) => r.data),
+  upload: (shipmentId: string, orderId: string, file: File) => {
+    const form = new FormData()
+    form.set('file', file)
+    return http.post<PodDocumentDto>(`${order(shipmentId, orderId)}/pod`, form).then((r) => r.data)
+  },
+  download: (doc: PodDocumentDto) => downloadFile(`${v1}/pod-documents/${doc.id}/file`, doc.fileName),
+  remove: (documentId: string) => http.delete(`${v1}/pod-documents/${documentId}`),
+  verify: (shipmentId: string, orderId: string) => http.post<ShipmentDto>(`${order(shipmentId, orderId)}/pod/verify`).then((r) => r.data),
+  reject: (shipmentId: string, orderId: string, reason: string) => http.post<ShipmentDto>(`${order(shipmentId, orderId)}/pod/reject`, { reason }).then((r) => r.data),
+  queue: (params: ListPodParams) => http.get<PagedResult<PodLineDto>>(`${v1}/pod`, { params }).then((r) => r.data),
+  ageing: (overdueDays?: number) => http.get<AgeingDto>(`${v1}/pod/ageing`, { params: { overdueDays } }).then((r) => r.data),
+}

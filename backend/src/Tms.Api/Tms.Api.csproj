@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <ItemGroup>
+    <PackageReference Include="Serilog.AspNetCore" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Http" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Scalar.AspNetCore" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" />
+    <ProjectReference Include="..\BuildingBlocks\Tms.BuildingBlocks.Web\Tms.BuildingBlocks.Web.csproj" />
+    <ProjectReference Include="..\Modules\Tms.Modules.Platform\Tms.Modules.Platform.csproj" />
+    <ProjectReference Include="..\Modules\Tms.Modules.Approvals\Tms.Modules.Approvals.csproj" />
+    <ProjectReference Include="..\Modules\Tms.Modules.Transporters\Tms.Modules.Transporters.csproj" />
+    <ProjectReference Include="..\Modules\Tms.Modules.Contracts\Tms.Modules.Contracts.csproj" />
+    <ProjectReference Include="..\Modules\Tms.Modules.Shipments\Tms.Modules.Shipments.csproj" />
+  </ItemGroup>
+</Project>

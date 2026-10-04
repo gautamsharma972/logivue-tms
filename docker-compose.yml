@@ -1,0 +1,39 @@
+# Local production-like stack: docker compose up --build
+# Copy .env.example to .env and set the secrets first.
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set in .env}
+      MYSQL_DATABASE: tms
+      MYSQL_USER: tms_app
+      MYSQL_PASSWORD: ${MYSQL_APP_PASSWORD:?set in .env}
+    volumes: [mysql-data:/var/lib/mysql]
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  api:
+    build: ./backend
+    depends_on:
+      mysql: { condition: service_healthy }
+    environment:
+      ConnectionStrings__Default: "Server=mysql;Port=3306;Database=tms;User=tms_app;Password=${MYSQL_APP_PASSWORD};"
+      Jwt__SigningKey: ${JWT_SIGNING_KEY:?set in .env (32+ chars)}
+      FieldEncryption__Keys__1: ${FIELD_ENCRYPTION_KEY:?set in .env (base64, 32 bytes)}
+      Database__MigrateOnStartup: "true"   # convenient locally; run migrations as a deploy step in production
+      Email__Provider: ${EMAIL_PROVIDER:-Log}
+      Email__AppBaseUrl: ${APP_BASE_URL:-http://localhost:8081}
+      Proxy__TrustAll: "true"              # behind the bundled nginx only
+    volumes: [uploads:/data/storage]
+
+  web:
+    build: ./web
+    depends_on: [api]
+    ports: ["8081:80"]
+
+volumes:
+  mysql-data:
+  uploads:

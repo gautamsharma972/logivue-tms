@@ -1,0 +1,42 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+[*.{json,yml,yaml,csproj,props,targets,slnx,xml}]
+indent_size = 2
+
+[*.cs]
+file_scoped_namespace = true:warning
+csharp_style_namespace_declarations = file_scoped:warning
+csharp_using_directive_placement = outside_namespace:warning
+dotnet_sort_system_directives_first = true
+csharp_style_var_for_built_in_types = true:suggestion
+csharp_style_var_when_type_is_apparent = true:suggestion
+csharp_prefer_braces = true:warning
+dotnet_style_qualification_for_field = false:warning
+dotnet_naming_rule.private_fields_underscore.severity = warning
+dotnet_naming_rule.private_fields_underscore.symbols = private_fields
+dotnet_naming_rule.private_fields_underscore.style = underscore_camel
+dotnet_naming_symbols.private_fields.applicable_kinds = field
+dotnet_naming_symbols.private_fields.applicable_accessibilities = private
+dotnet_naming_style.underscore_camel.required_prefix = _
+dotnet_naming_style.underscore_camel.capitalization = camel_case
+
+# Interface names start with I; async methods keep the Async suffix except endpoint handlers.
+dotnet_diagnostic.CA1707.severity = none   # test names use underscores
+dotnet_diagnostic.CA1848.severity = none   # LoggerMessage delegates: not worth the noise yet
+dotnet_diagnostic.CA1873.severity = none   # same rationale as CA1848
+dotnet_diagnostic.CA2007.severity = none   # ASP.NET Core has no sync context
+dotnet_diagnostic.CA1062.severity = none   # nullable reference types cover this
+dotnet_diagnostic.CA1711.severity = none   # IDomainEventHandler is the intended domain term
+dotnet_diagnostic.CA1716.severity = none   # Error is the intended domain term
+
+[**/Migrations/*.cs]
+generated_code = true
+dotnet_analyzer_diagnostic.severity = none

@@ -1,0 +1,20 @@
+# .NET
+bin/
+obj/
+*.user
+.vs/
+TestResults/
+
+# Web
+node_modules/
+web/dist/
+web/.env
+web/.env.local
+*.tsbuildinfo
+
+# Misc
+.DS_Store
+.idea/
+*.log
+storage/
+.env

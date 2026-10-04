@@ -1,0 +1,21 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Tms.Api/Tms.Api.csproj" />
+  </Folder>
+  <Folder Name="/src/BuildingBlocks/">
+    <Project Path="src/BuildingBlocks/Tms.SharedKernel/Tms.SharedKernel.csproj" />
+    <Project Path="src/BuildingBlocks/Tms.BuildingBlocks.Web/Tms.BuildingBlocks.Web.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/">
+    <Project Path="src/Modules/Tms.Modules.Platform/Tms.Modules.Platform.csproj" />
+    <Project Path="src/Modules/Tms.Modules.Approvals/Tms.Modules.Approvals.csproj" />
+    <Project Path="src/Modules/Tms.Modules.Transporters/Tms.Modules.Transporters.csproj" />
+    <Project Path="src/Modules/Tms.Modules.Contracts/Tms.Modules.Contracts.csproj" />
+    <Project Path="src/Modules/Tms.Modules.Shipments/Tms.Modules.Shipments.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Tms.UnitTests/Tms.UnitTests.csproj" />
+    <Project Path="tests/Tms.ArchitectureTests/Tms.ArchitectureTests.csproj" />
+    <Project Path="tests/Tms.IntegrationTests/Tms.IntegrationTests.csproj" />
+  </Folder>
+</Solution>

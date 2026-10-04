@@ -1,0 +1,27 @@
+:root {
+  color-scheme: light dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* The brand panel is decorative; hide it on narrow screens so the form gets the full width. */
+@media (max-width: 900px) {
+  .login-brand {
+    display: none !important;
+  }
+}
+
+:focus-visible {
+  outline: 2px solid #2f5bea;
+  outline-offset: 2px;
+}

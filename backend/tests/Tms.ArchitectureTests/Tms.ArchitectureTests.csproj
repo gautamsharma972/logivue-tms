@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="NetArchTest.Rules" />
+    <ProjectReference Include="..\..\src\BuildingBlocks\Tms.SharedKernel\Tms.SharedKernel.csproj" />
+    <ProjectReference Include="..\..\src\BuildingBlocks\Tms.BuildingBlocks.Web\Tms.BuildingBlocks.Web.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Tms.Modules.Platform\Tms.Modules.Platform.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Tms.Modules.Approvals\Tms.Modules.Approvals.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Tms.Modules.Transporters\Tms.Modules.Transporters.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Tms.Modules.Contracts\Tms.Modules.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Tms.Modules.Shipments\Tms.Modules.Shipments.csproj" />
+  </ItemGroup>
+</Project>
