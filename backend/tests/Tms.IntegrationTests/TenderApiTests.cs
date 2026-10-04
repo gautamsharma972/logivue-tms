@@ -1,4 +1,5 @@
 using System.Net;
+using Microsoft.Extensions.DependencyInjection;
 using MySqlConnector;
 using Tms.IntegrationTests.Infrastructure;
 using Tms.Modules.Contracts.Application;
@@ -232,5 +233,34 @@ public class TenderApiTests(TmsApiFactory factory)
         var second = await SecondCarrierAsync(s, 35_000m);
         var again = await s.Admin.PostJsonAsync($"/api/v1/shipments/{shipment.Summary.Id}/tenders", new StartTenderRequest(TenderMode.Sequential, [s.Contract.Summary.Id, second.Contract.Summary.Id], null, null));
         again.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+    }
+
+    [Fact]
+    public async Task Offering_a_load_emails_the_transporter_and_a_superseded_bidder_is_told_it_is_closed()
+    {
+        using var s = await ShipmentScenario.CreateAsync(factory, flatRate: 30_000m);
+        var second = await SecondCarrierAsync(s, 35_000m);
+        var shipment = await s.ShipmentAsync(await s.OrderAsync());
+        await StartAsync(s, shipment.Summary.Id, TenderMode.Broadcast, s.Contract.Summary.Id, second.Contract.Summary.Id);
+
+        var mail = factory.Services.GetRequiredService<CapturingEmailSender>();
+        var number = shipment.Summary.Number;
+        await Eventually(() => mail.Sent.Count(m => m.Subject == $"Load {number} offered to you") >= 2);
+
+        await second.Vendor.PostJsonAsync($"/api/v1/shipments/{shipment.Summary.Id}/tenders/bid", new BidRequest(second.Vehicle.Id, second.Driver.Id, null, null));
+        var winner = (await CurrentAsync(s.Admin, shipment.Summary.Id)).Invitees.Single(i => i.TransporterId == second.Transporter.Id);
+        (await s.Admin.PostJsonAsync($"/api/v1/shipments/{shipment.Summary.Id}/tenders/award", new AwardTenderRequest(winner.Id))).StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        await Eventually(() => mail.Sent.Any(m => m.Subject == $"Offer {number} closed"));
+    }
+
+    private static async Task Eventually(Func<bool> condition)
+    {
+        for (var i = 0; i < 50 && !condition(); i++)
+        {
+            await Task.Delay(100);
+        }
+
+        condition().ShouldBeTrue();
     }
 }

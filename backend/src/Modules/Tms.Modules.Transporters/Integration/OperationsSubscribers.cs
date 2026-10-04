@@ -14,7 +14,7 @@ namespace Tms.Modules.Transporters.Integration;
 /// Turns what happens to a shipment into performance records: who was offered it and what they answered, and when it left and arrived. Every
 /// handler is idempotent (a re-delivered event changes nothing), as the outbox may deliver an event more than once.
 /// </summary>
-internal sealed class ShipmentTenderedSubscriber(TransportersDbContext db, IShipmentOperationsFeed feed) : IDomainEventHandler<ShipmentTendered>
+internal sealed class ShipmentTenderedSubscriber(TransportersDbContext db, IShipmentOperationsFeed feed, TransporterNotifier notifier) : IDomainEventHandler<ShipmentTendered>
 {
     public async Task HandleAsync(ShipmentTendered e, CancellationToken cancellationToken)
     {
@@ -26,6 +26,9 @@ internal sealed class ShipmentTenderedSubscriber(TransportersDbContext db, IShip
         var fact = await feed.GetAsync(e.ShipmentId, cancellationToken);
         db.Invitations.Add(TenderInvitation.Create(e.TenantId, fact, e.ShipmentId, e.Number, e.TransporterId, e.TenderedAt));
         await db.SaveChangesAsync(cancellationToken);
+
+        // Only for a new invitation, so a re-delivered event does not send the email twice.
+        await notifier.NotifyAsync(e.TransporterId, $"Load {e.Number} offered to you", $"Shipment {e.Number} has been offered to your company.", cancellationToken);
     }
 }
 
@@ -83,7 +86,7 @@ internal sealed class ShipmentRejectedSubscriber(TransportersDbContext db, Perfo
     }
 }
 
-internal sealed class ShipmentTenderExpiredSubscriber(TransportersDbContext db, PerformanceEngine engine) : IDomainEventHandler<ShipmentTenderExpired>
+internal sealed class ShipmentTenderExpiredSubscriber(TransportersDbContext db, PerformanceEngine engine, TransporterNotifier notifier) : IDomainEventHandler<ShipmentTenderExpired>
 {
     public async Task HandleAsync(ShipmentTenderExpired e, CancellationToken cancellationToken)
     {
@@ -95,11 +98,12 @@ internal sealed class ShipmentTenderExpiredSubscriber(TransportersDbContext db, 
         }
 
         await db.SaveChangesAsync(cancellationToken);
+        await notifier.NotifyAsync(e.TransporterId, $"Offer {e.Number} expired", $"Shipment {e.Number} was offered to you but no answer came before the deadline, so it has been offered elsewhere.", cancellationToken);
         await engine.RefreshAsync(e.TransporterId, [invitation.SentAt, e.ExpiredAt], cancellationToken);
     }
 }
 
-internal sealed class ShipmentTenderWithdrawnSubscriber(TransportersDbContext db, PerformanceEngine engine) : IDomainEventHandler<ShipmentTenderWithdrawn>
+internal sealed class ShipmentTenderWithdrawnSubscriber(TransportersDbContext db, PerformanceEngine engine, TransporterNotifier notifier) : IDomainEventHandler<ShipmentTenderWithdrawn>
 {
     public async Task HandleAsync(ShipmentTenderWithdrawn e, CancellationToken cancellationToken)
     {
@@ -111,6 +115,7 @@ internal sealed class ShipmentTenderWithdrawnSubscriber(TransportersDbContext db
         }
 
         await db.SaveChangesAsync(cancellationToken);
+        await notifier.NotifyAsync(e.TransporterId, $"Offer {e.Number} closed", $"The offer of shipment {e.Number} to your company is closed: {e.Reason.TrimEnd('.')}. You do not need to do anything.", cancellationToken);
         await engine.RefreshAsync(e.TransporterId, [invitation.SentAt], cancellationToken);
     }
 }
