@@ -64,6 +64,8 @@ import type {
   OrderDto,
   ShipmentDto,
   ShipmentQuotesDto,
+  StartTenderRequest,
+  TenderDto,
   ShipmentSummaryDto,
   SaveOrderRequest,
   SuggestedLoadDto,
@@ -421,6 +423,16 @@ export const shipmentsApi = {
   dispatch: (id: string) => http.post<ShipmentDto>(`${sh(id)}/dispatch`).then((r) => r.data),
   deliver: (id: string) => http.post<ShipmentDto>(`${sh(id)}/deliver`).then((r) => r.data),
   cancel: (id: string, reason: string) => http.post<ShipmentDto>(`${sh(id)}/cancel`, { reason }).then((r) => r.data),
+  tenders: (id: string) => http.get<TenderDto[]>(`${sh(id)}/tenders`).then((r) => r.data),
+  startTender: (id: string, body: StartTenderRequest) => http.post<TenderDto>(`${sh(id)}/tenders`, body).then((r) => r.data),
+  awardTender: (id: string, inviteeId: string) => http.post<TenderDto>(`${sh(id)}/tenders/award`, { inviteeId }).then((r) => r.data),
+  decideCounter: (id: string, inviteeId: string, agree: boolean, comments: string | null) =>
+    http.post<TenderDto>(`${sh(id)}/tenders/counter-decision`, { inviteeId, agree, comments }).then((r) => r.data),
+  cancelTender: (id: string, reason: string) => http.post<TenderDto>(`${sh(id)}/tenders/cancel`, { reason }).then((r) => r.data),
+  bid: (id: string, body: { vehicleId: string; driverId: string; counterRate: number | null; comments: string | null }) =>
+    http.post<TenderDto>(`${sh(id)}/tenders/bid`, body).then((r) => r.data),
+  counterOffer: (id: string, rate: number, comments: string | null) => http.post<TenderDto>(`${sh(id)}/tenders/counter`, { rate, comments }).then((r) => r.data),
+  declineTender: (id: string, reason: string) => http.post<TenderDto>(`${sh(id)}/tenders/decline`, { reason }).then((r) => r.data),
 }
 
 export const locationsApi = {

@@ -14,6 +14,7 @@ const shipmentColor: Record<ShipmentStatus, string> = {
   Dispatched: 'cyan',
   Delivered: 'green',
   Cancelled: 'red',
+  Bidding: 'purple',
 }
 
 const shipmentLabel: Record<ShipmentStatus, string> = {
@@ -23,6 +24,7 @@ const shipmentLabel: Record<ShipmentStatus, string> = {
   Dispatched: 'On the road',
   Delivered: 'Delivered',
   Cancelled: 'Cancelled',
+  Bidding: 'Out to tender',
 }
 
 export function ShipmentStatusTag({ status }: { status: ShipmentStatus }) {

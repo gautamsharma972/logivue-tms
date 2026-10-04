@@ -9,9 +9,10 @@ import { useAuth } from '@/features/auth/AuthContext'
 import { planningApi, shipmentsApi } from '@/lib/api/endpoints'
 import { toApiError } from '@/lib/api/errors'
 import { queryKeys } from '@/lib/api/queryKeys'
-import type { FleetOptionDto, FreightMode, ShipmentDto, ShipmentQuoteDto } from '@/lib/api/types'
+import type { FleetOptionDto, FreightMode, ShipmentDto, ShipmentQuoteDto, TenderMode } from '@/lib/api/types'
 import { formatDateTime, formatInrExact } from '@/lib/format'
 import { PodDrawer, RecordDeliveryModal } from './DeliveryPanel'
+import { TenderPanel } from './TenderPanel'
 import { PodStatusTag, ShipmentStatusTag, UtilizationBar, formatKg, modeLabel } from './shared'
 
 type Dialog = 'plan' | 'accept' | 'reassign' | 'reject' | 'cancel' | null
@@ -41,6 +42,23 @@ function QuotesCard({ shipment }: { shipment: ShipmentDto }) {
   const quotes = useQuery({ queryKey: queryKeys.shipments.quotes(id), queryFn: () => shipmentsApi.quotes(id) })
   const [choosing, setChoosing] = useState<ShipmentQuoteDto | null>(null)
   const [reason, setReason] = useState('')
+  const [picked, setPicked] = useState<string[]>([])
+  const [mode, setMode] = useState<TenderMode>('Sequential')
+  const [minutes, setMinutes] = useState<number | null>(240)
+  const { message } = App.useApp()
+  const queryClient = useQueryClient()
+  const startTender = useMutation({
+    mutationFn: () => {
+      // Sequential tries them in the order chosen: keep the order the table shows (cheapest first).
+      const ordered = (quotes.data?.quotes ?? []).filter((q) => picked.includes(q.contractId)).map((q) => q.contractId)
+      return shipmentsApi.startTender(id, { mode, contractIds: ordered, responseMinutes: minutes, notes: null })
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.shipments.all })
+      void message.success('Tender started')
+    },
+    onError: (e) => void message.error(toApiError(e).message),
+  })
   const tender = useShipmentMutation(
     id,
     (v: { quote: ShipmentQuoteDto; why: string | null }) => shipmentsApi.tender(id, v.quote.contractId, v.why),
@@ -59,6 +77,7 @@ function QuotesCard({ shipment }: { shipment: ShipmentDto }) {
         pagination={false}
         dataSource={quotes.data?.quotes}
         scroll={{ x: 'max-content' }}
+        rowSelection={{ selectedRowKeys: picked, onChange: (keys) => setPicked(keys as string[]) }}
         expandable={{
           expandedRowRender: (q) => (
             <Table size="small" pagination={false} rowKey="code" dataSource={q.lines}
@@ -71,6 +90,14 @@ function QuotesCard({ shipment }: { shipment: ShipmentDto }) {
           { title: '', key: 'a', align: 'right', render: (_, q) => <Button type={q.isCheapest ? 'primary' : 'default'} onClick={() => setChoosing(q)}>Offer this load</Button> },
         ]}
       />
+      {(quotes.data?.quotes.length ?? 0) >= 2 && (
+        <Flex gap={12} align="center" wrap style={{ marginTop: 12 }}>
+          <Typography.Text type="secondary">Or tender to several (tick two or more):</Typography.Text>
+          <Select aria-label="Tender type" style={{ width: 230 }} value={mode} onChange={setMode} options={[{ value: 'Sequential', label: 'One after another, cheapest first' }, { value: 'Broadcast', label: 'All at once, compare bids' }]} />
+          <InputNumber aria-label="Minutes to answer" min={15} max={4320} value={minutes} onChange={setMinutes} addonAfter="min each" />
+          <Button disabled={picked.length < 2} loading={startTender.isPending} onClick={() => startTender.mutate()}>Start tender{picked.length >= 2 ? ` (${picked.length})` : ''}</Button>
+        </Flex>
+      )}
       <Modal
         open={choosing !== null}
         title={choosing ? `Offer ${shipment.summary.number} to ${choosing.transporterName}?` : ''}
@@ -254,7 +281,7 @@ export function ShipmentDetailPage() {
             {canRespond && s.status === 'Accepted' && <Button onClick={() => setDialog('reassign')}>Change vehicle / driver</Button>}
             {canPlan && s.status === 'Accepted' && <Button type="primary" loading={dispatch.isPending} onClick={() => dispatch.mutate(undefined)}>Dispatch</Button>}
             {canPlan && s.status === 'Dispatched' && <Button type="primary" loading={deliver.isPending} onClick={() => deliver.mutate(undefined)}>Mark delivered</Button>}
-            {canPlan && ['Draft', 'Tendered', 'Accepted'].includes(s.status) && <Button danger onClick={() => setDialog('cancel')}>Cancel shipment</Button>}
+            {canPlan && ['Draft', 'Tendered', 'Accepted', 'Bidding'].includes(s.status) && <Button danger onClick={() => setDialog('cancel')}>Cancel shipment</Button>}
           </>
         }
       />
@@ -316,6 +343,7 @@ export function ShipmentDetailPage() {
               />
             </Card>
             {draft && canPlan && <QuotesCard shipment={shipment} />}
+            <TenderPanel shipment={shipment} canPlan={canPlan} canRespond={canRespond} isVendor={isVendor} />
             {!isVendor && shipment.estimateLines && shipment.estimateLines.length > 0 && (
               <Card title="Freight estimate" extra={<Typography.Text strong>{formatInrExact(s.freightEstimate)}</Typography.Text>}>
                 <Table size="small" pagination={false} rowKey="code" dataSource={shipment.estimateLines}

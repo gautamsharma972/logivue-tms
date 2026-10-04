@@ -17,7 +17,7 @@ vi.mock('@/features/auth/AuthContext', async (original) => ({
 
 vi.mock('@/lib/api/endpoints', () => ({
   authApi: { login: vi.fn(), logout: vi.fn(), me: vi.fn() },
-  shipmentsApi: { get: vi.fn(), quotes: vi.fn(), tender: vi.fn(), fleetOptions: vi.fn(), accept: vi.fn(), reject: vi.fn() },
+  shipmentsApi: { get: vi.fn(), quotes: vi.fn(), tenders: vi.fn(), startTender: vi.fn(), tender: vi.fn(), fleetOptions: vi.fn(), accept: vi.fn(), reject: vi.fn() },
 }))
 
 const party = { name: 'Acme Stores', line1: 'Plot 1', city: 'Surat', state: 'Gujarat', pincode: '395003', contactName: null, contactPhone: null }
@@ -53,6 +53,7 @@ const profile = (transporterId: string | null): UserProfile => ({ id: 'u1', emai
 function renderPage(s: ShipmentDto) {
   vi.mocked(shipmentsApi.get).mockResolvedValue(s)
   vi.mocked(shipmentsApi.quotes).mockResolvedValue(quotes)
+  vi.mocked(shipmentsApi.tenders).mockResolvedValue([])
   return renderWithProviders(<Routes><Route path="/shipments/:id" element={<ShipmentDetailPage />} /></Routes>, { route: '/shipments/s1' })
 }
 

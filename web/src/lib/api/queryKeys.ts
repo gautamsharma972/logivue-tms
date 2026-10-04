@@ -97,6 +97,7 @@ export const queryKeys = {
     detail: (id: string) => ['shipments', 'detail', id] as const,
     quotes: (id: string) => ['shipments', id, 'quotes'] as const,
     fleet: (id: string) => ['shipments', id, 'fleet'] as const,
+    tenders: (id: string) => ['shipments', id, 'tenders'] as const,
     vehicleTypes: ['shipments', 'vehicle-types'] as const,
     suggestions: ['shipments', 'suggestions'] as const,
     utilization: ['shipments', 'utilization'] as const,

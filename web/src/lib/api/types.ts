@@ -668,7 +668,67 @@ export type OrderPriority = 'Low' | 'Normal' | 'High' | 'Urgent'
 export type HandlingType = 'Standard' | 'Fragile' | 'TemperatureControlled'
 export type ReturnType = 'CustomerReturn' | 'DamagedMaterial' | 'RejectedMaterial' | 'EmptyPackaging' | 'SupplierReturn' | 'ReplacementPickup'
 export type OrderStatus = 'Open' | 'Planned' | 'Dispatched' | 'Delivered' | 'Cancelled'
-export type ShipmentStatus = 'Draft' | 'Tendered' | 'Accepted' | 'Dispatched' | 'Delivered' | 'Cancelled'
+export type ShipmentStatus = 'Draft' | 'Tendered' | 'Accepted' | 'Dispatched' | 'Delivered' | 'Cancelled' | 'Bidding'
+
+export type TenderMode = 'Sequential' | 'Broadcast'
+export type TenderStatus = 'Open' | 'Awarded' | 'Cancelled' | 'Exhausted'
+export type InviteeStatus = 'Waiting' | 'Sent' | 'Bid' | 'Accepted' | 'Rejected' | 'Expired' | 'Superseded' | 'Cancelled'
+export type CounterStatus = 'None' | 'Pending' | 'Agreed' | 'Declined'
+
+export interface StartTenderRequest {
+  mode: TenderMode
+  contractIds: string[]
+  responseMinutes: number | null
+  notes: string | null
+}
+
+/** `contractReference` and `quotedTotal` are null for vendors, who see only their own invitation. */
+export interface TenderInviteeDto {
+  id: string
+  transporterId: string
+  transporterName: string
+  sequence: number
+  status: InviteeStatus
+  sentAt: string | null
+  deadline: string | null
+  respondedAt: string | null
+  reason: string | null
+  contractReference: string | null
+  quotedTotal: number | null
+  counterRate: number | null
+  counterComment: string | null
+  counterStatus: CounterStatus
+  agreedRate: number | null
+  bidVehicleId: string | null
+  bidVehicleRegistration: string | null
+  bidDriverId: string | null
+  bidDriverName: string | null
+}
+
+export interface TenderEventDto {
+  at: string
+  type: string
+  inviteeId: string | null
+  transporterName: string | null
+  comments: string | null
+}
+
+export interface TenderDto {
+  id: string
+  number: string
+  shipmentId: string
+  shipmentNumber: string
+  mode: TenderMode
+  status: TenderStatus
+  responseMinutes: number
+  notes: string | null
+  awardedTransporterId: string | null
+  closedAt: string | null
+  closeReason: string | null
+  createdAt: string
+  invitees: TenderInviteeDto[]
+  events: TenderEventDto[]
+}
 
 export interface PartyDto {
   name: string
