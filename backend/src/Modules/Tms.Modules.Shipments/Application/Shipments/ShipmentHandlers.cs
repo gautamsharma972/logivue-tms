@@ -277,7 +277,7 @@ internal sealed class ShipmentLifecycleHandler(
         }, ct);
 
     public Task<Result<ShipmentDto>> RejectAsync(Guid id, ReasonRequest request, CancellationToken ct) =>
-        ResponderAsync(id, (s, _) => Task.FromResult(s.Reject(request.Reason)), ct);
+        ResponderAsync(id, (s, _) => Task.FromResult(s.Reject(request.Reason, clock.GetUtcNow())), ct);
 
     public Task<Result<ShipmentDto>> ReassignAsync(Guid id, AcceptRequest request, CancellationToken ct) =>
         ResponderAsync(id, async (s, c) =>

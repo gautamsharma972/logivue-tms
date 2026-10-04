@@ -1522,3 +1522,203 @@ export interface AgeingDto {
   buckets: { label: string; count: number }[]
   transporters: { transporterId: string | null; name: string; outstanding: number; overdue: number; oldestDays: number }[]
 }
+
+// ---- Transporter performance ----
+
+export type KpiType =
+  | 'OnTimePickup' | 'OnTimeDelivery' | 'PlacementCompliance' | 'TenderAcceptance' | 'PodCompliance' | 'ClaimsRate'
+  | 'CostPerformance' | 'Availability' | 'NoShowRate' | 'VehicleReplacementRate' | 'PodRejectionRate'
+
+export type DelayAttribution = 'None' | 'Carrier' | 'NonCarrier' | 'Unattributed'
+export type ExecutionEventType =
+  | 'PickupAppointment' | 'VehicleArrival' | 'LoadingStart' | 'LoadingComplete' | 'VehicleDeparture' | 'DeliveryArrival' | 'UnloadingStart' | 'DeliveryComplete'
+export type ExecutionStatus = 'NotStarted' | 'AtPickup' | 'PickedUp' | 'Delivered'
+export type RankingMetric = 'OverallScore' | 'OnTimePickup' | 'OnTimeDelivery' | 'PlacementCompliance' | 'TenderAcceptance' | 'PodCompliance' | 'ClaimsRate' | 'CostPerformance' | 'Availability'
+
+export interface KpiDto {
+  kpi: KpiType
+  numerator: number
+  denominator: number
+  value: number | null
+}
+
+export interface MonthKpisDto {
+  month: string
+  kpis: KpiDto[]
+}
+
+export interface OperationalMetricsDto {
+  duePlacements: number
+  placedOnTime: number
+  placed: number
+  noShows: number
+  replacements: number
+  averagePlacementDelayMinutes: number | null
+  measuredPickups: number
+  notMeasurablePickups: number
+  latePickupsCarrier: number
+  latePickupsNonCarrier: number
+  latePickupsUnattributed: number
+  averagePickupDelayMinutes: number | null
+  measuredDeliveries: number
+  notMeasurableDeliveries: number
+  lateDeliveriesCarrier: number
+  lateDeliveriesNonCarrier: number
+  lateDeliveriesUnattributed: number
+  averageDeliveryDelayMinutes: number | null
+  pendingPod: number
+  averagePodSubmissionHours: number | null
+}
+
+export interface PerformanceDto {
+  transporterId: string
+  from: string
+  to: string
+  kpis: KpiDto[]
+  metrics: OperationalMetricsDto
+  months: MonthKpisDto[]
+}
+
+export interface ScorecardKpiDto {
+  kpi: KpiType
+  value: number | null
+  weight: number
+  weightedScore: number | null
+  numerator: number
+  denominator: number
+}
+
+export interface ScorecardDto {
+  id: string
+  transporterId: string
+  periodStart: string
+  periodEnd: string
+  overallScore: number | null
+  generatedAt: string
+  calculationVersion: number
+  kpis: ScorecardKpiDto[]
+}
+
+export interface RankedKpiDto {
+  kpi: KpiType
+  value: number | null
+  numerator: number
+  denominator: number
+}
+
+export interface RankedTransporterDto {
+  rank: number | null
+  transporterId: string
+  transporterCode: string
+  transporterName: string
+  region: string | null
+  status: string
+  metricValue: number | null
+  overallScore: number | null
+  ranked: boolean
+  note: string | null
+  kpis: RankedKpiDto[]
+}
+
+export interface RankingResultDto {
+  metric: RankingMetric
+  scopeLabel: string
+  from: string
+  to: string
+  rows: RankedTransporterDto[]
+}
+
+export interface RankingParams {
+  from: string
+  to: string
+  metric?: RankingMetric
+  laneId?: string
+  vehicleTypeId?: string
+  region?: string
+}
+
+export interface BenchmarkRowDto {
+  kpi: KpiType
+  transporter: number | null
+  laneAverage: number | null
+  regionAverage: number | null
+  modeAverage: number | null
+  topPerformer: number | null
+  topPerformerTransporterId: string | null
+  gapToTop: number | null
+  gapToLaneAverage: number | null
+}
+
+export interface BenchmarkDto {
+  transporterId: string
+  scopeLabel: string
+  from: string
+  to: string
+  rows: BenchmarkRowDto[]
+}
+
+export interface ExecutionEventDto {
+  eventType: ExecutionEventType
+  eventAt: string
+  delayReasonCode: string | null
+  remarks: string | null
+}
+
+export interface ExecutionDto {
+  id: string
+  shipmentId: string
+  shipmentNumber: string
+  transporterId: string
+  plannedPickupAt: string | null
+  actualPickupAt: string | null
+  pickupDelayMinutes: number | null
+  pickupDelayReasonCode: string | null
+  pickupAttribution: DelayAttribution
+  plannedDeliveryAt: string | null
+  actualDeliveryAt: string | null
+  deliveryDelayMinutes: number | null
+  deliveryDelayReasonCode: string | null
+  deliveryAttribution: DelayAttribution
+  status: ExecutionStatus
+  events: ExecutionEventDto[]
+}
+
+export interface LaneDto {
+  id: string
+  transporterId: string
+  originState: string
+  originCity: string | null
+  destinationState: string
+  destinationCity: string | null
+  mode: FreightMode | null
+  transitSlaMinutes: number | null
+  effectiveFrom: string
+  effectiveTo: string | null
+  isActive: boolean
+  version: number
+}
+
+export interface SaveLaneRequest {
+  originState: string
+  originCity: string | null
+  destinationState: string
+  destinationCity: string | null
+  mode: FreightMode | null
+  transitSlaMinutes: number | null
+  effectiveFrom: string
+  effectiveTo: string | null
+  isActive: boolean
+  version: number | null
+}
+
+export interface DelayReasonSetting {
+  code: string
+  name: string
+  attribution: 'Carrier' | 'NonCarrier' | 'Unattributed'
+}
+
+export interface TransporterSettingDto {
+  key: string
+  value: unknown
+  isDefault: boolean
+}

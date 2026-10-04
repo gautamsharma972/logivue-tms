@@ -12,6 +12,7 @@ import { formatDateTime } from '@/lib/format'
 import { BankModal } from './BankModal'
 import { DocumentsTab } from './DocumentsTab'
 import { FleetTab } from './FleetTab'
+import { PerformanceTab } from './performance/PerformanceTab'
 import { TransporterFormDrawer } from './TransporterFormDrawer'
 import { TransporterStatusTag } from './tags'
 
@@ -152,6 +153,9 @@ export function TransporterDetailPage() {
         items={[
           { key: 'overview', label: 'Overview', children: <Overview t={t} onEditBank={() => setBankOpen(true)} /> },
           { key: 'fleet', label: 'Vehicles & drivers', children: <FleetTab transporterId={t.id} onUploadFor={(kind, ownerId) => { setUploadPreset({ kind, id: ownerId }); setUploadOpen(true); setTab('documents') }} /> },
+          ...(can('transporters.performance.read') || can('transporters.performance.manage') || can('transporters.performance.self')
+            ? [{ key: 'performance', label: 'Performance', children: <PerformanceTab transporterId={t.id} /> }]
+            : []),
           { key: 'documents', label: 'Documents', children: <DocumentsTab transporterId={t.id} transporterName={t.legalName} uploadPreset={uploadPreset} uploadOpen={uploadOpen} onUploadOpen={(open) => { setUploadOpen(open); if (!open) setUploadPreset(null) }} /> },
         ]}
       />

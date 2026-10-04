@@ -22,6 +22,20 @@ public sealed class TransportersDbContext(DbContextOptions<TransportersDbContext
 
     public DbSet<SequenceCounter> Sequences => Set<SequenceCounter>();
 
+    public DbSet<TenderInvitation> Invitations => Set<TenderInvitation>();
+
+    public DbSet<LoadExecution> Executions => Set<LoadExecution>();
+
+    public DbSet<ExecutionEvent> ExecutionEvents => Set<ExecutionEvent>();
+
+    public DbSet<PerformanceKpi> Kpis => Set<PerformanceKpi>();
+
+    public DbSet<Scorecard> Scorecards => Set<Scorecard>();
+
+    public DbSet<TransporterLane> Lanes => Set<TransporterLane>();
+
+    public DbSet<TransporterSetting> Settings => Set<TransporterSetting>();
+
     protected override void ConfigureModel(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Schema);

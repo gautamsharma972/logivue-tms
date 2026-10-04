@@ -45,6 +45,15 @@ public static class TransportersModule
         services.AddScoped<IVehicleTypeDirectory>(sp => sp.GetRequiredService<TransporterDirectory>());
         services.AddScoped<IFleetDirectory, FleetDirectory>();
         services.AddScoped<IDomainEventHandler<ApprovalCompleted>, TransporterApprovalSubscriber>();
+        services.AddScoped<Application.Settings.ITransporterSettings, Application.Settings.TransporterSettings>();
+        services.AddScoped<Application.Performance.PerformanceAccess>();
+        services.AddScoped<Application.Performance.PerformanceEngine>();
+        services.AddScoped<Application.Performance.ExecutionService>();
+        services.AddScoped<IDomainEventHandler<ShipmentTendered>, ShipmentTenderedSubscriber>();
+        services.AddScoped<IDomainEventHandler<ShipmentAccepted>, ShipmentAcceptedSubscriber>();
+        services.AddScoped<IDomainEventHandler<ShipmentRejected>, ShipmentRejectedSubscriber>();
+        services.AddScoped<IDomainEventHandler<ShipmentDispatched>, ShipmentDispatchedSubscriber>();
+        services.AddScoped<IDomainEventHandler<ShipmentDelivered>, ShipmentDeliveredSubscriber>();
         services.AddHandlers(typeof(TransportersModule).Assembly, "Tms.Modules.Transporters.Application");
         services.AddValidatorsFrom<TransportersDbContext>();
         return services;

@@ -15,6 +15,7 @@ const ApprovalsPage = lazy(() => import('@/features/approvals/ApprovalsPage').th
 const PoliciesPage = lazy(() => import('@/features/approvals/PoliciesPage').then((m) => ({ default: m.PoliciesPage })))
 const TransportersPage = lazy(() => import('@/features/transporters/TransportersPage').then((m) => ({ default: m.TransportersPage })))
 const TransporterDetailPage = lazy(() => import('@/features/transporters/TransporterDetailPage').then((m) => ({ default: m.TransporterDetailPage })))
+const RankingsPage = lazy(() => import('@/features/transporters/RankingsPage').then((m) => ({ default: m.RankingsPage })))
 const VehicleTypesPage = lazy(() => import('@/features/transporters/VehicleTypesPage').then((m) => ({ default: m.VehicleTypesPage })))
 const CompliancePage = lazy(() => import('@/features/transporters/CompliancePage').then((m) => ({ default: m.CompliancePage })))
 const ContractsPage = lazy(() => import('@/features/contracts/ContractsPage').then((m) => ({ default: m.ContractsPage })))
@@ -70,6 +71,9 @@ export function App() {
             <Route path="compliance" element={<CompliancePage />} />
             <Route element={<RequireAnyPermission permissions={['transporters.read', 'transporters.manage']} />}>
               <Route path="vehicle-types" element={<VehicleTypesPage />} />
+            </Route>
+            <Route element={<RequireAnyPermission permissions={['transporters.performance.read', 'transporters.performance.manage']} />}>
+              <Route path="rankings" element={<RankingsPage />} />
             </Route>
             <Route path=":id" element={<TransporterDetailPage />} />
           </Route>

@@ -32,6 +32,16 @@ export const queryKeys = {
     lookup: (search?: string) => ['transporters', 'lookup', search] as const,
     compliance: (withinDays: number, page: number) => ['transporters', 'compliance', withinDays, page] as const,
   },
+  performance: {
+    detail: (id: string, from: string, to: string) => ['performance', id, from, to] as const,
+    scorecards: (id: string) => ['performance', id, 'scorecards'] as const,
+    benchmark: (id: string, from: string, to: string) => ['performance', id, 'benchmark', from, to] as const,
+    executions: (id: string) => ['performance', id, 'executions'] as const,
+    lanes: (id: string) => ['performance', id, 'lanes'] as const,
+    rankings: (params: object) => ['performance', 'rankings', params] as const,
+    settings: ['performance', 'settings'] as const,
+    all: ['performance'] as const,
+  },
   contracts: {
     all: ['contracts'] as const,
     list: (params: ListContractsParams) => ['contracts', 'list', params] as const,

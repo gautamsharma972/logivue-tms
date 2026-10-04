@@ -59,6 +59,9 @@ public sealed class ShipmentOrder : Entity, ITenantScoped
 
     public PodStatus PodStatus { get; private set; } = PodStatus.Awaiting;
 
+    /// <summary>How many times a proof of delivery was refused and had to be replaced.</summary>
+    public int PodRejectionCount { get; private set; }
+
     public DateTimeOffset? PodReviewedAt { get; private set; }
 
     public Guid? PodReviewedBy { get; private set; }
@@ -141,6 +144,7 @@ public sealed class ShipmentOrder : Entity, ITenantScoped
         }
 
         PodStatus = PodStatus.Rejected;
+        PodRejectionCount++;
         PodReviewedAt = now;
         PodReviewedBy = userId;
         PodRejectionReason = reason.Trim();
@@ -548,6 +552,7 @@ public sealed class Shipment : AggregateRoot, ITenantScoped
         OverrideReason = dearer ? overrideReason!.Trim() : null;
         TenderedAt = now;
         Status = ShipmentStatus.Tendered;
+        Raise(new ShipmentTendered(Id, TenantId, Number, transporterId, now));
         return Result.Success();
     }
 
@@ -579,6 +584,7 @@ public sealed class Shipment : AggregateRoot, ITenantScoped
 
         AcceptedAt = now;
         Status = ShipmentStatus.Accepted;
+        Raise(new ShipmentAccepted(Id, TenantId, Number, TransporterId!.Value, now));
         return Result.Success();
     }
 
@@ -624,7 +630,7 @@ public sealed class Shipment : AggregateRoot, ITenantScoped
         return Result.Success();
     }
 
-    public Result Reject(string reason)
+    public Result Reject(string reason, DateTimeOffset now = default)
     {
         if (Status != ShipmentStatus.Tendered)
         {
@@ -638,6 +644,7 @@ public sealed class Shipment : AggregateRoot, ITenantScoped
 
         RejectionCount++;
         LastRejectionReason = reason.Trim();
+        Raise(new ShipmentRejected(Id, TenantId, Number, TransporterId!.Value, now, reason.Trim()));
         ClearAllocation();
         Status = ShipmentStatus.Draft;
         return Result.Success();

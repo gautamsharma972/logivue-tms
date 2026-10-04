@@ -1,6 +1,16 @@
 import { http } from './client'
 import type {
   AgeingDto,
+  BenchmarkDto,
+  ExecutionDto,
+  ExecutionEventType,
+  LaneDto,
+  PerformanceDto,
+  RankingParams,
+  RankingResultDto,
+  SaveLaneRequest,
+  ScorecardDto,
+  TransporterSettingDto,
   CommitMilkRunResult,
   ModeChoice,
   LockKind,
@@ -253,6 +263,25 @@ export const ordersApi = {
   create: (body: SaveOrderRequest) => http.post<OrderDto>(`${v1}/orders`, body).then((r) => r.data),
   update: (id: string, body: SaveOrderRequest) => http.put<OrderDto>(`${v1}/orders/${id}`, body).then((r) => r.data),
   cancel: (id: string, reason: string) => http.post<OrderDto>(`${v1}/orders/${id}/cancel`, { reason }).then((r) => r.data),
+}
+
+export const performanceApi = {
+  get: (id: string, from: string, to: string) => http.get<PerformanceDto>(`${v1}/transporters/${id}/performance`, { params: { from, to } }).then((r) => r.data),
+  recalculate: (id: string, from: string, to: string) => http.post(`${v1}/transporters/${id}/performance/recalculate`, { from, to }).then((r) => r.data),
+  scorecards: (id: string) => http.get<ScorecardDto[]>(`${v1}/transporters/${id}/scorecards`).then((r) => r.data),
+  generateScorecard: (id: string, from: string, to: string) => http.post<ScorecardDto>(`${v1}/transporters/${id}/scorecards`, { from, to }).then((r) => r.data),
+  rankings: (params: RankingParams) => http.get<RankingResultDto>(`${v1}/transporters/rankings`, { params }).then((r) => r.data),
+  benchmark: (id: string, from: string, to: string, laneId?: string) => http.get<BenchmarkDto>(`${v1}/transporters/${id}/benchmark`, { params: { from, to, laneId } }).then((r) => r.data),
+  executions: (id: string) => http.get<ExecutionDto[]>(`${v1}/transporters/${id}/executions`).then((r) => r.data),
+  recordEvent: (executionId: string, eventType: ExecutionEventType, eventAt: string, delayReasonCode?: string, remarks?: string) =>
+    http.post<ExecutionDto>(`${v1}/executions/${executionId}/events`, { eventType, eventAt, delayReasonCode, remarks }).then((r) => r.data),
+  attributeDelay: (executionId: string, delivery: boolean, reasonCode: string) =>
+    http.post<ExecutionDto>(`${v1}/executions/${executionId}/delay`, { delivery, reasonCode }).then((r) => r.data),
+  lanes: (id: string) => http.get<LaneDto[]>(`${v1}/transporters/${id}/lanes`).then((r) => r.data),
+  createLane: (id: string, body: SaveLaneRequest) => http.post<LaneDto>(`${v1}/transporters/${id}/lanes`, body).then((r) => r.data),
+  updateLane: (laneId: string, body: SaveLaneRequest) => http.put<LaneDto>(`${v1}/lanes/${laneId}`, body).then((r) => r.data),
+  settings: () => http.get<TransporterSettingDto[]>(`${v1}/transporter-settings`).then((r) => r.data),
+  saveSetting: (key: string, value: unknown) => http.put<TransporterSettingDto>(`${v1}/transporter-settings/${key}`, { value }).then((r) => r.data),
 }
 
 export const milkRunsApi = {

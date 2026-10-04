@@ -57,7 +57,7 @@ internal sealed class ShipmentScenario : IDisposable
             await RegisterFleetAsync(admin, transporter.Id, type.Id, fleetPapers); // planning gives each trip its own vehicle and driver, so a plan of several trips needs several
         }
 
-        var role = await admin.CreateExternalRoleAsync(Tms.Modules.Shipments.Domain.ShipmentPermissions.Respond);
+        var role = await admin.CreateExternalRoleAsync(Tms.Modules.Shipments.Domain.ShipmentPermissions.Respond, Tms.Modules.Transporters.Domain.TransporterPermissions.PerformanceSelf);
         var email = ApiExtensions.UniqueEmail("vendor");
         var created = await admin.PostJsonAsync("/api/v1/users", new CreateUserRequest(
             email, "Vendor Dispatcher", ApiExtensions.StrongPassword, UserType.Transporter, [role.Id], transporter.Id));

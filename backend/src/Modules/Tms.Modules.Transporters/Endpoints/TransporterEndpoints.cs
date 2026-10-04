@@ -6,6 +6,7 @@ using Tms.BuildingBlocks.Web.Http;
 using Tms.Modules.Transporters.Application;
 using Tms.Modules.Transporters.Application.Documents;
 using Tms.Modules.Transporters.Application.Fleet;
+using Tms.Modules.Transporters.Application.Performance;
 using Tms.Modules.Transporters.Application.Transporters;
 using Tms.Modules.Transporters.Domain;
 using Tms.SharedKernel.Paging;
@@ -25,6 +26,64 @@ internal static class TransporterEndpoints
         MapTransporters(api);
         MapFleet(api);
         MapDocuments(api);
+        MapPerformance(api);
+    }
+
+    private static void MapPerformance(RouteGroupBuilder api)
+    {
+        var group = api.MapGroup("/transporters");
+
+        group.MapGet("/{id:guid}/performance", async (Guid id, DateOnly from, DateOnly to, PerformanceHandler h, CancellationToken ct) => (await h.GetAsync(id, from, to, ct)).ToHttpResult())
+            .WithName("TransporterPerformance").Produces<PerformanceDto>().ProducesProblem(StatusCodes.Status404NotFound);
+
+        group.MapPost("/{id:guid}/performance/recalculate", async (Guid id, PeriodRequest body, PerformanceHandler h, CancellationToken ct) => (await h.RecalculateAsync(id, body, ct)).ToHttpResult())
+            .WithValidation<PeriodRequest>().WithName("RecalculateTransporterPerformance").Produces<IReadOnlyList<OperationalPeriodResult>>();
+
+        group.MapPost("/performance/recalculate", async (PeriodRequest body, PerformanceHandler h, CancellationToken ct) => (await h.RecalculateAllAsync(body, ct)).ToHttpResult())
+            .WithValidation<PeriodRequest>().WithName("RecalculateAllPerformance").Produces<int>();
+
+        group.MapGet("/{id:guid}/scorecards", async (Guid id, ScorecardHandler h, CancellationToken ct) => (await h.ListAsync(id, ct)).ToHttpResult())
+            .WithName("ListScorecards").Produces<IReadOnlyList<ScorecardDto>>();
+
+        group.MapPost("/{id:guid}/scorecards", async (Guid id, PeriodRequest body, ScorecardHandler h, CancellationToken ct) =>
+                (await h.GenerateAsync(id, body, ct)).ToCreatedResult(s => $"/api/v1/transporters/{id}/scorecards"))
+            .WithValidation<PeriodRequest>().WithName("GenerateScorecard").Produces<ScorecardDto>(StatusCodes.Status201Created);
+
+        group.MapGet("/rankings", async ([AsParameters] RankingQuery query, RankingHandler h, CancellationToken ct) => (await h.RankAsync(query, ct)).ToHttpResult())
+            .WithName("RankTransporters").Produces<RankingResultDto>();
+
+        group.MapGet("/{id:guid}/benchmark", async (Guid id, [AsParameters] BenchmarkQuery query, RankingHandler h, CancellationToken ct) => (await h.BenchmarkAsync(id, query, ct)).ToHttpResult())
+            .WithName("BenchmarkTransporter").Produces<BenchmarkDto>();
+
+        group.MapGet("/{id:guid}/lanes", async (Guid id, LaneHandler h, CancellationToken ct) => (await h.ListAsync(id, ct)).ToHttpResult())
+            .WithName("ListTransporterLanes").Produces<IReadOnlyList<LaneDto>>();
+
+        group.MapPost("/{id:guid}/lanes", async (Guid id, SaveLaneRequest body, LaneHandler h, CancellationToken ct) =>
+                (await h.CreateAsync(id, body, ct)).ToCreatedResult(l => $"/api/v1/lanes/{l.Id}"))
+            .WithName("CreateTransporterLane").Produces<LaneDto>(StatusCodes.Status201Created).ProducesValidationProblem();
+
+        api.MapPut("/lanes/{laneId:guid}", async (Guid laneId, SaveLaneRequest body, LaneHandler h, CancellationToken ct) => (await h.UpdateAsync(laneId, body, ct)).ToHttpResult())
+            .WithName("UpdateTransporterLane").Produces<LaneDto>().ProducesValidationProblem();
+
+        group.MapGet("/{id:guid}/executions", async (Guid id, ExecutionHandler h, CancellationToken ct) => (await h.ListAsync(id, ct)).ToHttpResult())
+            .WithName("ListTransporterExecutions").Produces<IReadOnlyList<ExecutionDto>>();
+
+        var executions = api.MapGroup("/executions");
+        executions.MapGet("/{id:guid}", async (Guid id, ExecutionHandler h, CancellationToken ct) => (await h.GetAsync(id, ct)).ToHttpResult())
+            .WithName("GetExecution").Produces<ExecutionDto>().ProducesProblem(StatusCodes.Status404NotFound);
+        executions.MapPost("/", async (CreateExecutionRequest body, ExecutionHandler h, CancellationToken ct) =>
+                (await h.CreateAsync(body, ct)).ToCreatedResult(e => $"/api/v1/executions/{e.Id}"))
+            .WithName("CreateExecution").Produces<ExecutionDto>(StatusCodes.Status201Created);
+        executions.MapPost("/{id:guid}/events", async (Guid id, RecordExecutionEventRequest body, ExecutionHandler h, CancellationToken ct) => (await h.RecordAsync(id, body, ct)).ToHttpResult())
+            .WithValidation<RecordExecutionEventRequest>().WithName("RecordExecutionEvent").Produces<ExecutionDto>();
+        executions.MapPost("/{id:guid}/delay", async (Guid id, AttributeDelayRequest body, ExecutionHandler h, CancellationToken ct) => (await h.AttributeAsync(id, body, ct)).ToHttpResult())
+            .WithValidation<AttributeDelayRequest>().WithName("AttributeExecutionDelay").Produces<ExecutionDto>();
+
+        var settings = api.MapGroup("/transporter-settings");
+        settings.MapGet("/", async (SettingsHandler h, CancellationToken ct) => (await h.ListAsync(ct)).ToHttpResult())
+            .WithName("ListTransporterSettings").Produces<IReadOnlyList<SettingDto>>();
+        settings.MapPut("/{key}", async (string key, SaveSettingRequest body, SettingsHandler h, CancellationToken ct) => (await h.SaveAsync(key, body, ct)).ToHttpResult())
+            .WithName("SaveTransporterSetting").Produces<SettingDto>().ProducesValidationProblem();
     }
 
     private static void MapTransporters(RouteGroupBuilder api)
