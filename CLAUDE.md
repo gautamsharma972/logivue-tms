@@ -63,6 +63,12 @@ All freight prices come from `Tms.Modules.Contracts` (`docs/contracts.md`): pure
 Approved contracts are immutable (revise instead); "in force" is judged by dates and approval history so past shipments
 stay priceable. Money shown next to an invoice must use `formatInrExact` (paise), not `formatInr`.
 
+## Transporter performance and selection
+Details in `docs/transporter-management.md`. Transporters learns about loads only from Shipments events and
+`IShipmentOperationsFeed`; Shipments planning asks `ITransporterPlanningPolicy`. KPIs: carrier-attributed delays only,
+no planned time = not measurable, minimum sample renormalises weights, claims lower-is-better. Alerts are evaluated
+lazily on read. Subscribers are idempotent.
+
 ## Vendor portal (transporter users)
 A user of type `Transporter` carries a `trn` claim (`ICurrentUser.TransporterId`). Any module serving transporter-owned data
 must scope by it and answer another company's ids with **404, not 403**. In Transporters this lives in `TransporterAccess`;
