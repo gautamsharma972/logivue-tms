@@ -10,6 +10,7 @@ import { queryKeys } from '@/lib/api/queryKeys'
 import type { OwnerKind, TransporterDto } from '@/lib/api/types'
 import { formatDateTime } from '@/lib/format'
 import { BankModal } from './BankModal'
+import { ContactsPanel } from './ContactsPanel'
 import { DocumentsTab } from './DocumentsTab'
 import { FleetTab } from './FleetTab'
 import { CoverageTab } from './performance/CoverageTab'
@@ -152,7 +153,7 @@ export function TransporterDetailPage() {
         activeKey={tab}
         onChange={setTab}
         items={[
-          { key: 'overview', label: 'Overview', children: <Overview t={t} onEditBank={() => setBankOpen(true)} /> },
+          { key: 'overview', label: 'Overview', children: <Flex vertical gap={16}><Overview t={t} onEditBank={() => setBankOpen(true)} /><ContactsPanel transporterId={t.id} /></Flex> },
           { key: 'fleet', label: 'Vehicles & drivers', children: <FleetTab transporterId={t.id} onUploadFor={(kind, ownerId) => { setUploadPreset({ kind, id: ownerId }); setUploadOpen(true); setTab('documents') }} /> },
           ...(can('transporters.performance.read') || can('transporters.performance.manage') || can('transporters.performance.self')
             ? [

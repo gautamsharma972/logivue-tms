@@ -263,3 +263,37 @@ internal sealed class TransporterAlertConfiguration : IEntityTypeConfiguration<T
         builder.HasIndex(a => new { a.TenantId, a.AlertType, a.EntityKey });
     }
 }
+
+internal sealed class TransporterContactConfiguration : IEntityTypeConfiguration<TransporterContact>
+{
+    public void Configure(EntityTypeBuilder<TransporterContact> builder)
+    {
+        builder.ToTable("contacts");
+        builder.HasKey(c => c.Id);
+        builder.Property(c => c.Id).ValueGeneratedNever();
+        builder.Property(c => c.Name).HasMaxLength(150).IsRequired();
+        builder.Property(c => c.Designation).HasMaxLength(100);
+        builder.Property(c => c.Email).HasMaxLength(254);
+        builder.Property(c => c.Phone).HasMaxLength(15);
+        builder.Property(c => c.ContactType).HasMaxLength(50).IsRequired();
+        builder.HasIndex(c => new { c.TenantId, c.TransporterId });
+    }
+}
+
+internal sealed class TransporterBranchConfiguration : IEntityTypeConfiguration<TransporterBranch>
+{
+    public void Configure(EntityTypeBuilder<TransporterBranch> builder)
+    {
+        builder.ToTable("branches");
+        builder.HasKey(b => b.Id);
+        builder.Property(b => b.Id).ValueGeneratedNever();
+        builder.Property(b => b.Code).HasMaxLength(30).IsRequired();
+        builder.Property(b => b.Name).HasMaxLength(150).IsRequired();
+        builder.Property(b => b.Address).HasMaxLength(300);
+        builder.Property(b => b.City).HasMaxLength(100);
+        builder.Property(b => b.State).HasMaxLength(100);
+        builder.Property(b => b.ContactName).HasMaxLength(150);
+        builder.Property(b => b.ContactPhone).HasMaxLength(15);
+        builder.HasIndex(b => new { b.TenantId, b.TransporterId, b.Code }).IsUnique();
+    }
+}

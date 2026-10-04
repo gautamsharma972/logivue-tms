@@ -242,6 +242,26 @@ async function ensureOrders(locations) {
   log(`${ORDERS.length} orders created`)
 }
 
+// Where each carrier works, what it can carry, and the vehicles it commits today: what "Find a transporter" and the performance tab read.
+async function ensureCoverage(carriers) {
+  for (const [index, carrier] of carriers.entries()) {
+    const lanes = await call('GET', `/transporters/${carrier.id}/lanes`)
+    if (lanes.length === 0) {
+      for (const [to, hours] of [['Gujarat', 14], ['Maharashtra', 10], ['Karnataka', 20], ['Telangana', 24]]) {
+        await call('POST', `/transporters/${carrier.id}/lanes`, { originState: 'Maharashtra', originCity: null, destinationState: to, destinationCity: null, mode: null, transitSlaMinutes: hours * 60, effectiveFrom: iso(-30), effectiveTo: null, isActive: true, version: null })
+      }
+    }
+
+    const caps = await call('GET', `/transporters/${carrier.id}/capabilities`)
+    if (index === 0 && !caps.some((c) => c.code === 'HAZARDOUS' && c.isActive)) {
+      await call('POST', `/transporters/${carrier.id}/capabilities`, { code: 'HAZARDOUS', effectiveFrom: iso(-30), effectiveTo: null })
+    }
+
+    await call('PUT', `/transporters/${carrier.id}/capacity`, { date: iso(0), vehiclesCommitted: 12, vehiclesAvailable: index === 0 ? 11 : 9 })
+  }
+  log('lanes, capabilities and capacity ready for the demo carriers')
+}
+
 async function ensureCompatibility() {
   const rules = await call('GET', '/planning/compatibility-rules')
   if (rules.some((r) => r.categoryA === 'CHEMICALS' && r.categoryB === 'FOOD')) return
@@ -274,6 +294,7 @@ async function main() {
   const carriers = []
   for (const spec of CARRIERS) carriers.push(await ensureCarrier(spec, vehicleTypes))
   await ensureContracts(carriers, vehicleTypes)
+  await ensureCoverage(carriers)
   await ensureCompatibility()
   await ensureOrders(locations)
   await ensureMilkRun(locations, vehicleTypes)
@@ -284,7 +305,8 @@ Demo ready. Try this:
      (DEMO-021 no rate to Madhya Pradesh, DEMO-022 no rate and due today, DEMO-023 heavier than any vehicle).
   2. Planning → Milk runs → "Plan a day" on Pune supplier collection: stops with nothing to collect are skipped, the vehicle follows the load.
   3. Planning → KPIs for the totals, charts and exports (empty km, cost per tonne and per shipment, PDF).
-  4. Planning → Rules shows the FOOD / CHEMICALS rule: DEMO-009/011 (food) and DEMO-010/014 (chemicals) never share a truck.
+  4. Transporters → Find a transporter: who can take a load (Maharashtra → Gujarat, full truck) and why the others cannot; a transporter's Performance and Coverage tabs fill up as loads are delivered.
+  5. Planning → Rules shows the FOOD / CHEMICALS rule: DEMO-009/011 (food) and DEMO-010/014 (chemicals) never share a truck.
      One Bharat Cargo 32 ft truck is in the workshop for three days, so the planner works around it (Transporters → Fleet shows why).`)
 }
 

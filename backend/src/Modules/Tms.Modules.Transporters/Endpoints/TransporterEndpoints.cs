@@ -109,6 +109,22 @@ internal static class TransporterEndpoints
         executions.MapPost("/{id:guid}/delay", async (Guid id, AttributeDelayRequest body, ExecutionHandler h, CancellationToken ct) => (await h.AttributeAsync(id, body, ct)).ToHttpResult())
             .WithValidation<AttributeDelayRequest>().WithName("AttributeExecutionDelay").Produces<ExecutionDto>();
 
+        group.MapGet("/{id:guid}/contacts", async (Guid id, ContactHandler h, CancellationToken ct) => (await h.ListAsync(id, ct)).ToHttpResult())
+            .WithName("ListTransporterContacts").Produces<IReadOnlyList<ContactDto>>();
+        group.MapPost("/{id:guid}/contacts", async (Guid id, SaveContactRequest body, ContactHandler h, CancellationToken ct) =>
+                (await h.AddAsync(id, body, ct)).ToCreatedResult(c => $"/api/v1/contacts/{c.Id}"))
+            .WithName("AddTransporterContact").Produces<ContactDto>(StatusCodes.Status201Created).ProducesValidationProblem();
+        api.MapPut("/contacts/{contactId:guid}", async (Guid contactId, SaveContactRequest body, ContactHandler h, CancellationToken ct) => (await h.UpdateAsync(contactId, body, ct)).ToHttpResult())
+            .WithName("UpdateTransporterContact").Produces<ContactDto>().ProducesValidationProblem();
+
+        group.MapGet("/{id:guid}/branches", async (Guid id, BranchHandler h, CancellationToken ct) => (await h.ListAsync(id, ct)).ToHttpResult())
+            .WithName("ListTransporterBranches").Produces<IReadOnlyList<BranchDto>>();
+        group.MapPost("/{id:guid}/branches", async (Guid id, SaveBranchRequest body, BranchHandler h, CancellationToken ct) =>
+                (await h.AddAsync(id, body, ct)).ToCreatedResult(b => $"/api/v1/branches/{b.Id}"))
+            .WithName("AddTransporterBranch").Produces<BranchDto>(StatusCodes.Status201Created).ProducesValidationProblem();
+        api.MapPut("/branches/{branchId:guid}", async (Guid branchId, SaveBranchRequest body, BranchHandler h, CancellationToken ct) => (await h.UpdateAsync(branchId, body, ct)).ToHttpResult())
+            .WithName("UpdateTransporterBranch").Produces<BranchDto>().ProducesValidationProblem();
+
         var placements = api.MapGroup("/placements");
         placements.MapGet("/", async ([AsParameters] ListPlacementsQuery query, PlacementHandler h, CancellationToken ct) => (await h.ListAsync(query, ct)).ToHttpResult())
             .WithName("ListPlacements").Produces<PagedResult<PlacementDto>>();

@@ -41,6 +41,8 @@ export const queryKeys = {
     capabilities: (id: string) => ['performance', id, 'capabilities'] as const,
     capabilityCatalog: ['performance', 'capability-catalog'] as const,
     rules: (id: string) => ['performance', id, 'rules'] as const,
+    contacts: (id: string) => ['performance', id, 'contacts'] as const,
+    branches: (id: string) => ['performance', id, 'branches'] as const,
     claims: (id: string, from: string, to: string) => ['performance', id, 'claims', from, to] as const,
     costs: (id: string, from: string, to: string) => ['performance', id, 'costs', from, to] as const,
     capacity: (id: string, from: string, to: string) => ['performance', id, 'capacity', from, to] as const,

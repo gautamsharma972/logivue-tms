@@ -1,6 +1,10 @@
 import { http } from './client'
 import type {
   AgeingDto,
+  BranchDto,
+  ContactDto,
+  SaveBranchRequest,
+  SaveContactRequest,
   AlertDto,
   AlertSeverity,
   AlertStatus,
@@ -307,6 +311,12 @@ export const performanceApi = {
   endPlanningRule: (ruleId: string, reason: string) => http.post<PlanningRuleDto>(`${v1}/planning-rules/${ruleId}/end`, { reason }).then((r) => r.data),
   eligibility: (body: SelectionRequest) => http.post<CandidateEvaluationDto[]>(`${v1}/transporters/eligibility`, body).then((r) => r.data),
   recommend: (body: SelectionRequest) => http.post<RecommendationResultDto>(`${v1}/transporters/recommendation`, body).then((r) => r.data),
+  contacts: (id: string) => http.get<ContactDto[]>(`${v1}/transporters/${id}/contacts`).then((r) => r.data),
+  addContact: (id: string, body: SaveContactRequest) => http.post<ContactDto>(`${v1}/transporters/${id}/contacts`, body).then((r) => r.data),
+  updateContact: (contactId: string, body: SaveContactRequest) => http.put<ContactDto>(`${v1}/contacts/${contactId}`, body).then((r) => r.data),
+  branches: (id: string) => http.get<BranchDto[]>(`${v1}/transporters/${id}/branches`).then((r) => r.data),
+  addBranch: (id: string, body: SaveBranchRequest) => http.post<BranchDto>(`${v1}/transporters/${id}/branches`, body).then((r) => r.data),
+  updateBranch: (branchId: string, body: SaveBranchRequest) => http.put<BranchDto>(`${v1}/branches/${branchId}`, body).then((r) => r.data),
   placements: (params: { transporterId?: string; status?: PlacementStatus; page?: number; pageSize?: number }) =>
     http.get<PagedResult<PlacementDto>>(`${v1}/placements`, { params }).then((r) => r.data),
   reportPlacement: (id: string) => http.post<PlacementDto>(`${v1}/placements/${id}/report`).then((r) => r.data),

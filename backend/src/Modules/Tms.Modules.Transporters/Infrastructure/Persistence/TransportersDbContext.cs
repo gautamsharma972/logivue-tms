@@ -54,6 +54,10 @@ public sealed class TransportersDbContext(DbContextOptions<TransportersDbContext
 
     public DbSet<TransporterAlert> Alerts => Set<TransporterAlert>();
 
+    public DbSet<TransporterContact> Contacts => Set<TransporterContact>();
+
+    public DbSet<TransporterBranch> Branches => Set<TransporterBranch>();
+
     protected override void ConfigureModel(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Schema);

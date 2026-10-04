@@ -1890,3 +1890,59 @@ export interface AlertDto {
   resolvedAt: string | null
   resolution: string | null
 }
+
+// ---- Contacts and branches ----
+
+export interface ContactDto {
+  id: string
+  transporterId: string
+  name: string
+  designation: string | null
+  email: string | null
+  phone: string | null
+  contactType: string
+  isPrimary: boolean
+  isActive: boolean
+  version: number
+}
+
+export interface SaveContactRequest {
+  name: string
+  designation: string | null
+  email: string | null
+  phone: string | null
+  contactType: string
+  isPrimary: boolean
+  isActive: boolean
+  version: number | null
+}
+
+export interface BranchDto {
+  id: string
+  transporterId: string
+  code: string
+  name: string
+  address: string | null
+  city: string | null
+  state: string | null
+  latitude: number | null
+  longitude: number | null
+  contactName: string | null
+  contactPhone: string | null
+  isActive: boolean
+  version: number
+}
+
+export interface SaveBranchRequest {
+  code: string
+  name: string
+  address: string | null
+  city: string | null
+  state: string | null
+  latitude: number | null
+  longitude: number | null
+  contactName: string | null
+  contactPhone: string | null
+  isActive: boolean
+  version: number | null
+}
