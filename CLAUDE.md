@@ -68,6 +68,9 @@ Details in `docs/transporter-management.md`. Transporters learns about loads onl
 `IShipmentOperationsFeed`; Shipments planning asks `ITransporterPlanningPolicy`. KPIs: carrier-attributed delays only,
 no planned time = not measurable, minimum sample renormalises weights, claims lower-is-better. Alerts are evaluated
 lazily on read. Subscribers are idempotent.
+Tendering to several transporters is a `TenderRound` in Shipments (sequential or broadcast; deadlines settled lazily on read; a vendor never sees
+prices or other invitees). Document-paper rules and master lists are per-tenant data over built-in defaults (`DocumentPolicy`, `MasterCatalog`);
+never hard-code which papers are required.
 
 ## Vendor portal (transporter users)
 A user of type `Transporter` carries a `trn` claim (`ICurrentUser.TransporterId`). Any module serving transporter-owned data

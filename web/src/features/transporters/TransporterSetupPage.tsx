@@ -49,56 +49,47 @@ function MasterList({ title, help, queryKey, load, save }: {
   )
 }
 
-function RuleRow({ rule }: { rule: DocumentRuleDto }) {
+type RuleValues = Pick<DocumentRuleDto, 'isMandatory' | 'expiryRequired' | 'renewalReminderDays' | 'blockWhenExpired' | 'isActive'>
+
+const valuesOf = (r: DocumentRuleDto): RuleValues => ({ isMandatory: r.isMandatory, expiryRequired: r.expiryRequired, renewalReminderDays: r.renewalReminderDays, blockWhenExpired: r.blockWhenExpired, isActive: r.isActive })
+
+function DocumentRules() {
   const { message } = App.useApp()
   const queryClient = useQueryClient()
-  const [values, setValues] = useState({ isMandatory: rule.isMandatory, expiryRequired: rule.expiryRequired, renewalReminderDays: rule.renewalReminderDays, blockWhenExpired: rule.blockWhenExpired, isActive: rule.isActive })
-  const dirty = JSON.stringify(values) !== JSON.stringify({ isMandatory: rule.isMandatory, expiryRequired: rule.expiryRequired, renewalReminderDays: rule.renewalReminderDays, blockWhenExpired: rule.blockWhenExpired, isActive: rule.isActive })
+  const rules = useQuery({ queryKey: queryKeys.masterData.documentRules, queryFn: () => masterDataApi.documentRules() })
+  // Unsaved changes, by kind; a row is saved on its own.
+  const [edits, setEdits] = useState<Record<string, RuleValues>>({})
   const save = useMutation({
-    mutationFn: () => masterDataApi.saveDocumentRule(rule.kind, values),
-    onSuccess: async () => {
+    mutationFn: (v: { rule: DocumentRuleDto; values: RuleValues }) => masterDataApi.saveDocumentRule(v.rule.kind, v.values),
+    onSuccess: async (_, v) => {
       await queryClient.invalidateQueries({ queryKey: queryKeys.masterData.documentRules })
-      void message.success(`${rule.label} rule saved`)
+      setEdits(({ [v.rule.kind]: _saved, ...rest }) => rest)
+      void message.success(`${v.rule.label} rule saved`)
     },
     onError: (e) => void message.error(toApiError(e).message),
   })
-  const set = <K extends keyof typeof values>(key: K, value: (typeof values)[K]) => setValues((v) => ({ ...v, [key]: value }))
-  return (
-    <Table.Summary.Row>
-      <Table.Summary.Cell index={0}>{rule.label}{rule.isCustomised && <Tag style={{ marginLeft: 8 }}>Customised</Tag>}</Table.Summary.Cell>
-      <Table.Summary.Cell index={1}>{rule.owner}</Table.Summary.Cell>
-      <Table.Summary.Cell index={2}><Switch aria-label={`${rule.label} in use`} checked={values.isActive} onChange={(v) => setValues((c) => ({ ...c, isActive: v, isMandatory: v ? c.isMandatory : false }))} /></Table.Summary.Cell>
-      <Table.Summary.Cell index={3}><Switch aria-label={`${rule.label} mandatory`} checked={values.isMandatory} disabled={!values.isActive} onChange={(v) => set('isMandatory', v)} /></Table.Summary.Cell>
-      <Table.Summary.Cell index={4}><Switch aria-label={`${rule.label} needs an expiry date`} checked={values.expiryRequired} onChange={(v) => set('expiryRequired', v)} /></Table.Summary.Cell>
-      <Table.Summary.Cell index={5}><InputNumber aria-label={`${rule.label} reminder days`} min={0} max={365} value={values.renewalReminderDays} onChange={(v) => set('renewalReminderDays', v ?? 0)} /></Table.Summary.Cell>
-      <Table.Summary.Cell index={6}><Switch aria-label={`${rule.label} blocks work when expired`} checked={values.blockWhenExpired} onChange={(v) => set('blockWhenExpired', v)} /></Table.Summary.Cell>
-      <Table.Summary.Cell index={7}><Button size="small" type="primary" disabled={!dirty} loading={save.isPending} onClick={() => save.mutate()}>Save</Button></Table.Summary.Cell>
-    </Table.Summary.Row>
-  )
-}
 
-function DocumentRules() {
-  const rules = useQuery({ queryKey: queryKeys.masterData.documentRules, queryFn: () => masterDataApi.documentRules() })
+  const current = (r: DocumentRuleDto): RuleValues => edits[r.kind] ?? valuesOf(r)
+  const change = (r: DocumentRuleDto, patch: Partial<RuleValues>) => setEdits((all) => ({ ...all, [r.kind]: { ...current(r), ...patch } }))
+
+  const columns: TableColumnsType<DocumentRuleDto> = [
+    { title: 'Paper', key: 'label', render: (_, r) => <>{r.label}{r.isCustomised && <Tag style={{ marginLeft: 8 }}>Customised</Tag>}</> },
+    { title: 'For', dataIndex: 'owner' },
+    { title: 'Checked', key: 'on', render: (_, r) => <Switch aria-label={`${r.label} in use`} checked={current(r).isActive} onChange={(on) => change(r, { isActive: on, isMandatory: on ? current(r).isMandatory : false })} /> },
+    { title: 'Mandatory', key: 'm', render: (_, r) => <Switch aria-label={`${r.label} mandatory`} checked={current(r).isMandatory} disabled={!current(r).isActive} onChange={(v) => change(r, { isMandatory: v })} /> },
+    { title: 'Expiry date needed', key: 'e', render: (_, r) => <Switch aria-label={`${r.label} needs an expiry date`} checked={current(r).expiryRequired} onChange={(v) => change(r, { expiryRequired: v })} /> },
+    { title: 'Flag before (days)', key: 'd', render: (_, r) => <InputNumber aria-label={`${r.label} reminder days`} min={0} max={365} style={{ width: 80 }} value={current(r).renewalReminderDays} onChange={(v) => change(r, { renewalReminderDays: v ?? 0 })} /> },
+    { title: 'Expired blocks work', key: 'b', render: (_, r) => <Switch aria-label={`${r.label} blocks work when expired`} checked={current(r).blockWhenExpired} onChange={(v) => change(r, { blockWhenExpired: v })} /> },
+    { title: '', key: 's', render: (_, r) => <Button size="small" type="primary" disabled={edits[r.kind] === undefined} loading={save.isPending && save.variables?.rule.kind === r.kind} onClick={() => save.mutate({ rule: r, values: current(r) })}>Save</Button> },
+  ]
+
   return (
     <Card title="Compliance papers">
       <Typography.Paragraph type="secondary">
         Which papers are required, which need an expiry date, how early a renewal is flagged, and whether an expired paper stops a vehicle or driver being given work. Changes apply to all transporters straight away.
       </Typography.Paragraph>
       {rules.isError && <Alert type="error" showIcon title={rules.error.message} style={{ marginBottom: 12 }} />}
-      <Table
-        size="small"
-        rowKey="kind"
-        pagination={false}
-        loading={rules.isLoading}
-        dataSource={[]}
-        locale={{ emptyText: null }}
-        scroll={{ x: 'max-content' }}
-        columns={[
-          { title: 'Paper', dataIndex: 'label' }, { title: 'For', dataIndex: 'owner' }, { title: 'Checked' }, { title: 'Mandatory' },
-          { title: 'Expiry date needed' }, { title: 'Flag before (days)' }, { title: 'Expired blocks work' }, { title: '' },
-        ]}
-        summary={() => <>{rules.data?.map((r) => <RuleRow key={`${r.kind}:${JSON.stringify(r)}`} rule={r} />)}</>}
-      />
+      <Table<DocumentRuleDto> size="small" rowKey="kind" pagination={false} loading={rules.isLoading} dataSource={rules.data} columns={columns} scroll={{ x: 'max-content' }} />
     </Card>
   )
 }

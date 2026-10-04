@@ -8,16 +8,22 @@ one or more drops. The module plans loads, asks a transporter to take them, and 
 ```
 Order:     Open ──► Planned ──► Dispatched ──► Delivered        (Cancelled from Open)
 Shipment:  Draft ──tender──► Tendered ──accept──► Accepted ──dispatch──► Dispatched ──► Delivered
-              ▲                  │ reject/withdraw      │
-              └──────────────────┘      cancel (Draft/Tendered/Accepted) releases the orders to Open
+              ▲  ╲ broadcast ► Bidding ──award──►(Accepted)         │ reject / expire / withdraw
+              └──────────────────┘      cancel (Draft/Tendered/Bidding/Accepted) releases the orders to Open
 ```
 
 - **Draft**: planner edits plan (mode, vehicle type, date, distance), removes orders, sets drop sequence.
 - **Tender**: the screen shows ranked quotes from `IFreightQuoteService`; the server **re-prices at tender time**. Choosing a
   contract that is not the cheapest requires an override reason (kept on the shipment).
+- **Tender to several transporters** (`TenderRound`, `docs/transporter-management.md`): instead of choosing one contract, a planner ticks two or
+  more and starts a tender. **Sequential**: one transporter at a time in the order shown; a refusal or a missed deadline moves the load to the next
+  (re-priced and re-checked against the planning rules each time). **Broadcast**: everyone is invited at once (the shipment is `Bidding`), each may bid
+  with a vehicle and driver, and a planner **awards** one; the others are told it is closed. Either way a transporter may propose its own rate
+  (a counter-offer a planner agrees or declines); a vendor never sees the contract price or who else was invited. Deadlines (default 4 h) are settled
+  whenever shipments or tenders are read or answered; there is no cross-tenant background job.
 - **Accept** (vendor, or a planner on their behalf): needs a vehicle and driver of that transporter. Blocked when either is
   inactive, has lapsed/missing papers (`IFleetDirectory` → `ComplianceEvaluator`), or the vehicle cannot carry the load.
-  Papers expiring soon are allowed (flagged). The vehicle's payload is snapshotted for utilisation.
+  Papers expiring soon are allowed (flagged); which papers are required, and whether an expired one blocks, is set per tenant (Transporters → Transporter setup). The vehicle's payload is snapshotted for utilisation.
 - **Dispatch**: issues one LR number per order (`LR-000001…`, per tenant, via `ISequenceGenerator`) and raises
   `ShipmentDispatched` (outbox). **Deliver** raises `ShipmentDelivered` — tracking, POD and billing build on these.
 
@@ -63,7 +69,8 @@ Delivery is recorded **per order** (per LR), not only per shipment.
 
 `orders` (list/create/get/update/cancel) · `planning/advice` · `planning/suggestions` · `planning/utilization` ·
 `planning/vehicle-types` · `shipments` (list/create/get) · `shipments/{id}/plan|orders|sequence|quotes|tender|withdraw|
-fleet-options|accept|reject|reassign|dispatch|deliver|cancel`.
+fleet-options|accept|reject|reassign|dispatch|deliver|cancel` · tenders: `shipments/{id}/tenders` (GET/POST) and `tenders/bid|counter|decline`
+(vendor) / `tenders/award|counter-decision|cancel` (planner).
 
 ## Known limits / next
 
