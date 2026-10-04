@@ -1,0 +1,25 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/LogiVue.Tms.Api/LogiVue.Tms.Api.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/" />
+  <Folder Name="/src/Modules/TransporterManagement/" />
+  <Folder Name="/src/Modules/TransporterManagement/Api/">
+    <Project Path="src/Modules/TransporterManagement/Api/LogiVue.Tms.TransporterManagement.Api.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/TransporterManagement/Application/">
+    <Project Path="src/Modules/TransporterManagement/Application/LogiVue.Tms.TransporterManagement.Application.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/TransporterManagement/Domain/">
+    <Project Path="src/Modules/TransporterManagement/Domain/LogiVue.Tms.TransporterManagement.Domain.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/TransporterManagement/Infrastructure/">
+    <Project Path="src/Modules/TransporterManagement/Infrastructure/LogiVue.Tms.TransporterManagement.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/src/Shared/">
+    <Project Path="src/Shared/LogiVue.Tms.Shared/LogiVue.Tms.Shared.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/LogiVue.Tms.Tests/LogiVue.Tms.Tests.csproj" />
+  </Folder>
+</Solution>

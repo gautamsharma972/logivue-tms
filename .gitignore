@@ -1,0 +1,21 @@
+# .NET
+backend/**/bin/
+backend/**/obj/
+backend/**/TestResults/
+backend/.vs/
+
+# Node / Vite
+frontend/node_modules/
+frontend/dist/
+frontend/*.local
+frontend/.env.local
+
+# Editors & OS
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.user
+
+# Local document storage (uploaded compliance files)
+App_Data/
