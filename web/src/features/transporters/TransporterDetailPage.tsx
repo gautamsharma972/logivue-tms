@@ -32,6 +32,7 @@ function Overview({ t, onEditBank }: { t: TransporterDto; onEditBank: () => void
             <Descriptions.Item label="Contact person">{t.contactPerson}</Descriptions.Item>
             <Descriptions.Item label="Mobile">{t.phone}</Descriptions.Item>
             <Descriptions.Item label="Email">{t.email}</Descriptions.Item>
+            {t.typeCode && <Descriptions.Item label="Type">{t.typeCode}</Descriptions.Item>}
             <Descriptions.Item label="Services">{t.serviceModes.map((m) => <Tag key={m}>{m.toUpperCase()}</Tag>)}</Descriptions.Item>
             <Descriptions.Item label="Address" span={{ xs: 1, md: 2 }}>
               {[t.address.line1, t.address.line2, `${t.address.city}, ${t.address.state} ${t.address.pincode}`].filter(Boolean).join(', ')}

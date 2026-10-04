@@ -64,6 +64,10 @@ import type {
   OrderDto,
   ShipmentDto,
   ShipmentQuotesDto,
+  MasterEntryDto,
+  SaveMasterItemRequest,
+  DocumentRuleDto,
+  SaveDocumentRuleRequest,
   StartTenderRequest,
   TenderDto,
   ShipmentSummaryDto,
@@ -459,4 +463,14 @@ export const deliveryApi = {
   reject: (shipmentId: string, orderId: string, reason: string) => http.post<ShipmentDto>(`${order(shipmentId, orderId)}/pod/reject`, { reason }).then((r) => r.data),
   queue: (params: ListPodParams) => http.get<PagedResult<PodLineDto>>(`${v1}/pod`, { params }).then((r) => r.data),
   ageing: (overdueDays?: number) => http.get<AgeingDto>(`${v1}/pod/ageing`, { params: { overdueDays } }).then((r) => r.data),
+}
+
+/** Master lists (transporter types, capabilities) and the rules for compliance papers. */
+export const masterDataApi = {
+  types: () => http.get<MasterEntryDto[]>(`${v1}/transporters/types`).then((r) => r.data),
+  saveType: (body: SaveMasterItemRequest) => http.put<MasterEntryDto>(`${v1}/transporters/types`, body).then((r) => r.data),
+  capabilityTypes: () => http.get<MasterEntryDto[]>(`${v1}/transporters/capability-types`).then((r) => r.data),
+  saveCapabilityType: (body: SaveMasterItemRequest) => http.put<MasterEntryDto>(`${v1}/transporters/capability-types`, body).then((r) => r.data),
+  documentRules: () => http.get<DocumentRuleDto[]>(`${v1}/transporters/document-rules`).then((r) => r.data),
+  saveDocumentRule: (kind: string, body: SaveDocumentRuleRequest) => http.put<DocumentRuleDto>(`${v1}/transporters/document-rules/${kind}`, body).then((r) => r.data),
 }

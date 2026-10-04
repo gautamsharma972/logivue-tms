@@ -303,6 +303,7 @@ export interface TransporterDto {
   createdAt: string
   version: number
   missingForSubmission: string[]
+  typeCode?: string | null
 }
 
 export interface SaveTransporterRequest {
@@ -320,6 +321,40 @@ export interface SaveTransporterRequest {
   pincode: string
   serviceModes: ServiceMode[]
   version: number | null
+  typeCode?: string | null
+}
+
+export interface MasterEntryDto {
+  code: string
+  name: string
+  isActive: boolean
+  isBuiltIn: boolean
+}
+
+export interface SaveMasterItemRequest {
+  code: string
+  name: string
+  isActive: boolean
+}
+
+export interface DocumentRuleDto {
+  kind: DocumentKind
+  label: string
+  owner: 'Transporter' | 'Vehicle' | 'Driver'
+  isMandatory: boolean
+  expiryRequired: boolean
+  renewalReminderDays: number
+  blockWhenExpired: boolean
+  isActive: boolean
+  isCustomised: boolean
+}
+
+export interface SaveDocumentRuleRequest {
+  isMandatory: boolean
+  expiryRequired: boolean
+  renewalReminderDays: number
+  blockWhenExpired: boolean
+  isActive: boolean
 }
 
 export interface SaveBankRequest {

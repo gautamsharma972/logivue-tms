@@ -1,8 +1,8 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { App, Button, Checkbox, Drawer, Flex, Form, Input, Select } from 'antd'
 import { useEffect } from 'react'
 import { useAuth } from '@/features/auth/AuthContext'
-import { transportersApi } from '@/lib/api/endpoints'
+import { masterDataApi, transportersApi } from '@/lib/api/endpoints'
 import { toApiError } from '@/lib/api/errors'
 import { queryKeys } from '@/lib/api/queryKeys'
 import type { ServiceMode, TransporterDto } from '@/lib/api/types'
@@ -23,6 +23,7 @@ interface FormValues {
   state: string
   pincode: string
   serviceModes: ServiceMode[]
+  typeCode?: string
 }
 
 interface Props {
@@ -42,6 +43,8 @@ export function TransporterFormDrawer({ open, transporter, onClose, onCreated }:
   const { user } = useAuth()
   const editing = transporter !== null
   // Who the company *is* is fixed once approved, and is never in a vendor's hands.
+  const isVendor = user?.transporterId != null
+  const types = useQuery({ queryKey: queryKeys.masterData.types, queryFn: () => masterDataApi.types(), enabled: open && !isVendor })
   const identityLocked = editing && (transporter.status === 'Active' || transporter.status === 'Suspended' || user?.transporterId != null)
 
   useEffect(() => {
@@ -63,6 +66,7 @@ export function TransporterFormDrawer({ open, transporter, onClose, onCreated }:
             state: transporter.address.state,
             pincode: transporter.address.pincode,
             serviceModes: transporter.serviceModes,
+            typeCode: transporter.typeCode ?? undefined,
           }
         : { serviceModes: ['Ftl'] },
     )
@@ -84,6 +88,7 @@ export function TransporterFormDrawer({ open, transporter, onClose, onCreated }:
         state: v.state,
         pincode: v.pincode,
         serviceModes: v.serviceModes,
+        typeCode: v.typeCode ?? null,
         version: transporter?.version ?? null,
       }
       return transporter ? transportersApi.update(transporter.id, body) : transportersApi.create(body)
@@ -168,6 +173,10 @@ export function TransporterFormDrawer({ open, transporter, onClose, onCreated }:
             <Input maxLength={6} inputMode="numeric" />
           </Form.Item>
         </Flex>
+
+        {!isVendor && <Form.Item label="Type of operator" name="typeCode" extra="Optional. The list is kept under Transporter setup.">
+          <Select allowClear placeholder="Choose a type" optionFilterProp="label" options={types.data?.filter((t) => t.isActive || t.code === transporter?.typeCode).map((t) => ({ value: t.code, label: t.name }))} />
+        </Form.Item>}
 
         <Form.Item label="Services offered" name="serviceModes" rules={[{ required: true, type: 'array', min: 1, message: 'Choose at least one' }]}>
           <Checkbox.Group

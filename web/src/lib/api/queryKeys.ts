@@ -91,6 +91,11 @@ export const queryKeys = {
     compatibility: ['planning', 'compatibility-rules'] as const,
     dashboard: (from?: string, to?: string) => ['planning', 'dashboard', from, to] as const,
   },
+  masterData: {
+    types: ['master-data', 'types'] as const,
+    capabilityTypes: ['master-data', 'capability-types'] as const,
+    documentRules: ['master-data', 'document-rules'] as const,
+  },
   shipments: {
     all: ['shipments'] as const,
     list: (params: ListShipmentsParams) => ['shipments', 'list', params] as const,

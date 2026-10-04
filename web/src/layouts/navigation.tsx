@@ -49,6 +49,7 @@ export const navigation: NavGroup[] = [
     items: [
       { path: '/transporters', label: 'Transporters', icon: <CarOutlined />, anyPermission: ['transporters.read', 'transporters.manage'], audience: 'internal' },
       { path: '/transporters/vehicle-types', label: 'Vehicle types', icon: <CarOutlined />, anyPermission: ['transporters.read', 'transporters.manage'], audience: 'internal' },
+      { path: '/transporters/setup', label: 'Transporter setup', icon: <DatabaseOutlined />, anyPermission: ['transporters.manage'], audience: 'internal' },
       { path: '/transporters/rankings', label: 'Rankings', icon: <TrophyOutlined />, anyPermission: ['transporters.performance.read', 'transporters.performance.manage'], audience: 'internal' },
       { path: '/transporters/selection', label: 'Find a transporter', icon: <SearchOutlined />, anyPermission: ['transporters.select', 'transporters.performance.manage'], audience: 'internal' },
       { path: '/transporters/placements', label: 'Vehicle placements', icon: <CarOutlined />, anyPermission: ['transporters.performance.read', 'transporters.performance.manage'], audience: 'internal' },
