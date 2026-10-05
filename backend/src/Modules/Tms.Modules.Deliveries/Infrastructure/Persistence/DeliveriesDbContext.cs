@@ -44,6 +44,14 @@ public sealed class DeliveriesDbContext(DbContextOptions<DeliveriesDbContext> op
 
     public DbSet<DeliverySetting> Settings => Set<DeliverySetting>();
 
+    public DbSet<DeliveryNotification> Notifications => Set<DeliveryNotification>();
+
+    public DbSet<NotificationRead> NotificationReads => Set<NotificationRead>();
+
+    public DbSet<ClaimHandoff> ClaimHandoffs => Set<ClaimHandoff>();
+
+    public DbSet<IntegrationMessage> IntegrationMessages => Set<IntegrationMessage>();
+
     protected override void ConfigureModel(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Schema);

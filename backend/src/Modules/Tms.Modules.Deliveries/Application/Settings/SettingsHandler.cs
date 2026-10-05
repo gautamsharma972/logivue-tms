@@ -76,6 +76,7 @@ internal sealed class SettingsHandler(DeliveriesDbContext db, DeliveryAccess acc
         PodRulesSetting p when p.OtpValidityMinutes is < 1 or > 1440 || p.OtpMaxAttempts is < 1 or > 20 => "The code needs a validity of 1–1440 minutes and 1–20 attempts.",
         QuantityRulesSetting q when q.OverDeliveryPct is < 0 or > 100 => "Over-delivery must be between 0 and 100 per cent.",
         OcrSetting o when new[] { o.CriticalThreshold, o.StandardThreshold, o.OptionalThreshold, o.ReviewBelow }.Any(t => t is < 0 or > 1) => "Confidence thresholds must be between 0 and 1.",
+        AgeingSetting a when a.UpperDays.Count is < 1 or > 12 || a.UpperDays.Any(d => d is < 0 or > 365) || a.UpperDays.Distinct().Count() != a.UpperDays.Count => "Give between 1 and 12 different bucket limits, each 0–365 days.",
         SlaSetting s when s.PodSubmissionHours < 1 || s.PodReviewHours < 1 || s.ResubmissionHours < 1 => "SLA hours must be at least 1.",
         ExceptionRulesSetting e when e.DueHours < 1 || e.EscalateAfterHours < 1 => "Exception hours must be at least 1.",
         ImageRulesSetting i when i.MaxBytes is < 10_000 or > 10 * 1024 * 1024 || i.MinWidth < 0 || i.MinHeight < 0 => "Image limits are out of range.",

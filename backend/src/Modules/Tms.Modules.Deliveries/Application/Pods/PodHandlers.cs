@@ -80,7 +80,7 @@ internal sealed class ListPodsHandler(DeliveriesDbContext db, DeliveryAccess acc
 /// <summary>Everything about proofs of delivery: reading, adding evidence, submitting, reviewing, correcting, and the reading of the paper document.</summary>
 internal sealed class PodHandler(
     DeliveriesDbContext db, DeliveryAccess access, IDeliverySettings settings, DeliveryMapper mapper, PodEngine engine, ExceptionFactory exceptions, IFileStore files,
-    IPodOcrQueue ocrQueue, IPodOcrService ocr, ICurrentUser user, TimeProvider clock)
+    IPodOcrQueue ocrQueue, IPodOcrService ocr, Notifications.NotificationPublisher notifications, ICurrentUser user, TimeProvider clock)
 {
     private const int MaxPhotoBytes = 10 * 1024 * 1024;
 
@@ -391,6 +391,8 @@ internal sealed class PodHandler(
                 return submitted;
             }
 
+            pod.RaiseSubmitted(delivery, clock.GetUtcNow());
+
             var ocrRules = await settings.GetAsync<OcrSetting>(DeliverySettingKeys.Ocr, cancellationToken);
             var document = pod.ActiveEvidence.Where(e => e.EvidenceType == EvidenceType.PodDocument).OrderByDescending(e => e.CapturedAt).FirstOrDefault();
             if (ocrRules.Enabled && document is not null && !pod.OcrResults.Any(o => o.EvidenceId == document.Id && o.ProcessingStatus != OcrStatus.Failed))
@@ -442,7 +444,7 @@ internal sealed class PodHandler(
                 result = pod.Accept(user.UserId, false, now, request.Reason);
                 if (result.IsSuccess)
                 {
-                    engine.Accepted(pod, delivery);
+                    await engine.AcceptedAsync(pod, delivery, cancellationToken);
                 }
 
                 break;
@@ -451,12 +453,18 @@ internal sealed class PodHandler(
                 if (result.IsSuccess)
                 {
                     pod.RaiseRejected(delivery, request.Reason!.Trim(), now);
+                    await notifications.PublishAsync(Domain.NotificationKind.PodRejected, $"Proof rejected: {delivery.Number}", request.Reason!.Trim(), delivery.Id, pod.Id, null, delivery.TransporterId, null, $"rejected:{pod.Id}:{pod.RejectionCount}", cancellationToken);
                     await exceptions.RaiseAsync(delivery, pod.Id, ExceptionType.PodRejected, $"The proof for {delivery.Number} was rejected: {request.Reason!.Trim()}", cancellationToken);
                 }
 
                 break;
             default:
                 result = pod.RequestResubmission(request.Reason ?? string.Empty, user.UserId, now);
+                if (result.IsSuccess)
+                {
+                    await notifications.PublishAsync(Domain.NotificationKind.PodRejected, $"More evidence needed: {delivery.Number}", request.Reason!.Trim(), delivery.Id, pod.Id, null, delivery.TransporterId, null, $"resubmission:{pod.Id}:{pod.RejectionCount}", cancellationToken);
+                }
+
                 break;
         }
 

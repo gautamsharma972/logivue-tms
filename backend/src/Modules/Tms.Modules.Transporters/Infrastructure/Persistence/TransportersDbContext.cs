@@ -58,6 +58,8 @@ public sealed class TransportersDbContext(DbContextOptions<TransportersDbContext
 
     public DbSet<TransporterBranch> Branches => Set<TransporterBranch>();
 
+    public DbSet<ProofPerformance> ProofPerformances => Set<ProofPerformance>();
+
     public DbSet<MasterItem> MasterItems => Set<MasterItem>();
 
     public DbSet<DocumentRule> DocumentRules => Set<DocumentRule>();

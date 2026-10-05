@@ -112,7 +112,7 @@ internal sealed class PodEngine(DeliveriesDbContext db, IDeliverySettings settin
         var auto = await settings.GetAsync<AutoAcceptSetting>(DeliverySettingKeys.AutoAccept, cancellationToken);
         if (AutoAcceptPolicy.CanAutoAccept(pod, delivery, auto, OcrAcceptable(pod)) && pod.Accept(null, true, clock.GetUtcNow()).IsSuccess)
         {
-            Accepted(pod, delivery);
+            await AcceptedAsync(pod, delivery, cancellationToken);
             return;
         }
 
@@ -120,10 +120,10 @@ internal sealed class PodEngine(DeliveriesDbContext db, IDeliverySettings settin
     }
 
     /// <summary>The proof was accepted: the delivery closes and the rest of the system hears of it. Open exceptions stay open.</summary>
-    public void Accepted(PodRecord pod, Delivery delivery)
+    public async Task AcceptedAsync(PodRecord pod, Delivery delivery, CancellationToken cancellationToken)
     {
         var now = clock.GetUtcNow();
-        pod.RaiseAccepted(delivery, now);
+        pod.RaiseAccepted(delivery, now, (await settings.GetAsync<SlaSetting>(DeliverySettingKeys.Sla, cancellationToken)).PodSubmissionHours);
         if (delivery.IsCompleted)
         {
             delivery.Close(null, new Actor(null, null), now);

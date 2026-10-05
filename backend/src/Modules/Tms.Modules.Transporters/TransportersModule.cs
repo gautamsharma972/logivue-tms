@@ -56,6 +56,11 @@ public static class TransportersModule
         services.AddScoped<IDomainEventHandler<ShipmentAccepted>, ShipmentAcceptedSubscriber>();
         services.AddScoped<Application.MasterData.DocumentPolicyProvider>();
         services.AddScoped<Integration.TransporterNotifier>();
+        services.AddScoped<Integration.ProofPerformanceRecorder>();
+        services.AddScoped<IDomainEventHandler<DeliveryCompleted>, DeliveryCompletedPerformanceSubscriber>();
+        services.AddScoped<IDomainEventHandler<PodAccepted>, PodAcceptedPerformanceSubscriber>();
+        services.AddScoped<IDomainEventHandler<PodRejected>, PodRejectedPerformanceSubscriber>();
+        services.AddScoped<IDomainEventHandler<DeliveryExceptionRaised>, DeliveryExceptionPerformanceSubscriber>();
         services.AddScoped<IDomainEventHandler<ShipmentRejected>, ShipmentRejectedSubscriber>();
         services.AddScoped<IDomainEventHandler<ShipmentTenderExpired>, ShipmentTenderExpiredSubscriber>();
         services.AddScoped<IDomainEventHandler<ShipmentTenderWithdrawn>, ShipmentTenderWithdrawnSubscriber>();

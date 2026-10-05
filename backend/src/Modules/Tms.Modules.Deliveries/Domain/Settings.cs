@@ -15,6 +15,8 @@ public static class DeliverySettingKeys
     public const string Exceptions = "delivery.exceptions";
     public const string Images = "pod.images";
     public const string Sla = "pod.sla";
+    public const string Ageing = "pod.ageing";
+    public const string Billing = "pod.billing";
 }
 
 public sealed record ReasonSetting(string Code, string Name, bool EvidenceRequired = false);
@@ -46,6 +48,12 @@ public sealed record ExceptionRulesSetting(int DueHours, int EscalateAfterHours,
 public sealed record ImageRulesSetting(int MaxBytes, int MinWidth, int MinHeight, bool RejectLowResolution);
 
 public sealed record SlaSetting(int PodSubmissionHours, int PodReviewHours, int ResubmissionHours);
+
+/// <param name="UpperDays">The top of each bucket in whole days; anything above the last is one more bucket (">30 days"). Not hard-coded.</param>
+public sealed record AgeingSetting(IReadOnlyList<int> UpperDays);
+
+/// <param name="HoldInvoiceUntilAccepted">Freight audit keeps the invoice on hold until the proof is accepted; off, a completed delivery is billable straight away.</param>
+public sealed record BillingSetting(bool HoldInvoiceUntilAccepted);
 
 public static class DeliverySettingDefaults
 {
@@ -88,6 +96,8 @@ public static class DeliverySettingDefaults
         }),
         [DeliverySettingKeys.Images] = new ImageRulesSetting(10 * 1024 * 1024, 320, 240, false),
         [DeliverySettingKeys.Sla] = new SlaSetting(24, 4, 12),
+        [DeliverySettingKeys.Ageing] = new AgeingSetting([1, 3, 7, 15, 30]),
+        [DeliverySettingKeys.Billing] = new BillingSetting(true),
     };
 
     public static IReadOnlyCollection<string> Keys => Values.Keys;

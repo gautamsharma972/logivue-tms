@@ -143,6 +143,7 @@ internal sealed class PodRecordConfiguration : IEntityTypeConfiguration<PodRecor
         b.Property(p => p.Status).HasConversion<string>().HasMaxLength(24);
         b.Property(p => p.Method).HasConversion<string?>().HasMaxLength(12);
         b.Property(p => p.Geofence).HasConversion<string>().HasMaxLength(24);
+        b.HasIndex(p => new { p.TenantId, p.ReturnedAt });
         b.Property(p => p.RecipientName).HasMaxLength(150);
         b.Property(p => p.RecipientDesignation).HasMaxLength(100);
         b.Property(p => p.RecipientPhone).HasMaxLength(20);
@@ -373,5 +374,65 @@ internal sealed class DeliverySettingConfiguration : IEntityTypeConfiguration<De
         b.Property(s => s.Key).HasMaxLength(60).IsRequired();
         b.Property(s => s.ValueJson).HasColumnType("longtext").IsRequired();
         b.HasIndex(s => new { s.TenantId, s.Key }).IsUnique();
+    }
+}
+
+internal sealed class DeliveryNotificationConfiguration : IEntityTypeConfiguration<DeliveryNotification>
+{
+    public void Configure(EntityTypeBuilder<DeliveryNotification> b)
+    {
+        b.ToTable("notifications");
+        b.HasKey(n => n.Id);
+        b.Property(n => n.Id).ValueGeneratedNever();
+        b.Property(n => n.Kind).HasConversion<string>().HasMaxLength(24);
+        b.Property(n => n.Title).HasMaxLength(200).IsRequired();
+        b.Property(n => n.Body).HasMaxLength(1000).IsRequired();
+        b.Property(n => n.AudiencePermission).HasMaxLength(60);
+        b.Property(n => n.DedupeKey).HasMaxLength(120).IsRequired();
+        b.HasIndex(n => new { n.TenantId, n.DedupeKey }).IsUnique();
+        b.HasIndex(n => new { n.TenantId, n.AudienceTransporterId, n.CreatedAt });
+        b.HasIndex(n => new { n.TenantId, n.AudiencePermission, n.CreatedAt });
+    }
+}
+
+internal sealed class NotificationReadConfiguration : IEntityTypeConfiguration<NotificationRead>
+{
+    public void Configure(EntityTypeBuilder<NotificationRead> b)
+    {
+        b.ToTable("notification_reads");
+        b.HasKey(n => n.Id);
+        b.Property(n => n.Id).ValueGeneratedNever();
+        b.HasIndex(n => new { n.TenantId, n.NotificationId, n.UserId }).IsUnique();
+        b.HasIndex(n => new { n.TenantId, n.UserId });
+    }
+}
+
+internal sealed class ClaimHandoffConfiguration : IEntityTypeConfiguration<ClaimHandoff>
+{
+    public void Configure(EntityTypeBuilder<ClaimHandoff> b)
+    {
+        b.ToTable("claim_handoffs");
+        b.HasKey(c => c.Id);
+        b.Property(c => c.Id).ValueGeneratedNever();
+        b.Property(c => c.Reference).HasMaxLength(40).IsRequired();
+        b.Property(c => c.System).HasMaxLength(40).IsRequired();
+        b.Property(c => c.PayloadJson).HasColumnType("longtext").IsRequired();
+        b.HasIndex(c => new { c.TenantId, c.Reference }).IsUnique();
+        b.HasIndex(c => new { c.TenantId, c.DeliveryId });
+    }
+}
+
+internal sealed class IntegrationMessageConfiguration : IEntityTypeConfiguration<IntegrationMessage>
+{
+    public void Configure(EntityTypeBuilder<IntegrationMessage> b)
+    {
+        b.ToTable("integration_messages");
+        b.HasKey(m => m.Id);
+        b.Property(m => m.Id).ValueGeneratedNever();
+        b.Property(m => m.Target).HasMaxLength(30).IsRequired();
+        b.Property(m => m.Kind).HasMaxLength(40).IsRequired();
+        b.Property(m => m.PayloadJson).HasColumnType("longtext").IsRequired();
+        b.HasIndex(m => new { m.TenantId, m.DeliveryId, m.CreatedAt });
+        b.HasIndex(m => new { m.TenantId, m.Target, m.CreatedAt });
     }
 }

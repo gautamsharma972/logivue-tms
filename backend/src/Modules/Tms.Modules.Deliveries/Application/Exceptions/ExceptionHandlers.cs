@@ -8,7 +8,7 @@ using Tms.SharedKernel.Security;
 namespace Tms.Modules.Deliveries.Application.Exceptions;
 
 /// <summary>Delivery exceptions: listing, raising by hand, and the moves an owner makes (acknowledge, assign, investigate, escalate, resolve, close).</summary>
-internal sealed class ExceptionHandler(DeliveriesDbContext db, DeliveryAccess access, ExceptionFactory factory, ICurrentUser user, TimeProvider clock)
+internal sealed class ExceptionHandler(DeliveriesDbContext db, DeliveryAccess access, ExceptionFactory factory, Notifications.NotificationPublisher notifications, ICurrentUser user, TimeProvider clock)
 {
     public async Task<Result<PagedResult<ExceptionSummaryDto>>> ListAsync(ListExceptionsQuery query, CancellationToken cancellationToken)
     {
@@ -106,7 +106,16 @@ internal sealed class ExceptionHandler(DeliveriesDbContext db, DeliveryAccess ac
         ActAsync(id, e => e.Investigate(request.RootCause, request.ResponsibleParty, user.UserId, clock.GetUtcNow()), ct);
 
     public Task<Result<ExceptionDto>> EscalateAsync(Guid id, ReasonRequest request, CancellationToken ct) =>
-        ActAsync(id, e => e.Escalate(request.Reason, user.UserId, clock.GetUtcNow()), ct);
+        ActAsync(id, async e =>
+        {
+            var escalated = e.Escalate(request.Reason, user.UserId, clock.GetUtcNow());
+            if (escalated.IsSuccess)
+            {
+                await notifications.PublishAsync(Domain.NotificationKind.ExceptionEscalated, $"Escalated: {e.Number}", $"{e.DeliveryNumber}: {request.Reason.Trim()}", e.DeliveryId, e.PodId, e.Id, null, Notifications.NotificationPublisher.StaffExceptions, $"escalated:{e.Id}", ct);
+            }
+
+            return escalated;
+        }, ct);
 
     public Task<Result<ExceptionDto>> NoteAsync(Guid id, NoteRequest request, CancellationToken ct) =>
         ActAsync(id, e => e.AddNote(request.Text, user.UserId, clock.GetUtcNow()), ct);
@@ -116,7 +125,10 @@ internal sealed class ExceptionHandler(DeliveriesDbContext db, DeliveryAccess ac
 
     public Task<Result<ExceptionDto>> CloseAsync(Guid id, CancellationToken ct) => ActAsync(id, e => e.Close(user.UserId, clock.GetUtcNow()), ct);
 
-    private async Task<Result<ExceptionDto>> ActAsync(Guid id, Func<DeliveryException, Result> act, CancellationToken cancellationToken)
+    private Task<Result<ExceptionDto>> ActAsync(Guid id, Func<DeliveryException, Result> act, CancellationToken cancellationToken) =>
+        ActAsync(id, e => Task.FromResult(act(e)), cancellationToken);
+
+    private async Task<Result<ExceptionDto>> ActAsync(Guid id, Func<DeliveryException, Task<Result>> act, CancellationToken cancellationToken)
     {
         if (!access.CanManageExceptions)
         {
@@ -129,7 +141,7 @@ internal sealed class ExceptionHandler(DeliveriesDbContext db, DeliveryAccess ac
             return found.Error;
         }
 
-        var result = act(found.Value);
+        var result = await act(found.Value);
         if (result.IsFailure)
         {
             return result.Error;

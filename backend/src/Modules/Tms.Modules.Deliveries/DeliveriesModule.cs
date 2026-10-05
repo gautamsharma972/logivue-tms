@@ -3,9 +3,13 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Tms.BuildingBlocks.Web;
 using Tms.Modules.Deliveries.Application;
+using Tms.Modules.Deliveries.Application.Dashboard;
+using Tms.Modules.Deliveries.Application.Claims;
 using Tms.Modules.Deliveries.Application.Exceptions;
+using Tms.Modules.Deliveries.Application.Notifications;
 using Tms.Modules.Deliveries.Application.Execution;
 using Tms.Modules.Deliveries.Application.Ocr;
 using Tms.Modules.Deliveries.Application.Pods;
@@ -59,7 +63,21 @@ public static class DeliveriesModule
             services.AddHostedService<PodOcrWorker>();
         }
 
+        services.AddScoped<ProofRowSource>();
+        services.AddScoped<AgeingService>();
+        services.AddScoped<NotificationPublisher>();
+        services.AddScoped<SlaMonitor>();
+        services.AddScoped<ClaimService>();
+        services.AddScoped<FreightAuditReporter>();
+        // Local stand-ins, used only until another module implements the contract (the first registration wins).
+        services.TryAddScoped<IClaimsIntegration, LocalClaimsIntegration>();
+        services.TryAddScoped<IFreightAuditIntegration, LocalFreightAuditIntegration>();
+        services.AddScoped<IDeliveryReliabilityFeed, DeliveryReliabilityFeed>();
         services.AddScoped<IDomainEventHandler<ShipmentDispatched>, ShipmentDispatchedSubscriber>();
+        services.AddScoped<IDomainEventHandler<DeliveryCompleted>, DeliveryCompletedSubscriber>();
+        services.AddScoped<IDomainEventHandler<PodSubmitted>, PodSubmittedSubscriber>();
+        services.AddScoped<IDomainEventHandler<PodAccepted>, PodAcceptedSubscriber>();
+        services.AddScoped<IDomainEventHandler<PodRejected>, PodRejectedSubscriber>();
         services.AddHandlers(typeof(DeliveriesModule).Assembly, "Tms.Modules.Deliveries.Application");
         services.AddValidatorsFrom<DeliveriesDbContext>();
         return services;

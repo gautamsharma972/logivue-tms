@@ -340,6 +340,9 @@ public sealed class Delivery : AggregateRoot, ITenantScoped
 
     public bool OtpVerified => OtpVerifiedAt is not null;
 
+    /// <summary>Delivered within the window; null when there is no window or nothing was delivered.</summary>
+    public bool? OnTime => WindowEnd is { } end && ActualDeliveryAt is { } at && Outcome is not (DeliveryOutcome.Failed or DeliveryOutcome.Refused) ? at <= end : null;
+
     public sealed record Header(
         Guid? ShipmentId, string? ShipmentReference, Guid? OrderId, string? OrderReference, string? LoadReference, string? TripReference, string? LrNumber, int Sequence,
         Guid? TransporterId, string? TransporterReference, Guid? VehicleId, string? VehicleReference, string? DriverName,
@@ -637,7 +640,7 @@ public sealed class Delivery : AggregateRoot, ITenantScoped
         Status = anyDiscrepancy ? DeliveryStatus.PartiallyDelivered : DeliveryStatus.Delivered;
         _attempts.Add(DeliveryAttempt.Create(TenantId, Id, _attempts.Count + 1, deliveredAt, AttemptResult.Delivered, null, recipient, driverRemarks, null, fix, actor.DeviceReference));
         Log(anyDiscrepancy ? DeliveryEventType.PartiallyDelivered : DeliveryEventType.Delivered, deliveredAt, fix, actor, outcome.ToString());
-        Raise(new DeliveryCompleted(Id, TenantId, Number, ShipmentId, TransporterId, deliveredAt, anyDiscrepancy));
+        Raise(new DeliveryCompleted(Id, TenantId, Number, ShipmentId, TransporterId, deliveredAt, anyDiscrepancy, OnTime, shortTotal, damagedTotal));
         return new CompletionResult(reconciliation, anyDiscrepancy, mismatch);
     }
 

@@ -75,4 +75,6 @@ internal sealed class DeliverySettings(DeliveriesDbContext db) : IDeliverySettin
 internal static class Clock
 {
     public static readonly TimeSpan India = TimeSpan.FromMinutes(330);
+
+    public static DateOnly TodayInIndia(this TimeProvider clock) => DateOnly.FromDateTime(clock.GetUtcNow().ToOffset(India).DateTime);
 }

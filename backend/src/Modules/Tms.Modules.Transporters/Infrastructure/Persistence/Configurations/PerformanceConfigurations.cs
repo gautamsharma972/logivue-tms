@@ -324,3 +324,18 @@ internal sealed class DocumentRuleConfiguration : IEntityTypeConfiguration<Docum
         builder.HasIndex(r => new { r.TenantId, r.Kind }).IsUnique();
     }
 }
+
+internal sealed class ProofPerformanceConfiguration : IEntityTypeConfiguration<ProofPerformance>
+{
+    public void Configure(EntityTypeBuilder<ProofPerformance> builder)
+    {
+        builder.ToTable("proof_performance");
+        builder.HasKey(p => p.Id);
+        builder.Property(p => p.Id).ValueGeneratedNever();
+        builder.Property(p => p.DeliveryNumber).HasMaxLength(20).IsRequired();
+        builder.Property(p => p.ShortQuantity).HasPrecision(18, 3);
+        builder.Property(p => p.DamagedQuantity).HasPrecision(18, 3);
+        builder.HasIndex(p => new { p.TenantId, p.DeliveryId }).IsUnique(); // an event delivered twice cannot add a second row
+        builder.HasIndex(p => new { p.TenantId, p.TransporterId, p.UpdatedAt });
+    }
+}

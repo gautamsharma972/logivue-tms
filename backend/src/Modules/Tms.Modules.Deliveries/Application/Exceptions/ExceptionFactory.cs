@@ -7,7 +7,7 @@ using Tms.SharedKernel.Security;
 namespace Tms.Modules.Deliveries.Application.Exceptions;
 
 /// <summary>Raises delivery exceptions with the severity and due date the tenant's rules set. One open exception per type per delivery: a second sighting adds nothing.</summary>
-internal sealed class ExceptionFactory(DeliveriesDbContext db, IDeliverySettings settings, ISequenceGenerator sequences, ICurrentUser user, TimeProvider clock)
+internal sealed class ExceptionFactory(DeliveriesDbContext db, IDeliverySettings settings, ISequenceGenerator sequences, ICurrentUser user, Notifications.NotificationPublisher notifications, TimeProvider clock)
 {
     public async Task<DeliveryException?> RaiseAsync(Delivery delivery, Guid? podId, ExceptionType type, string description, CancellationToken cancellationToken, ExceptionSeverity? severity = null)
     {
@@ -29,6 +29,21 @@ internal sealed class ExceptionFactory(DeliveriesDbContext db, IDeliverySettings
         var number = $"EXC-{await sequences.NextAsync(tenantId, "delivery-exception", cancellationToken):D5}";
         var exception = DeliveryException.Raise(tenantId, number, delivery, podId, type, level, description, now.AddHours(rules.DueHours), now);
         db.Exceptions.Add(exception);
+
+        var kind = type switch
+        {
+            ExceptionType.Shortage => (Domain.NotificationKind?)Domain.NotificationKind.ShortageRecorded,
+            ExceptionType.Damage => Domain.NotificationKind.DamageRecorded,
+            ExceptionType.CustomerRefusal => Domain.NotificationKind.CustomerRefusal,
+            ExceptionType.DeliveryFailed or ExceptionType.AddressIssue => Domain.NotificationKind.DeliveryFailed,
+            ExceptionType.LateDelivery => Domain.NotificationKind.DeliveryDelayed,
+            _ => null,
+        };
+        if (kind is { } k)
+        {
+            await notifications.PublishAsync(k, $"{type}: {delivery.Number}", description, delivery.Id, podId, exception.Id, null, Notifications.NotificationPublisher.StaffExceptions, $"exception:{exception.Id}", cancellationToken);
+        }
+
         return exception;
     }
 

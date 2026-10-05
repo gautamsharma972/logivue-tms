@@ -6,12 +6,16 @@ using Microsoft.AspNetCore.Routing;
 using Tms.BuildingBlocks.Web.Http;
 using Tms.Modules.Deliveries.Application;
 using Tms.Modules.Deliveries.Application.Deliveries;
+using Tms.Modules.Deliveries.Application.Claims;
+using Tms.Modules.Deliveries.Application.Dashboard;
 using Tms.Modules.Deliveries.Application.Exceptions;
+using Tms.Modules.Deliveries.Application.Notifications;
 using Tms.Modules.Deliveries.Application.Execution;
 using Tms.Modules.Deliveries.Application.Mobile;
 using Tms.Modules.Deliveries.Application.Pods;
 using Tms.Modules.Deliveries.Application.Settings;
 using Tms.Modules.Deliveries.Domain;
+using Tms.SharedKernel.Contracts;
 using Tms.SharedKernel.Paging;
 
 namespace Tms.Modules.Deliveries.Endpoints;
@@ -27,6 +31,7 @@ internal static class DeliveryEndpoints
         MapExceptions(api);
         MapMobile(api);
         MapSettings(api);
+        MapDashboard(api);
     }
 
     private static void MapDeliveries(RouteGroupBuilder api)
@@ -80,6 +85,12 @@ internal static class DeliveryEndpoints
 
         group.MapPost("/{id:guid}/close", async (Guid id, Application.ReasonRequest body, ExecutionHandler h, CancellationToken ct) => (await h.CloseAsync(id, body, ct)).ToHttpResult())
             .WithValidation<Application.ReasonRequest>().WithName("CloseDelivery").Produces<DeliveryDto>();
+
+        group.MapPost("/{id:guid}/claims", async (Guid id, CreateClaimsRequest body, ClaimHandler h, CancellationToken ct) => (await h.CreateAsync(id, body, ct)).ToHttpResult())
+            .WithName("CreateDeliveryClaims").Produces<IReadOnlyList<ClaimResultDto>>();
+
+        group.MapGet("/{id:guid}/billing", async (Guid id, ClaimHandler h, CancellationToken ct) => (await h.BillingAsync(id, ct)).ToHttpResult())
+            .WithName("GetDeliveryBilling").Produces<BillingStatusDto>();
 
         group.MapPost("/{id:guid}/pod", async (Guid id, PodHandler h, CancellationToken ct) => (await h.CreateAsync(id, ct)).ToHttpResult())
             .WithName("StartDeliveryPod").Produces<PodDto>();
@@ -222,5 +233,44 @@ internal static class DeliveryEndpoints
 
         group.MapPut("/{key}", async (string key, JsonElement body, SettingsHandler h, CancellationToken ct) => (await h.SaveAsync(key, body, ct)).ToHttpResult())
             .WithName("SaveDeliverySetting").Produces<SettingDto>().ProducesValidationProblem();
+    }
+
+    private static void MapDashboard(RouteGroupBuilder api)
+    {
+        var board = api.MapGroup("/pod-dashboard");
+
+        board.MapGet("/summary", async ([AsParameters] DashboardQuery query, DashboardHandler h, CancellationToken ct) => (await h.SummaryAsync(query, ct)).ToHttpResult())
+            .WithName("PodDashboardSummary").Produces<DashboardSummaryDto>();
+
+        board.MapGet("/ageing", async ([FromQuery] Guid? transporterId, DashboardHandler h, CancellationToken ct) => (await h.AgeingAsync(transporterId, ct)).ToHttpResult())
+            .WithName("PodDashboardAgeing").Produces<AgeingDto>();
+
+        board.MapGet("/ageing/items", async ([AsParameters] AgeingItemsQuery query, DashboardHandler h, CancellationToken ct) => (await h.AgeingItemsAsync(query, ct)).ToHttpResult())
+            .WithName("PodDashboardAgeingItems").Produces<PagedResult<AgeingItemDto>>();
+
+        board.MapGet("/compliance", async ([AsParameters] ComplianceQuery query, DashboardHandler h, CancellationToken ct) => (await h.ComplianceAsync(query, ct)).ToHttpResult())
+            .WithName("PodDashboardCompliance").Produces<ComplianceDto>();
+
+        board.MapGet("/exceptions", async ([FromQuery] Guid? transporterId, DashboardHandler h, CancellationToken ct) => (await h.ExceptionsAsync(transporterId, ct)).ToHttpResult())
+            .WithName("PodDashboardExceptions").Produces<ExceptionsSummaryDto>();
+
+        api.MapGet("/delivery-reports/{report}", async (string report, [AsParameters] ReportQuery query, ReportsHandler h, CancellationToken ct) =>
+            {
+                var result = await h.RunAsync(report, query, ct);
+                return result.IsSuccess ? Results.File(result.Value.Content, result.Value.ContentType, result.Value.FileName) : result.Error.ToProblem();
+            })
+            .WithName("DeliveryReport").Produces(StatusCodes.Status200OK).ProducesValidationProblem();
+
+        var notices = api.MapGroup("/delivery-notifications");
+        notices.MapGet("/", async ([AsParameters] ListNotificationsQuery query, NotificationHandler h, CancellationToken ct) => (await h.ListAsync(query, ct)).ToHttpResult())
+            .WithName("ListDeliveryNotifications").Produces<PagedResult<NotificationDto>>();
+        notices.MapPost("/read-all", async (NotificationHandler h, CancellationToken ct) => (await h.MarkReadAsync(null, ct)).ToHttpResult())
+            .WithName("ReadAllDeliveryNotifications").Produces(StatusCodes.Status204NoContent);
+        notices.MapPost("/{id:guid}/read", async (Guid id, NotificationHandler h, CancellationToken ct) => (await h.MarkReadAsync(id, ct)).ToHttpResult())
+            .WithName("ReadDeliveryNotification").Produces(StatusCodes.Status204NoContent);
+
+        api.MapGet("/delivery-reliability", async ([FromQuery] string origin, [FromQuery] string destination, [FromQuery] int? days, DeliveryAccess access, IDeliveryReliabilityFeed feed, CancellationToken ct) =>
+                access.CanRead ? Results.Ok(await feed.GetLaneReliabilityAsync(origin, destination, days ?? 90, ct)) : DeliveryAccess.Forbidden.ToProblem())
+            .WithName("DeliveryLaneReliability").Produces<LaneReliability>();
     }
 }
