@@ -126,7 +126,7 @@ export function DeliverySettingsPage() {
                   {sw('shortageAcknowledgementRequired', 'Customer must acknowledge a shortage')}
                   {sw('damageAcknowledgementRequired', 'Customer must acknowledge damage')}
                   {sw('refusalAcknowledgementRequired', 'Customer must acknowledge a refusal')}
-                  {sw('autoCreateClaim', 'Raise a claim automatically', 'Takes effect once the claims module is connected.')}
+                  {sw('autoCreateClaim', 'Raise a claim automatically', 'The claim is handed to the claims connection with the evidence. Until the claims module is connected, it is recorded here.')}
                 </SettingCard>
               </Flex>
             ),
@@ -163,6 +163,16 @@ export function DeliverySettingsPage() {
                     <Form.Item name="podReviewHours" label="Review within (hours)"><InputNumber min={1} /></Form.Item>
                     <Form.Item name="resubmissionHours" label="Correct within (hours)"><InputNumber min={1} /></Form.Item>
                   </Flex>
+                </SettingCard>
+                <SettingCard
+                  setting={by('pod.ageing')} title="Ageing buckets" help="The top of each bucket in whole days, in increasing order. Anything older than the last one is shown as one more bucket."
+                  toForm={(v) => ({ upperDays: ((v.upperDays as number[] | undefined) ?? []).map(String) })}
+                  fromForm={(v: { upperDays: (string | number)[] }) => ({ upperDays: v.upperDays.map(Number).filter((n) => Number.isInteger(n) && n > 0).sort((a, b) => a - b) })}
+                >
+                  <Form.Item name="upperDays" label="Days"><Select mode="tags" tokenSeparators={[',', ' ']} placeholder="1, 3, 7, 15, 30" /></Form.Item>
+                </SettingCard>
+                <SettingCard setting={by('pod.billing')} title="Billing" help="How the proof status reaches freight audit.">
+                  {sw('holdInvoiceUntilAccepted', 'Hold the invoice until the proof is accepted', 'Off: a completed delivery can be billed straight away.')}
                 </SettingCard>
                 <SettingCard setting={by('delivery.exceptions')} title="Exceptions" help="How serious each kind is when it is raised, and how long before it is due or should be escalated.">
                   <Flex gap={16} wrap>

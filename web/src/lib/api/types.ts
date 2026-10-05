@@ -2465,3 +2465,123 @@ export interface DeliverySettingDto {
   value: unknown
   isCustomised: boolean
 }
+
+// ---- Dashboard, ageing, compliance, notifications, claims and billing
+
+export type AgeingStage = 'PendingSubmission' | 'PendingReview' | 'Rejected' | 'ResubmissionRequired'
+
+export interface DashboardSummaryDto {
+  from: string
+  to: string
+  deliveriesToday: number
+  delivered: number
+  partiallyDelivered: number
+  failed: number
+  refused: number
+  closed: number
+  podPending: number
+  podInPreparation: number
+  podSubmitted: number
+  podUnderReview: number
+  podRejected: number
+  podResubmissionRequired: number
+  podAccepted: number
+  shortageCases: number
+  damageCases: number
+  openExceptions: number
+  overdueExceptions: number
+  openClaims: number
+  unreadNotifications: number
+}
+
+/** A null rate means there was nothing to measure, which is different from zero. */
+export interface ComplianceMetricsDto {
+  delivered: number
+  podSubmitted: number
+  podPending: number
+  podRejected: number
+  podAccepted: number
+  submissionCompliance: number | null
+  acceptanceRate: number | null
+  rejectionRate: number | null
+  averageSubmissionHours: number | null
+  averageReviewHours: number | null
+  averageResubmissionHours: number | null
+  onTimeRate: number | null
+}
+
+export interface ProofComplianceDto {
+  from: string
+  to: string
+  groupBy: 'transporter' | 'customer' | 'lane'
+  overall: ComplianceMetricsDto
+  rows: { key: string; name: string; metrics: ComplianceMetricsDto }[]
+}
+
+export interface ProofAgeingDto {
+  bucketLabels: string[]
+  stages: { stage: AgeingStage; label: string; count: number; overdue: number; targetHours: number; buckets: number[] }[]
+  bucketTotals: number[]
+  topTransporters: { name: string; overdue: number; total: number }[]
+  topCustomers: { name: string; overdue: number; total: number }[]
+  topLocations: { name: string; overdue: number; total: number }[]
+}
+
+export interface AgeingItemDto {
+  stage: AgeingStage
+  deliveryId: string
+  deliveryNumber: string
+  podId: string | null
+  customerName: string
+  transporterReference: string | null
+  destination: string | null
+  ageHours: number
+  bucket: string
+  bucketIndex: number
+  overdue: boolean
+  targetHours: number
+}
+
+export interface DeliveryNotificationDto {
+  id: string
+  kind: string
+  title: string
+  body: string
+  deliveryId: string | null
+  podId: string | null
+  exceptionId: string | null
+  createdAt: string
+  read: boolean
+}
+
+export interface ClaimResultDto {
+  discrepancyId: string
+  sku: string
+  type: DiscrepancyType
+  quantity: number
+  reference: string
+  system: string
+}
+
+export interface BillingStatusDto {
+  status: string
+  billingEligible: boolean
+  invoiceHold: boolean
+  at: string | null
+  explanation: string
+}
+
+export interface ProofPerformanceDto {
+  from: string
+  to: string
+  deliveries: number
+  delivered: number
+  onTimeRate: number | null
+  proofInTimeRate: number | null
+  firstTimeAcceptanceRate: number | null
+  rejectionRate: number | null
+  shortageRate: number | null
+  damageRate: number | null
+  refusals: number
+  failures: number
+}

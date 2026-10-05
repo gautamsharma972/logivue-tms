@@ -102,6 +102,13 @@ export const queryKeys = {
     exceptions: (params: ListDeliveryExceptionsParams) => ['deliveries', 'exceptions', params] as const,
     exception: (id: string) => ['deliveries', 'exception', id] as const,
     settings: ['deliveries', 'settings'] as const,
+    dashboard: (params: object) => ['deliveries', 'dashboard', params] as const,
+    ageing: (transporterId?: string) => ['deliveries', 'ageing', transporterId] as const,
+    ageingItems: (params: object) => ['deliveries', 'ageing-items', params] as const,
+    compliance: (params: object) => ['deliveries', 'compliance', params] as const,
+    notifications: (params: object) => ['deliveries', 'notifications', params] as const,
+    billing: (id: string) => ['deliveries', 'billing', id] as const,
+    proofPerformance: (id: string) => ['deliveries', 'proof-performance', id] as const,
     mobile: ['deliveries', 'mobile'] as const,
   },
   masterData: {

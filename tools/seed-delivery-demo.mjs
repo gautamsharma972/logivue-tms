@@ -193,7 +193,19 @@ async function main() {
   if (exceptions[2]) await call('POST', `/delivery-exceptions/${exceptions[2].id}/resolve`, { resolution: 'Credit note issued', rootCause: 'Short loaded at the warehouse', responsibleParty: 'Warehouse', actionTaken: 'Raised with the warehouse', financialImpact: 1500, claimReference: null })
   log(`${exceptions.length} open exceptions`)
 
-  console.log(`\nDone: ${counter} deliveries.\n  Deliveries → Delivery & proof;  proofs → Proofs & review (review queue);  Delivery exceptions;  Delivery rules.\n  The demonstration case is shipment SH10025: open it in the review queue to see the paper POD read at 98% / 96% / 64%.`)
+  // 10. Age some deliveries so the ageing buckets, overdue notices and dashboard have something to show.
+  //     Uses the dev-only endpoint, which only exists when the API runs in Development.
+  const waiting = (await call('GET', '/deliveries?pageSize=100')).items.filter((x) => ['Pending', 'InPreparation', 'Submitted', 'UnderReview', 'Rejected', 'ResubmissionRequired'].includes(x.podStatus) && ['Delivered', 'PartiallyDelivered'].includes(x.status))
+  const AGES = [30, 60, 100, 200, 400, 800]
+  let aged = 0
+  for (const [n, x] of waiting.entries()) {
+    const done = await call('POST', `/dev/deliveries/${x.id}/age`, { hours: AGES[n % AGES.length] }, { allow: [404] })
+    if (done === null) break
+    aged++
+  }
+  log(`${aged} deliveries aged back in time (ageing buckets and overdue notices)`)
+
+  console.log(`\nDone: ${counter} deliveries.\n  Deliveries → Delivery & proof;  proofs → Proofs & review (review queue);  Delivery exceptions;  Delivery rules;  Proof dashboard and Delivery reports show ageing and compliance.\n  The demonstration case is shipment SH10025: open it in the review queue to see the paper POD read at 98% / 96% / 64%.`)
 }
 
 main().catch((e) => { console.error(e.message); process.exit(1) })

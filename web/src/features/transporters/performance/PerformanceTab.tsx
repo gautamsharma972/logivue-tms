@@ -12,6 +12,7 @@ import { formatDateTime } from '@/lib/format'
 import { BenchmarkPanel } from './BenchmarkPanel'
 import { kpiLabels, lowerIsBetter, scoredKpis } from './constants'
 import { OperationsPanel } from './OperationsPanel'
+import { ProofPerformancePanel } from './ProofPerformancePanel'
 import { RecordsPanel } from './RecordsPanel'
 
 const pct = (v: number | null | undefined) => (v == null ? '—' : `${v.toFixed(v % 1 === 0 ? 0 : 1)}%`)
@@ -169,6 +170,7 @@ export function PerformanceTab({ transporterId }: { transporterId: string }) {
 
           <Scorecards transporterId={transporterId} from={from} to={to} />
           <BenchmarkPanel transporterId={transporterId} from={from} to={to} />
+          <ProofPerformancePanel transporterId={transporterId} from={from} to={to} />
           <OperationsPanel transporterId={transporterId} />
           <RecordsPanel transporterId={transporterId} from={from} to={to} />
         </>

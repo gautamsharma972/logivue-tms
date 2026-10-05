@@ -12,6 +12,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Suspense, useMemo, useState } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useThemeMode } from '@/app/theme'
+import { NotificationBell } from '@/features/deliveries/NotificationBell'
 import { useAuth } from '@/features/auth/AuthContext'
 import { approvalsApi } from '@/lib/api/endpoints'
 import { queryKeys } from '@/lib/api/queryKeys'
@@ -151,6 +152,7 @@ export function AppLayout() {
                 onClick={toggle}
               />
             </Tooltip>
+            {can('deliveries.read') && <NotificationBell />}
             <Dropdown
               trigger={['click']}
               menu={{ items: userMenu, onClick: ({ key }) => (key === 'logout' ? void logout() : key === 'password' && navigate('/change-password')) }}

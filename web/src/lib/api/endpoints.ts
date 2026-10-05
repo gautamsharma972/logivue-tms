@@ -64,6 +64,15 @@ import type {
   OrderDto,
   ShipmentDto,
   ShipmentQuotesDto,
+  ProofAgeingDto,
+  AgeingItemDto,
+  AgeingStage,
+  BillingStatusDto,
+  ClaimResultDto,
+  ProofComplianceDto,
+  DashboardSummaryDto,
+  DeliveryNotificationDto,
+  ProofPerformanceDto,
   AttemptRequest,
   CompleteDeliveryRequest,
   DeliveryDto,
@@ -489,6 +498,10 @@ export const deliveryApi = {
   ageing: (overdueDays?: number) => http.get<AgeingDto>(`${v1}/pod/ageing`, { params: { overdueDays } }).then((r) => r.data),
 }
 
+export const proofPerformanceApi = {
+  get: (transporterId: string, from?: string, to?: string) => http.get<ProofPerformanceDto>(`${v1}/transporters/${transporterId}/proof-performance`, { params: { from, to } }).then((r) => r.data),
+}
+
 /** Master lists (transporter types, capabilities) and the rules for compliance papers. */
 export const masterDataApi = {
   types: () => http.get<MasterEntryDto[]>(`${v1}/transporters/types`).then((r) => r.data),
@@ -521,6 +534,19 @@ export const deliveriesApi = {
   cancel: (id: string, reason: string) => http.post<DeliveryDto>(`${dl(id)}/cancel`, { reason }).then((r) => r.data),
   close: (id: string, reason: string) => http.post<DeliveryDto>(`${dl(id)}/close`, { reason }).then((r) => r.data),
   startPod: (id: string) => http.post<PodDto>(`${dl(id)}/pod`).then((r) => r.data),
+  createClaims: (id: string, discrepancyIds: string[] | null) => http.post<ClaimResultDto[]>(`${dl(id)}/claims`, { discrepancyIds }).then((r) => r.data),
+  billing: (id: string) => http.get<BillingStatusDto>(`${dl(id)}/billing`).then((r) => r.data),
+
+  dashboard: (params: { from?: string; to?: string; transporterId?: string }) => http.get<DashboardSummaryDto>(`${v1}/pod-dashboard/summary`, { params }).then((r) => r.data),
+  ageing: (transporterId?: string) => http.get<ProofAgeingDto>(`${v1}/pod-dashboard/ageing`, { params: { transporterId } }).then((r) => r.data),
+  ageingItems: (params: { stage?: AgeingStage; bucket?: number; overdueOnly?: boolean; transporterId?: string; page?: number; pageSize?: number }) =>
+    http.get<PagedResult<AgeingItemDto>>(`${v1}/pod-dashboard/ageing/items`, { params }).then((r) => r.data),
+  compliance: (params: { from?: string; to?: string; groupBy?: string; transporterId?: string; customer?: string }) => http.get<ProofComplianceDto>(`${v1}/pod-dashboard/compliance`, { params }).then((r) => r.data),
+  downloadReport: (report: string, format: 'csv' | 'xlsx', params: { from?: string; to?: string; transporterId?: string; customer?: string; groupBy?: string }) =>
+    downloadFile(`${v1}/delivery-reports/${report}`, `${report}.${format}`, { ...params, format }),
+  notifications: (params: { unreadOnly?: boolean; page?: number; pageSize?: number }) => http.get<PagedResult<DeliveryNotificationDto>>(`${v1}/delivery-notifications`, { params }).then((r) => r.data),
+  readNotification: (id: string) => http.post(`${v1}/delivery-notifications/${id}/read`),
+  readAllNotifications: () => http.post(`${v1}/delivery-notifications/read-all`),
 
   pods: (params: ListPodsParams) => http.get<PagedResult<PodSummaryDto>>(`${v1}/pods`, { params }).then((r) => r.data),
   reviewQueue: (params: ListPodsParams) => http.get<PagedResult<PodSummaryDto>>(`${v1}/pods/review-queue`, { params }).then((r) => r.data),

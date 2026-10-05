@@ -33,6 +33,16 @@ export function DeliveryDetailPage() {
   const query = useQuery({ queryKey: queryKeys.deliveries.detail(id), queryFn: () => deliveriesApi.get(id) })
   const exceptions = useQuery({ queryKey: queryKeys.deliveries.exceptions({ deliveryId: id, pageSize: 50 }), queryFn: () => deliveriesApi.exceptions({ deliveryId: id, pageSize: 50 }) })
 
+  const billing = useQuery({ queryKey: queryKeys.deliveries.billing(id), queryFn: () => deliveriesApi.billing(id), enabled: !isVendor && can('deliveries.read'), retry: false })
+  const claims = useMutation({
+    mutationFn: () => deliveriesApi.createClaims(id, null),
+    onSuccess: async (made) => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.deliveries.all })
+      void message.success(made.length === 0 ? 'Nothing new to claim' : `Sent ${made.length} claim(s) with the evidence: ${made.map((c) => c.reference).join(', ')}`)
+    },
+    onError: (e) => void message.error(toApiError(e).message),
+  })
+
   const act = useMutation({
     mutationFn: async (kind: 'cancel' | 'close' | 'reschedule' | 'pod') => {
       if (kind === 'cancel') return deliveriesApi.cancel(id, reason.trim())
@@ -67,6 +77,8 @@ export function DeliveryDetailPage() {
             <DeliveryStatusTag status={s.status} />
             <ProofStatusTag status={s.podStatus} />
             {s.outcome && <Tag>{outcomeLabel[s.outcome]}</Tag>}
+            {billing.data && <Tag color={billing.data.invoiceHold ? 'orange' : billing.data.billingEligible ? 'green' : 'default'} title={billing.data.explanation}>{billing.data.invoiceHold ? 'Invoice on hold' : billing.data.billingEligible ? 'Ready to bill' : 'Billing not yet due'}</Tag>}
+            {canManage && d.discrepancies.length > 0 && <Button loading={claims.isPending} onClick={() => claims.mutate()}>Create claim</Button>}
             {isVendor && ['Assigned', 'EnRoute', 'Arrived', 'Attempted'].includes(s.status) && <Link to={`/driver/${id}`}><Button type="primary">Open on the phone screen</Button></Link>}
             {canManage && completed && s.podStatus === 'Pending' && <Button loading={act.isPending} onClick={() => act.mutate('pod')}>Start proof of delivery</Button>}
             {canManage && ['Failed', 'Refused', 'Attempted', 'Arrived'].includes(s.status) && <Button onClick={() => setDialog('reschedule')}>Reschedule</Button>}

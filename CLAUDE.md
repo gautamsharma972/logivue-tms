@@ -76,7 +76,7 @@ never hard-code which papers are required.
 Module `Tms.Modules.Deliveries` (`docs/POD_DELIVERY_MANAGEMENT_INTEGRATION.md`, tables `pd_*`): delivery execution, versioned PODs, OCR review, exceptions, offline sync.
 Delivered is not accepted: delivery status and POD status are separate. Quantities are reported as given and a difference is raised, never absorbed. An accepted POD is
 never edited (a correction is a new version). Blame is a finding, never a default (`ResponsibleParty.Unknown`). Mobile commands are idempotent by client key. Evidence files are
-only served through authenticated endpoints. Policy (required evidence, reasons, thresholds, auto-accept) lives in per-tenant settings, never in code. It reads Shipments only through `IShipmentDeliveryFeed`.
+only served through authenticated endpoints. Proof ageing, SLA notices and the dashboard are computed lazily on read; "Not applicable" is a null rate, never zero. Claims and freight audit are reached only through `IClaimsIntegration` / `IFreightAuditIntegration` (local stand-in adapters); Transporters learns proof outcomes from Deliveries events. Policy (required evidence, reasons, thresholds, auto-accept) lives in per-tenant settings, never in code. It reads Shipments only through `IShipmentDeliveryFeed`.
 
 ## Vendor portal (transporter users)
 A user of type `Transporter` carries a `trn` claim (`ICurrentUser.TransporterId`). Any module serving transporter-owned data

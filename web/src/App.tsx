@@ -38,6 +38,9 @@ const DeliveryDetailPage = lazy(() => import('@/features/deliveries/DeliveryDeta
 const PodsListPage = lazy(() => import('@/features/deliveries/PodsListPage').then((m) => ({ default: m.PodsListPage })))
 const PodDetailPage = lazy(() => import('@/features/deliveries/PodDetailPage').then((m) => ({ default: m.PodDetailPage })))
 const ExceptionsPage = lazy(() => import('@/features/deliveries/ExceptionsPage').then((m) => ({ default: m.ExceptionsPage })))
+const DeliveryDashboardPage = lazy(() => import('@/features/deliveries/DeliveryDashboardPage').then((m) => ({ default: m.DeliveryDashboardPage })))
+const DeliveryReportsPage = lazy(() => import('@/features/deliveries/DeliveryReportsPage').then((m) => ({ default: m.DeliveryReportsPage })))
+const NotificationsPage = lazy(() => import('@/features/deliveries/NotificationsPage').then((m) => ({ default: m.NotificationsPage })))
 const DeliverySettingsPage = lazy(() => import('@/features/deliveries/DeliverySettingsPage').then((m) => ({ default: m.DeliverySettingsPage })))
 const DriverArea = lazy(() => import('@/features/deliveries/DriverArea').then((m) => ({ default: m.DriverArea })))
 const MobileDeliveriesPage = lazy(() => import('@/features/deliveries/MobileDeliveriesPage').then((m) => ({ default: m.MobileDeliveriesPage })))
@@ -125,6 +128,9 @@ export function App() {
               <Route path="pods" element={<PodsListPage />} />
               <Route path="pods/:id" element={<PodDetailPage />} />
               <Route path="exceptions" element={<ExceptionsPage />} />
+              <Route path="dashboard" element={<DeliveryDashboardPage />} />
+              <Route path="reports" element={<DeliveryReportsPage />} />
+              <Route path="notifications" element={<NotificationsPage />} />
               <Route path=":id" element={<DeliveryDetailPage />} />
             </Route>
             <Route element={<RequirePermission permission="deliveries.configure" />}>

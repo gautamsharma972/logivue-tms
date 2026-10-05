@@ -50,6 +50,11 @@ export function PodDetailPage() {
   }
   const fail = (e: unknown) => void message.error(toApiError(e).message)
 
+  const claim = useMutation({
+    mutationFn: () => deliveriesApi.createClaims(review.data!.pod.summary.deliveryId, null),
+    onSuccess: done('Claim sent with the evidence'),
+    onError: fail,
+  })
   const accept = useMutation({ mutationFn: () => deliveriesApi.reviewPod(id, 'accept', null), onSuccess: done('Proof accepted'), onError: fail })
   const reject = useMutation({ mutationFn: () => deliveriesApi.reviewPod(id, 'reject', text.trim()), onSuccess: done('Proof rejected'), onError: fail })
   const resubmission = useMutation({ mutationFn: () => deliveriesApi.reviewPod(id, 'resubmission', text.trim()), onSuccess: done('Sent back for more evidence'), onError: fail })
@@ -87,6 +92,9 @@ export function PodDetailPage() {
                 <Button onClick={() => { setText(''); setDialog({ kind: 'resubmission' }) }}>Request resubmission</Button>
                 <Button danger onClick={() => { setText(''); setDialog({ kind: 'reject' }) }}>Reject</Button>
               </>
+            )}
+            {canReview && delivery && delivery.discrepancies.length > 0 && (
+              <Button loading={claim.isPending} onClick={() => claim.mutate()}>Create claim</Button>
             )}
             {canReview && <Button onClick={() => { setText(''); setDialog({ kind: 'exception' }) }}>Create exception</Button>}
             {canReview && s.status === 'Accepted' && s.isCurrent && <Button onClick={() => { setText(''); setDialog({ kind: 'correction' }) }}>Request correction</Button>}
