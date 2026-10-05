@@ -13,6 +13,8 @@ using Tms.BuildingBlocks.Web.Security;
 using Tms.Modules.Approvals;
 using Tms.Modules.Contracts;
 using Tms.Modules.Contracts.Infrastructure.Persistence;
+using Tms.Modules.Deliveries;
+using Tms.Modules.Deliveries.Infrastructure.Persistence;
 using Tms.Modules.Shipments;
 using Tms.Modules.Shipments.Infrastructure.Persistence;
 using Tms.Modules.Approvals.Infrastructure.Persistence;
@@ -58,6 +60,7 @@ try
     services.AddTransportersModule(builder.Configuration);
     services.AddContractsModule(builder.Configuration);
     services.AddShipmentsModule(builder.Configuration);
+    services.AddDeliveriesModule(builder.Configuration);
 
     // Traces and metrics are always collected in-process (cheap); they are exported only when an OTLP endpoint is configured
     // (OTEL_EXPORTER_OTLP_ENDPOINT, e.g. an OpenTelemetry Collector, Grafana, Azure Monitor, Datadog).
@@ -116,7 +119,8 @@ try
         .AddDbContextCheck<ApprovalsDbContext>("mysql-approvals", tags: ["ready"])
         .AddDbContextCheck<TransportersDbContext>("mysql-transporters", tags: ["ready"])
         .AddDbContextCheck<ContractsDbContext>("mysql-contracts", tags: ["ready"])
-        .AddDbContextCheck<ShipmentsDbContext>("mysql-shipments", tags: ["ready"]);
+        .AddDbContextCheck<ShipmentsDbContext>("mysql-shipments", tags: ["ready"])
+        .AddDbContextCheck<DeliveriesDbContext>("mysql-deliveries", tags: ["ready"]);
 
     var app = builder.Build();
 
@@ -144,6 +148,7 @@ try
     app.MapTransportersEndpoints();
     app.MapContractsEndpoints();
     app.MapShipmentsEndpoints();
+    app.MapDeliveriesEndpoints();
 
     if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Testing"))
     {
@@ -164,6 +169,7 @@ try
     await app.Services.InitialiseTransportersAsync(app.Configuration);
     await app.Services.InitialiseContractsAsync(app.Configuration);
     await app.Services.InitialiseShipmentsAsync(app.Configuration);
+    await app.Services.InitialiseDeliveriesAsync(app.Configuration);
 
     // Operator commands run against the configured database and exit instead of serving requests.
     if (args.Length > 0 && args[0] == "tenant:create")

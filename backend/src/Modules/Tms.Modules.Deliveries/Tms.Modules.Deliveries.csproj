@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Pomelo.EntityFrameworkCore.MySql" />
+    <PackageReference Include="EFCore.NamingConventions" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
+    <ProjectReference Include="..\..\BuildingBlocks\Tms.SharedKernel\Tms.SharedKernel.csproj" />
+    <ProjectReference Include="..\..\BuildingBlocks\Tms.BuildingBlocks.Web\Tms.BuildingBlocks.Web.csproj" />
+    <InternalsVisibleTo Include="Tms.UnitTests" />
+    <InternalsVisibleTo Include="Tms.IntegrationTests" />
+    <InternalsVisibleTo Include="Tms.ArchitectureTests" />
+  </ItemGroup>
+</Project>

@@ -7,5 +7,6 @@
     <ProjectReference Include="..\..\src\Modules\Tms.Modules.Transporters\Tms.Modules.Transporters.csproj" />
     <ProjectReference Include="..\..\src\Modules\Tms.Modules.Contracts\Tms.Modules.Contracts.csproj" />
     <ProjectReference Include="..\..\src\Modules\Tms.Modules.Shipments\Tms.Modules.Shipments.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Tms.Modules.Deliveries\Tms.Modules.Deliveries.csproj" />
   </ItemGroup>
 </Project>
