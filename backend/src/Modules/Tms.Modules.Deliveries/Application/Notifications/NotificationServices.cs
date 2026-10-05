@@ -48,7 +48,7 @@ internal sealed class SlaMonitor(DeliveriesDbContext db, AgeingService ageing, N
         foreach (var a in (await ageing.AgedAsync(null, cancellationToken)).Where(a => a.Overdue))
         {
             var r = a.Row;
-            var hours = $"{a.Hours:0} h";
+            var hours = $"{a.Hours:0.0} h";
             switch (a.Stage)
             {
                 case AgeingStage.PendingSubmission:
