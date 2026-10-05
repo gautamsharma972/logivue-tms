@@ -438,7 +438,7 @@ public sealed class PodRecord : AggregateRoot, ITenantScoped
             missing.Add("The recipient's signature");
         }
 
-        if ((rules.OtpRequired || Method == ProofMethod.Otp) && !OtpVerified)
+        if ((rules.OtpRequired || Method is ProofMethod.Otp or ProofMethod.Qr) && !OtpVerified)
         {
             missing.Add("The customer's one-time code");
         }
@@ -480,12 +480,17 @@ public sealed class PodRecord : AggregateRoot, ITenantScoped
     private bool HasShortageOrDamageOrRejection => _items.Any(i => i.ShortQuantity > 0 || i.DamagedQuantity > 0 || i.RejectedQuantity > 0);
 
     /// <summary>Keeps the Draft / Captured distinction in step with what is present.</summary>
-    public void Refresh(PodRequirements requirements)
+    /// <returns>True when the proof has just become Captured.</returns>
+    public bool Refresh(PodRequirements requirements)
     {
         if (Status is PodStatus.Draft or PodStatus.Captured)
         {
+            var was = Status;
             Status = requirements.IsMet ? PodStatus.Captured : PodStatus.Draft;
+            return was == PodStatus.Draft && Status == PodStatus.Captured;
         }
+
+        return false;
     }
 
     public Result Submit(PodRequirements requirements, DateTimeOffset now)
@@ -660,6 +665,12 @@ public sealed class PodRecord : AggregateRoot, ITenantScoped
             FirstSubmittedAt is { } first && d.ActualDeliveryAt is { } done ? first - done <= TimeSpan.FromHours(submissionSlaHours) : null, d.OnTime));
 
     public void RaiseSubmitted(Delivery d, DateTimeOffset now) => Raise(new PodSubmitted(d.Id, Id, TenantId, d.Number, d.ShipmentId, d.TransporterId, now));
+
+    public void RaiseCaptured(Delivery d, DateTimeOffset now) => Raise(new PodCaptured(d.Id, Id, TenantId, d.Number, d.ShipmentId, d.TransporterId, now));
+
+    public void RaiseValidated(Delivery d, DateTimeOffset now) => Raise(new PodValidated(d.Id, Id, TenantId, d.Number, d.TransporterId, ValidationSummary.ToString(), now));
+
+    public void RaiseResubmissionRequested(Delivery d, string reason, DateTimeOffset now) => Raise(new PodResubmissionRequested(d.Id, Id, TenantId, d.Number, d.TransporterId, reason, now));
 
     public void RaiseRejected(Delivery d, string reason, DateTimeOffset now) => Raise(new PodRejected(d.Id, Id, TenantId, d.Number, d.TransporterId, reason, now));
 }

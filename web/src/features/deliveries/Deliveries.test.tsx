@@ -29,6 +29,7 @@ vi.mock('@/lib/api/endpoints', () => ({
     list: vi.fn(), get: vi.fn(), exceptions: vi.fn(), exception: vi.fn(), pod: vi.fn(), podForReview: vi.fn(), reviewPod: vi.fn(), reviewOcrField: vi.fn(), requestCorrection: vi.fn(),
     raiseException: vi.fn(), fetchFile: vi.fn(), evidenceUrl: (id: string) => `/e/${id}`, signatureUrl: (id: string) => `/s/${id}`, verifyOtp: vi.fn(), acknowledgeException: vi.fn(),
     sync: vi.fn(), mobileDeliveries: vi.fn(), addEvidence: vi.fn(), addSignature: vi.fn(), submitPod: vi.fn(),
+    attachToException: vi.fn(), downloadExceptionAttachment: vi.fn(), createClaims: vi.fn(), billing: vi.fn(),
   },
 }))
 
@@ -191,6 +192,32 @@ describe('DeliveriesListPage and ExceptionsPage', () => {
 
     await user.click(screen.getByLabelText('Has discrepancy'))
     await waitFor(() => expect(deliveriesApi.list).toHaveBeenLastCalledWith(expect.objectContaining({ hasDiscrepancy: true })))
+
+    await user.type(screen.getByPlaceholderText('Vehicle'), 'MH12')
+    await user.type(screen.getByPlaceholderText('Lane (from or to)'), 'Surat')
+    await waitFor(() => expect(deliveriesApi.list).toHaveBeenLastCalledWith(expect.objectContaining({ vehicle: 'MH12', lane: 'Surat' })))
+  })
+
+  it('keeps a file with an exception and offers a claim for a shortage', async () => {
+    const summary = { id: 'x1', number: 'EXC-00007', deliveryId: 'd1', deliveryNumber: 'DLV-10025', customerName: 'ABC Distributors', transporterReference: 'Shree Roadlines', vehicleReference: null, podId: null, type: 'Shortage' as const, severity: 'High' as const, status: 'Open' as const, ownerUserId: null, department: null, raisedAt: '2026-10-03T10:00:00Z', dueAt: '2026-10-09T10:00:00Z', overdue: false, ageHours: 6, claimReference: null }
+    const detail = { summary, description: 'Short by 3', rootCause: null, responsibleParty: 'Unknown' as const, actionTaken: null, resolution: null, financialImpact: null, resolvedAt: null, escalatedAt: null, notes: [], version: 1,
+      attachments: [{ id: 'a1', fileName: 'gate.jpg', contentType: 'image/jpeg', sizeBytes: 20480, note: 'Locked gate', at: '2026-10-03T11:00:00Z', by: null }] }
+    vi.mocked(deliveriesApi.exceptions).mockResolvedValue({ items: [summary], page: 1, pageSize: 25, totalCount: 1, totalPages: 1 })
+    vi.mocked(deliveriesApi.exception).mockResolvedValue(detail)
+    vi.mocked(deliveriesApi.attachToException).mockResolvedValue(detail)
+    vi.mocked(deliveriesApi.createClaims).mockResolvedValue([{ discrepancyId: 'q1', sku: 'SKU-001', type: 'Shortage', quantity: 3, reference: 'CLM-1', system: 'local' }])
+    const user = userEvent.setup()
+    renderWithProviders(<ExceptionsPage />)
+
+    await user.click(await screen.findByText('EXC-00007'))
+    expect(await screen.findByText('gate.jpg')).toBeInTheDocument()
+    expect(screen.getByText(/Locked gate/)).toBeInTheDocument()
+
+    await user.upload(screen.getByLabelText('Choose a file'), new File(['x'], 'bay.png', { type: 'image/png' }))
+    await waitFor(() => expect(deliveriesApi.attachToException).toHaveBeenCalledWith('x1', expect.any(File), undefined))
+
+    await user.click(screen.getByRole('button', { name: 'Create claim' }))
+    await waitFor(() => expect(deliveriesApi.createClaims).toHaveBeenCalledWith('d1', null))
   })
 
   it('shows exceptions with age and overdue marks and lets an owner resolve one only with a resolution', async () => {

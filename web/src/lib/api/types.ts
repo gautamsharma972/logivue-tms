@@ -2048,7 +2048,7 @@ export type DeliveryStatus = 'Planned' | 'Assigned' | 'EnRoute' | 'Arrived' | 'A
 export type DeliveryOutcome = 'Full' | 'Partial' | 'Shortage' | 'Damaged' | 'Refused' | 'Failed'
 export type RemainingDisposition = 'Backorder' | 'Reschedule' | 'Return' | 'Cancel' | 'Exception'
 export type ProofStatus = 'Pending' | 'Draft' | 'Captured' | 'Submitted' | 'UnderReview' | 'Accepted' | 'Rejected' | 'ResubmissionRequired' | 'Cancelled'
-export type ProofMethod = 'Signature' | 'Otp' | 'Photo' | 'Contactless'
+export type ProofMethod = 'Signature' | 'Otp' | 'Photo' | 'Contactless' | 'Qr'
 export type EvidenceType = 'PackagePhoto' | 'DamagePhoto' | 'LocationPhoto' | 'SitePhoto' | 'SealPhoto' | 'VehiclePhoto' | 'PodDocument'
 export type GeofenceStatus = 'NotApplicable' | 'Inside' | 'Outside' | 'GpsUnavailable' | 'AccuracyInsufficient'
 export type ValidationOutcome = 'Valid' | 'Warning' | 'RequiresReview' | 'Invalid'
@@ -2114,6 +2114,7 @@ export interface DeliverySummaryDto {
   podId: string | null
   hasDiscrepancy: boolean
   openExceptions: number
+  serviceType?: string | null
 }
 
 export interface DeliveryDto {
@@ -2157,6 +2158,9 @@ export interface ListDeliveriesParams {
   to?: string
   hasException?: boolean
   hasDiscrepancy?: boolean
+  vehicle?: string
+  lane?: string
+  serviceType?: string
   page?: number
   pageSize?: number
 }
@@ -2387,6 +2391,17 @@ export interface DeliveryExceptionDto {
   escalatedAt: string | null
   notes: { at: string; text: string; by: string | null }[]
   version: number
+  attachments?: ExceptionAttachmentDto[] | null
+}
+
+export interface ExceptionAttachmentDto {
+  id: string
+  fileName: string
+  contentType: string
+  sizeBytes: number
+  note: string | null
+  at: string
+  by: string | null
 }
 
 export interface ListDeliveryExceptionsParams {

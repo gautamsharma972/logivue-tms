@@ -6,7 +6,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { PageHeader } from '@/components/PageHeader'
 import { useAuth } from '@/features/auth/AuthContext'
-import { deliveriesApi } from '@/lib/api/endpoints'
+import { deliveriesApi, transportersApi } from '@/lib/api/endpoints'
 import { queryKeys } from '@/lib/api/queryKeys'
 import type { DeliveryStatus, DeliverySummaryDto, ListDeliveriesParams, ProofStatus } from '@/lib/api/types'
 import { formatDateTime } from '@/lib/format'
@@ -25,15 +25,23 @@ export function DeliveriesListPage() {
   const [range, setRange] = useState<[string, string] | null>(null)
   const [hasException, setHasException] = useState(false)
   const [hasDiscrepancy, setHasDiscrepancy] = useState(false)
+  const [vehicle, setVehicle] = useState('')
+  const [lane, setLane] = useState('')
+  const [serviceType, setServiceType] = useState<string>()
+  const [transporterId, setTransporterId] = useState<string>()
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
   const [creating, setCreating] = useState(false)
 
   const debounced = useDebouncedValue(search.trim())
   const debouncedCustomer = useDebouncedValue(customer.trim())
+  const debouncedVehicle = useDebouncedValue(vehicle.trim())
+  const debouncedLane = useDebouncedValue(lane.trim())
+  const transporters = useQuery({ queryKey: queryKeys.transporters.list({ page: 1, pageSize: 100 }), queryFn: () => transportersApi.list({ page: 1, pageSize: 100 }), enabled: !isVendor && can('transporters.read') })
   const params: ListDeliveriesParams = {
     search: debounced || undefined, customer: debouncedCustomer || undefined, status, podStatus, from: range?.[0], to: range?.[1],
-    hasException: hasException || undefined, hasDiscrepancy: hasDiscrepancy || undefined, page, pageSize,
+    hasException: hasException || undefined, hasDiscrepancy: hasDiscrepancy || undefined, vehicle: debouncedVehicle || undefined, lane: debouncedLane || undefined, serviceType,
+    transporterId: isVendor ? undefined : transporterId, page, pageSize,
   }
   const deliveries = useQuery({ queryKey: queryKeys.deliveries.list(params), queryFn: () => deliveriesApi.list(params), placeholderData: (p) => p })
   const reset = () => setPage(1)
@@ -69,6 +77,13 @@ export function DeliveriesListPage() {
         <Flex gap={12} wrap align="center" style={{ padding: 16 }}>
           <Input allowClear style={{ width: 260, maxWidth: '100%' }} prefix={<SearchOutlined />} placeholder="Search number, shipment, vehicle" value={search} onChange={(e) => { setSearch(e.target.value); reset() }} />
           <Input allowClear style={{ width: 200 }} placeholder="Customer" value={customer} onChange={(e) => { setCustomer(e.target.value); reset() }} />
+          {!isVendor && can('transporters.read') && (
+            <Select allowClear showSearch optionFilterProp="label" placeholder="Transporter" style={{ width: 210 }} value={transporterId} onChange={(v) => { setTransporterId(v); reset() }}
+              options={(transporters.data?.items ?? []).map((t) => ({ value: t.id, label: t.legalName }))} />
+          )}
+          <Input allowClear style={{ width: 150 }} placeholder="Vehicle" value={vehicle} onChange={(e) => { setVehicle(e.target.value); reset() }} />
+          <Input allowClear style={{ width: 170 }} placeholder="Lane (from or to)" value={lane} onChange={(e) => { setLane(e.target.value); reset() }} />
+          <Select allowClear placeholder="Service" style={{ width: 130 }} options={['FTL', 'PTL', 'Dedicated'].map((v) => ({ value: v, label: v }))} value={serviceType} onChange={(v) => { setServiceType(v); reset() }} />
           <Select allowClear placeholder="Delivery status" style={{ width: 180 }} options={deliveryStatusOptions} value={status} onChange={(v) => { setStatus(v); reset() }} />
           <Select allowClear placeholder="Proof status" style={{ width: 190 }} options={proofStatusOptions} value={podStatus} onChange={(v) => { setPodStatus(v); reset() }} />
           <DatePicker.RangePicker onChange={(v) => { setRange(v?.[0] && v[1] ? [dayjs(v[0]).format('YYYY-MM-DD'), dayjs(v[1]).format('YYYY-MM-DD')] : null); reset() }} />

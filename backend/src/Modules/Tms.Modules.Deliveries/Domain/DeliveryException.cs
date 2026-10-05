@@ -23,6 +23,37 @@ public sealed class ExceptionNote : Entity, ITenantScoped
     internal static ExceptionNote Create(Guid tenantId, Guid exceptionId, string text, Guid? by, DateTimeOffset at) => new() { TenantId = tenantId, ExceptionId = exceptionId, Text = text.Trim(), By = by, At = at };
 }
 
+/// <summary>A file kept with an exception: a photo of the damage, a customer's email, a weighbridge slip. The file itself lives in the private file store.</summary>
+public sealed class ExceptionAttachment : Entity, ITenantScoped
+{
+    private ExceptionAttachment()
+    {
+    }
+
+    public Guid TenantId { get; private set; }
+
+    public Guid ExceptionId { get; private set; }
+
+    public string FileKey { get; private set; } = null!;
+
+    public string FileName { get; private set; } = null!;
+
+    public string ContentType { get; private set; } = null!;
+
+    public long SizeBytes { get; private set; }
+
+    public string FileHash { get; private set; } = null!;
+
+    public string? Note { get; private set; }
+
+    public Guid? By { get; private set; }
+
+    public DateTimeOffset At { get; private set; }
+
+    internal static ExceptionAttachment Create(Guid tenantId, Guid exceptionId, string key, string name, string contentType, long size, string hash, string? note, Guid? by, DateTimeOffset at) =>
+        new() { TenantId = tenantId, ExceptionId = exceptionId, FileKey = key, FileName = name, ContentType = contentType, SizeBytes = size, FileHash = hash, Note = string.IsNullOrWhiteSpace(note) ? null : note.Trim(), By = by, At = at };
+}
+
 /// <summary>
 /// Something that went wrong with a delivery or its proof, with an owner, a due date and an outcome. It does not disappear when the proof is accepted or the delivery
 /// is closed: it ends when someone resolves it.
@@ -30,6 +61,7 @@ public sealed class ExceptionNote : Entity, ITenantScoped
 public sealed class DeliveryException : AggregateRoot, ITenantScoped
 {
     private readonly List<ExceptionNote> _notes = [];
+    private readonly List<ExceptionAttachment> _attachments = [];
 
     private DeliveryException()
     {
@@ -80,6 +112,8 @@ public sealed class DeliveryException : AggregateRoot, ITenantScoped
     public DateTimeOffset? EscalatedAt { get; private set; }
 
     public IReadOnlyList<ExceptionNote> Notes => _notes;
+
+    public IReadOnlyList<ExceptionAttachment> Attachments => _attachments;
 
     public bool IsOpen => Status is not (ExceptionStatus.Resolved or ExceptionStatus.Closed);
 
@@ -166,6 +200,25 @@ public sealed class DeliveryException : AggregateRoot, ITenantScoped
         return Result.Success();
     }
 
+    /// <summary>Keeps a file with the exception. The same file is kept once. Allowed while the exception is open, and noted in its history.</summary>
+    public Result<ExceptionAttachment> Attach(string key, string name, string contentType, long size, string hash, string? note, Guid? by, DateTimeOffset now)
+    {
+        if (!IsOpen)
+        {
+            return Conflict("attach a file to");
+        }
+
+        if (_attachments.Any(a => a.FileHash == hash))
+        {
+            return Error.Conflict("exceptions.duplicate_file", "That exact file is already attached.");
+        }
+
+        var attachment = ExceptionAttachment.Create(TenantId, Id, key, name, contentType, size, hash, note, by, now);
+        _attachments.Add(attachment);
+        _notes.Add(ExceptionNote.Create(TenantId, Id, $"Attached {name}.", by, now));
+        return attachment;
+    }
+
     public Result AddNote(string text, Guid? by, DateTimeOffset now)
     {
         if (string.IsNullOrWhiteSpace(text))
@@ -199,6 +252,7 @@ public sealed class DeliveryException : AggregateRoot, ITenantScoped
         ClaimReference = string.IsNullOrWhiteSpace(claimReference) ? ClaimReference : claimReference.Trim();
         ResolvedAt = now;
         _notes.Add(ExceptionNote.Create(TenantId, Id, $"Resolved: {Resolution}", by, now));
+        Raise(new DeliveryExceptionResolved(Id, DeliveryId, TenantId, DeliveryNumber, TransporterId, ExceptionType.ToString(), party.ToString(), financialImpact, now));
         return Result.Success();
     }
 

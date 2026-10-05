@@ -8,6 +8,7 @@ using Tms.Modules.Platform.Domain;
 using Tms.Modules.Platform.Infrastructure.Persistence;
 using Tms.Modules.Platform.Infrastructure.Security;
 using Tms.SharedKernel.Contracts;
+using Tms.SharedKernel.Files;
 using Tms.SharedKernel.Messaging;
 using Tms.SharedKernel.Security;
 
@@ -104,6 +105,7 @@ public sealed class TmsApiFactory : WebApplicationFactory<Program>, IAsyncLifeti
             services.AddScoped<IDomainEventHandler<ApprovalCompleted>, ApprovalEventRecorder>();
             services.AddSingleton<CapturingEmailSender>();
             services.AddSingleton<IEmailSender>(sp => sp.GetRequiredService<CapturingEmailSender>());
+            services.AddSingleton<IFileScanner, MarkerFileScanner>();
             services.AddSingleton<FlakySubscriberState>();
             services.AddScoped<IDomainEventHandler<ApprovalCompleted>, FlakySubscriber>();
         });
@@ -137,6 +139,15 @@ internal sealed class ApprovalEventRecorder(ApprovalEventLog log) : IDomainEvent
         log.Events.Enqueue(domainEvent);
         return Task.CompletedTask;
     }
+}
+
+/// <summary>A stand-in for a real malware scanner: refuses any file that contains the marker, so the hook can be proven without a virus.</summary>
+public sealed class MarkerFileScanner : IFileScanner
+{
+    public const string Marker = "TEST-MALWARE-MARKER";
+
+    public Task<FileScanResult> ScanAsync(ReadOnlyMemory<byte> content, string contentType, CancellationToken cancellationToken) =>
+        Task.FromResult(content.Span.IndexOf(System.Text.Encoding.ASCII.GetBytes(Marker)) >= 0 ? new FileScanResult(false, "The file was refused by the security scan.") : FileScanResult.Clean);
 }
 
 public sealed class CapturingEmailSender : IEmailSender

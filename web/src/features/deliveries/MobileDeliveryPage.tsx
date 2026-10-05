@@ -11,6 +11,7 @@ import { SyncBanner } from './MobileDeliveriesPage'
 import { useOffline } from './offline/OfflineProvider'
 import { localStatus } from './offline/sync'
 import { DeliveryStatusTag, qty } from './shared'
+import { QrScanButton, canScanQr } from './QrScanner'
 import { SignaturePad } from './SignaturePad'
 
 type Choice = DeliveryOutcome
@@ -156,7 +157,7 @@ export function MobileDeliveryPage() {
 
       if (!recipient.trim()) return void message.warning('Enter the name of the person who received the goods')
       if (method === 'Signature' && !signature) return void message.warning('The recipient needs to sign')
-      if (method === 'Otp' && !codeOk && !delivery.otpVerified) return void message.warning('Enter and confirm the customer\'s code')
+      if ((method === 'Otp' || method === 'Qr') && !codeOk && !delivery.otpVerified) return void message.warning('Enter and confirm the customer\'s code')
       if (config.pod.photoRequired && photos.filter((p) => p.type !== 'PodDocument').length < config.pod.minPhotos) return void message.warning('Take a photo of the delivery')
       if (anyDamage && !photos.some((p) => p.type === 'DamagePhoto')) return void message.warning('Take a photo of the damage')
       if (totals.some((t) => t.left !== 0)) return void message.warning('The quantities do not add up to what was dispatched')
@@ -274,12 +275,13 @@ export function MobileDeliveryPage() {
                     <Input aria-label="Mobile" inputMode="tel" placeholder="Mobile" value={phone} onChange={(e) => setPhone(e.target.value)} />
                   </Flex>
                   <Select size="large" aria-label="How was it confirmed" value={method} onChange={setMethod} options={[
-                    { value: 'Photo', label: 'Photo' }, { value: 'Signature', label: 'Signature' }, { value: 'Otp', label: 'Customer\'s code' },
+                    { value: 'Photo', label: 'Photo' }, { value: 'Signature', label: 'Signature' }, { value: 'Otp', label: 'Customer\'s code' }, { value: 'Qr', label: 'Customer\'s QR code' },
                     ...(config.pod.contactlessAllowed ? [{ value: 'Contactless' as const, label: 'Contactless (nobody to sign)' }] : []),
                   ]} />
                   {method === 'Signature' && <SignaturePad onChange={setSignature} />}
-                  {method === 'Otp' && (
+                  {(method === 'Otp' || method === 'Qr') && (
                     <Flex gap={8}>
+                      {method === 'Qr' && canScanQr() && !codeOk && !delivery.otpVerified && <QrScanButton onCode={setCode} />}
                       <Input size="large" aria-label="Customer's code" inputMode="numeric" maxLength={8} placeholder="Code from the customer" value={code} onChange={(e) => setCode(e.target.value)} disabled={codeOk || delivery.otpVerified} />
                       <Button size="large" type="primary" disabled={code.trim().length < 4 || codeOk || delivery.otpVerified} loading={busy} onClick={() => void verifyCode()}>{codeOk || delivery.otpVerified ? 'Confirmed' : 'Confirm'}</Button>
                     </Flex>

@@ -21,7 +21,14 @@ internal sealed class PodEngine(DeliveriesDbContext db, IDeliverySettings settin
     }
 
     /// <summary>Recomputes Draft / Captured after the evidence or proof changed.</summary>
-    public async Task RefreshAsync(PodRecord pod, CancellationToken cancellationToken) => pod.Refresh(await RequirementsAsync(pod, cancellationToken));
+    public async Task RefreshAsync(PodRecord pod, CancellationToken cancellationToken)
+    {
+        if (pod.Refresh(await RequirementsAsync(pod, cancellationToken)))
+        {
+            var delivery = await db.Deliveries.AsNoTracking().FirstAsync(d => d.Id == pod.DeliveryId, cancellationToken);
+            pod.RaiseCaptured(delivery, clock.GetUtcNow());
+        }
+    }
 
     public async Task<IReadOnlyList<PodCheck>> ValidateAsync(PodRecord pod, Delivery delivery, CancellationToken cancellationToken)
     {
@@ -39,6 +46,7 @@ internal sealed class PodEngine(DeliveriesDbContext db, IDeliverySettings settin
         var checks = PodValidator.Validate(new PodValidationInput(pod, delivery, rules, quantity, discrepancy, damageTypes, duplicates, clock.GetUtcNow())).ToList();
         checks.AddRange(await OcrChecksAsync(pod, delivery, cancellationToken));
         pod.ApplyValidation(checks.Select(c => (c.Type, c.Check, c.Status, c.Message)), clock.GetUtcNow());
+        pod.RaiseValidated(delivery, clock.GetUtcNow());
         return checks;
     }
 

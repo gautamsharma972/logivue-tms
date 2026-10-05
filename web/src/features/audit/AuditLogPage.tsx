@@ -18,7 +18,7 @@ function show(value: unknown): string {
   return typeof value === 'object' ? JSON.stringify(value) : String(value)
 }
 
-function ChangeTable({ changes }: { changes: NonNullable<AuditLogDto['changes']> }) {
+export function ChangeTable({ changes }: { changes: NonNullable<AuditLogDto['changes']> }) {
   const rows = Object.entries(changes).map(([field, change]) => ({ field, ...change }))
   return (
     <Table

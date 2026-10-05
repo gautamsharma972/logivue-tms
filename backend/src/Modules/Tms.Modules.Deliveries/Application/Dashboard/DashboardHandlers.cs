@@ -32,14 +32,14 @@ internal sealed class ProofRowSource(DeliveriesDbContext db, DeliveryAccess acce
                    Status = d.Status, Outcome = d.Outcome, Planned = d.PlannedDeliveryAt, Delivered = d.ActualDeliveryAt, WindowEnd = d.WindowEnd, PodId = p == null ? null : p.Id,
                    PodStatus = p == null ? null : (PodStatus?)p.Status, FirstSubmittedAt = p == null ? null : p.FirstSubmittedAt, SubmittedAt = p == null ? null : p.SubmittedAt,
                    ApprovedAt = p == null ? null : p.ApprovedAt, ReviewedAt = p == null ? null : p.ReviewedAt, ReturnedAt = p == null ? null : p.ReturnedAt,
-                   ResubmittedAt = p == null ? null : p.ResubmittedAt, Rejections = p == null ? 0 : p.RejectionCount,
+                   ResubmittedAt = p == null ? null : p.ResubmittedAt, Rejections = p == null ? 0 : p.RejectionCount, Vehicle = d.VehicleReference, ServiceType = d.ServiceType,
                };
     }
 
     public static async Task<List<ProofRow>> ToRowsAsync(IQueryable<RawRow> query, int take, CancellationToken cancellationToken) =>
         (await query.Take(take).ToListAsync(cancellationToken)).Select(r => new ProofRow(
             r.DeliveryId, r.Number, r.Customer, r.Transporter, r.TransporterId, r.Origin, r.Destination, r.Status, r.Outcome, r.Planned, r.Delivered, r.WindowEnd, r.PodId, r.PodStatus,
-            r.FirstSubmittedAt, r.SubmittedAt, r.ApprovedAt, r.ReviewedAt, r.ReturnedAt, r.ResubmittedAt, r.Rejections)).ToList();
+            r.FirstSubmittedAt, r.SubmittedAt, r.ApprovedAt, r.ReviewedAt, r.ReturnedAt, r.ResubmittedAt, r.Rejections, r.Vehicle, r.ServiceType)).ToList();
 
     public static (DateTimeOffset From, DateTimeOffset To, DateOnly FromDay, DateOnly ToDay) Range(DateOnly? from, DateOnly? to, TimeProvider clock)
     {
@@ -108,6 +108,18 @@ internal sealed class DashboardHandler(
         {
             var customer = query.Customer.Trim();
             rows = rows.Where(r => r.Customer.Contains(customer));
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.Vehicle))
+        {
+            var vehicle = query.Vehicle.Trim();
+            rows = rows.Where(r => r.Vehicle != null && r.Vehicle.Contains(vehicle));
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.ServiceType))
+        {
+            var service = query.ServiceType.Trim();
+            rows = rows.Where(r => r.ServiceType == service);
         }
 
         var list = await ProofRowSource.ToRowsAsync(rows, RowCap, cancellationToken);
@@ -247,6 +259,10 @@ internal sealed class AgeingService(ProofRowSource source, IDeliverySettings set
 /// <summary>The shape EF reads from the database; <see cref="ProofRow"/> is built from it in memory.</summary>
 internal sealed class RawRow
 {
+    public string? Vehicle { get; init; }
+
+    public string? ServiceType { get; init; }
+
     public Guid DeliveryId { get; init; }
 
     public string Number { get; init; } = null!;

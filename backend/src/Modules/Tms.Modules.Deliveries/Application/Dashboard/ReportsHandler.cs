@@ -129,7 +129,7 @@ internal sealed class ReportsHandler(DeliveriesDbContext db, DeliveryAccess acce
 
             default: // compliance, performance
             {
-                var result = (await dashboard.ComplianceAsync(new ComplianceQuery(DateOnly.FromDateTime(since.ToOffset(Clock.India).DateTime), DateOnly.FromDateTime(to.AddDays(-1).ToOffset(Clock.India).DateTime), query.GroupBy, query.TransporterId, query.Customer, null), ct)).Value;
+                var result = (await dashboard.ComplianceAsync(new ComplianceQuery(DateOnly.FromDateTime(since.ToOffset(Clock.India).DateTime), DateOnly.FromDateTime(to.AddDays(-1).ToOffset(Clock.India).DateTime), query.GroupBy, query.TransporterId, query.Customer, query.Lane, query.Vehicle, query.ServiceType), ct)).Value;
                 return result.Rows.Select(r => new Dictionary<string, object?>
                 {
                     [char.ToUpperInvariant(result.GroupBy[0]) + result.GroupBy[1..]] = r.Name, ["Delivered"] = r.Metrics.Delivered, ["Proof received"] = r.Metrics.PodSubmitted, ["Proof pending"] = r.Metrics.PodPending,
@@ -153,6 +153,24 @@ internal sealed class ReportsHandler(DeliveriesDbContext db, DeliveryAccess acce
         {
             var customer = query.Customer.Trim();
             rows = rows.Where(d => d.CustomerName.Contains(customer));
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.Vehicle))
+        {
+            var vehicle = query.Vehicle.Trim();
+            rows = rows.Where(d => d.VehicleReference != null && d.VehicleReference.Contains(vehicle));
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.ServiceType))
+        {
+            var service = query.ServiceType.Trim();
+            rows = rows.Where(d => d.ServiceType == service);
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.Lane))
+        {
+            var lane = query.Lane.Trim();
+            rows = rows.Where(d => (d.OriginReference != null && d.OriginReference.Contains(lane)) || (d.DestinationReference != null && d.DestinationReference.Contains(lane)));
         }
 
         return rows;

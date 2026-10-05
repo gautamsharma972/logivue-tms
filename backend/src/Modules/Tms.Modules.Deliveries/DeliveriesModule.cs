@@ -56,7 +56,18 @@ public static class DeliveriesModule
         services.AddScoped<PodEngine>();
         services.AddScoped<OtpService>();
         services.AddScoped<PodOcrProcessor>();
-        services.AddSingleton<IPodOcrService, TextLayerOcrService>();
+        services.Configure<OllamaOcrOptions>(configuration.GetSection(OllamaOcrOptions.Section));
+        services.AddSingleton<TextLayerOcrService>();
+        if (configuration.GetValue<bool>($"{OllamaOcrOptions.Section}:Enabled"))
+        {
+            services.AddHttpClient<OllamaPodOcrService>(c => c.Timeout = Timeout.InfiniteTimeSpan);
+            services.AddSingleton<IPodOcrService>(sp => new CompositePodOcrService(sp.GetRequiredService<TextLayerOcrService>(), sp.GetRequiredService<OllamaPodOcrService>()));
+        }
+        else
+        {
+            services.AddSingleton<IPodOcrService>(sp => sp.GetRequiredService<TextLayerOcrService>());
+        }
+
         services.AddSingleton<IPodOcrQueue, PodOcrQueue>();
         if (configuration.GetValue("Deliveries:OcrWorkerEnabled", true))
         {

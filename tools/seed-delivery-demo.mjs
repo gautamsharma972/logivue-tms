@@ -199,8 +199,10 @@ async function main() {
   const AGES = [30, 60, 100, 200, 400, 800]
   let aged = 0
   for (const [n, x] of waiting.entries()) {
-    const done = await call('POST', `/dev/deliveries/${x.id}/age`, { hours: AGES[n % AGES.length] }, { allow: [404] })
-    if (done === null) break
+    // 204 answers with no body; a 404 means the API is not running in Development, so there is nothing to age with
+    const r = await fetch(API + `/dev/deliveries/${x.id}/age`, { method: 'POST', headers: { 'x-tms-client': 'seed', 'content-type': 'application/json', authorization: 'Bearer ' + token }, body: JSON.stringify({ hours: AGES[n % AGES.length] }) })
+    if (r.status === 404) break
+    if (!r.ok) throw new Error(`age ${x.number} -> ${r.status}`)
     aged++
   }
   log(`${aged} deliveries aged back in time (ageing buckets and overdue notices)`)

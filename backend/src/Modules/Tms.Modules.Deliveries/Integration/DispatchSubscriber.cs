@@ -38,7 +38,7 @@ internal sealed class ShipmentDispatchedSubscriber(
             var header = new Delivery.Header(
                 plan.ShipmentId, plan.ShipmentNumber, drop.OrderId, drop.OrderReference ?? drop.OrderNumber, null, null, drop.LrNumber, drop.Sequence,
                 plan.TransporterId, transporter?.LegalName, plan.VehicleId, plan.VehicleRegistration, plan.DriverName, null, drop.CustomerName, drop.CustomerPhone, null,
-                plan.OriginCity, drop.City, $"{drop.AddressLine}, {drop.City}, {drop.State} {drop.Pincode}", drop.Latitude, drop.Longitude, null, windowEnd, windowStart, windowEnd);
+                plan.OriginCity, drop.City, $"{drop.AddressLine}, {drop.City}, {drop.State} {drop.Pincode}", drop.Latitude, drop.Longitude, null, windowEnd, windowStart, windowEnd, plan.ServiceType);
             var number = $"DLV-{await sequences.NextAsync(e.TenantId, "delivery", cancellationToken):D5}";
             var delivery = Delivery.Create(e.TenantId, number, header, [new Delivery.ItemInput(drop.OrderReference ?? drop.OrderNumber, drop.Description, quantity, quantity, unit)], actor, clock.GetUtcNow());
             if (delivery.IsSuccess)

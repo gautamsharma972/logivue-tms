@@ -541,8 +541,8 @@ export const deliveriesApi = {
   ageing: (transporterId?: string) => http.get<ProofAgeingDto>(`${v1}/pod-dashboard/ageing`, { params: { transporterId } }).then((r) => r.data),
   ageingItems: (params: { stage?: AgeingStage; bucket?: number; overdueOnly?: boolean; transporterId?: string; page?: number; pageSize?: number }) =>
     http.get<PagedResult<AgeingItemDto>>(`${v1}/pod-dashboard/ageing/items`, { params }).then((r) => r.data),
-  compliance: (params: { from?: string; to?: string; groupBy?: string; transporterId?: string; customer?: string }) => http.get<ProofComplianceDto>(`${v1}/pod-dashboard/compliance`, { params }).then((r) => r.data),
-  downloadReport: (report: string, format: 'csv' | 'xlsx', params: { from?: string; to?: string; transporterId?: string; customer?: string; groupBy?: string }) =>
+  compliance: (params: { from?: string; to?: string; groupBy?: string; transporterId?: string; customer?: string; lane?: string; vehicle?: string; serviceType?: string }) => http.get<ProofComplianceDto>(`${v1}/pod-dashboard/compliance`, { params }).then((r) => r.data),
+  downloadReport: (report: string, format: 'csv' | 'xlsx', params: { from?: string; to?: string; transporterId?: string; customer?: string; groupBy?: string; lane?: string; vehicle?: string; serviceType?: string }) =>
     downloadFile(`${v1}/delivery-reports/${report}`, `${report}.${format}`, { ...params, format }),
   notifications: (params: { unreadOnly?: boolean; page?: number; pageSize?: number }) => http.get<PagedResult<DeliveryNotificationDto>>(`${v1}/delivery-notifications`, { params }).then((r) => r.data),
   readNotification: (id: string) => http.post(`${v1}/delivery-notifications/${id}/read`),
@@ -593,6 +593,13 @@ export const deliveriesApi = {
   noteException: (id: string, text: string) => http.post<DeliveryExceptionDto>(`${v1}/delivery-exceptions/${id}/notes`, { text }).then((r) => r.data),
   resolveException: (id: string, body: { resolution: string; rootCause: string | null; responsibleParty: string; actionTaken: string | null; financialImpact: number | null; claimReference: string | null }) =>
     http.post<DeliveryExceptionDto>(`${v1}/delivery-exceptions/${id}/resolve`, body).then((r) => r.data),
+  attachToException: (id: string, file: File, note?: string) => {
+    const form = new FormData()
+    form.append('file', file)
+    if (note) form.append('note', note)
+    return http.post<DeliveryExceptionDto>(`${v1}/delivery-exceptions/${id}/attachments`, form).then((r) => r.data)
+  },
+  downloadExceptionAttachment: (attachmentId: string, fileName: string) => downloadFile(`${v1}/exception-attachments/${attachmentId}/file`, fileName),
   closeException: (id: string) => http.post<DeliveryExceptionDto>(`${v1}/delivery-exceptions/${id}/close`).then((r) => r.data),
 
   mobileDeliveries: (transporterId?: string) => http.get<MobileBundleDto>(`${v1}/mobile/deliveries`, { params: { transporterId } }).then((r) => r.data),

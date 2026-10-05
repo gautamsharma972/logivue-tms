@@ -21,8 +21,11 @@ export function DeliveryReportsPage() {
   const [range, setRange] = useState<[string, string] | null>(null)
   const [customer, setCustomer] = useState('')
   const [groupBy, setGroupBy] = useState<'transporter' | 'customer' | 'lane'>('transporter')
+  const [vehicle, setVehicle] = useState('')
+  const [lane, setLane] = useState('')
+  const [serviceType, setServiceType] = useState<string>()
   const [busy, setBusy] = useState(false)
-  const params = { from: range?.[0], to: range?.[1], customer: customer.trim() || undefined, groupBy }
+  const params = { from: range?.[0], to: range?.[1], customer: customer.trim() || undefined, vehicle: vehicle.trim() || undefined, lane: lane.trim() || undefined, serviceType, groupBy }
   const compliance = useQuery({ queryKey: queryKeys.deliveries.compliance(params), queryFn: () => deliveriesApi.compliance(params) })
 
   const download = async (format: 'csv' | 'xlsx') => {
@@ -44,6 +47,9 @@ export function DeliveryReportsPage() {
           <Select aria-label="Report" style={{ width: 240 }} value={report} onChange={setReport} options={REPORTS.map(([value, label]) => ({ value, label }))} />
           <DatePicker.RangePicker aria-label="Period" onChange={(v) => setRange(v?.[0] && v[1] ? [dayjs(v[0]).format('YYYY-MM-DD'), dayjs(v[1]).format('YYYY-MM-DD')] : null)} />
           <Input allowClear aria-label="Customer" style={{ width: 200 }} placeholder="Customer" value={customer} onChange={(e) => setCustomer(e.target.value)} />
+          <Input allowClear aria-label="Vehicle" style={{ width: 150 }} placeholder="Vehicle" value={vehicle} onChange={(e) => setVehicle(e.target.value)} />
+          <Input allowClear aria-label="Lane" style={{ width: 170 }} placeholder="Lane (from or to)" value={lane} onChange={(e) => setLane(e.target.value)} />
+          <Select allowClear aria-label="Service type" style={{ width: 140 }} placeholder="Service type" value={serviceType} onChange={setServiceType} options={['FTL', 'PTL', 'Dedicated'].map((v) => ({ value: v, label: v }))} />
           <Button icon={<DownloadOutlined />} loading={busy} onClick={() => void download('csv')}>CSV</Button>
           <Button icon={<DownloadOutlined />} loading={busy} onClick={() => void download('xlsx')}>Excel</Button>
         </Flex>

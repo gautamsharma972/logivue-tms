@@ -105,7 +105,7 @@ public static class PodValidator
                 : new(t, "Signature", ValidationOutcome.Invalid, "A signature is required and was not captured.")
             : new(t, "Signature", ValidationOutcome.Valid, pod.Signatures.Count > 0 ? "A signature was captured." : "Not required."));
 
-        bool needsOtp = rules.OtpRequired || pod.Method == ProofMethod.Otp;
+        bool needsOtp = rules.OtpRequired || pod.Method is ProofMethod.Otp or ProofMethod.Qr;
         r.Add(needsOtp
             ? pod.OtpVerified
                 ? new(t, "Otp", ValidationOutcome.Valid, "The customer's one-time code was verified.")

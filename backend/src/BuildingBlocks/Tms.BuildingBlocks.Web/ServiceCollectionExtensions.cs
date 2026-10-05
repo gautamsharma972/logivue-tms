@@ -13,6 +13,7 @@ using Tms.BuildingBlocks.Web.Http;
 using Tms.BuildingBlocks.Web.Security;
 using Tms.BuildingBlocks.Web.Storage;
 using Tms.SharedKernel.Contracts;
+using Tms.SharedKernel.Files;
 using Tms.SharedKernel.Security;
 
 namespace Tms.BuildingBlocks.Web;
@@ -42,6 +43,7 @@ public static class ServiceCollectionExtensions
 
         services.AddOptions<StorageOptions>().Bind(configuration.GetSection(StorageOptions.SectionName));
         services.TryAddSingleton<IFileStore, LocalFileStore>();
+        services.TryAddSingleton<IFileScanner, NoFileScanner>();
 
         services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();
         services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();

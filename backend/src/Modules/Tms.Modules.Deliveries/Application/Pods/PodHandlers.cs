@@ -79,7 +79,7 @@ internal sealed class ListPodsHandler(DeliveriesDbContext db, DeliveryAccess acc
 
 /// <summary>Everything about proofs of delivery: reading, adding evidence, submitting, reviewing, correcting, and the reading of the paper document.</summary>
 internal sealed class PodHandler(
-    DeliveriesDbContext db, DeliveryAccess access, IDeliverySettings settings, DeliveryMapper mapper, PodEngine engine, ExceptionFactory exceptions, IFileStore files,
+    DeliveriesDbContext db, DeliveryAccess access, IDeliverySettings settings, DeliveryMapper mapper, PodEngine engine, ExceptionFactory exceptions, IFileStore files, IFileScanner scanner,
     IPodOcrQueue ocrQueue, IPodOcrService ocr, Notifications.NotificationPublisher notifications, ICurrentUser user, TimeProvider clock)
 {
     private const int MaxPhotoBytes = 10 * 1024 * 1024;
@@ -234,6 +234,12 @@ internal sealed class PodHandler(
         if (sniffed is not var (contentType, extension) || (!isDocument && contentType == "application/pdf"))
         {
             return Error.Validation("pods.file_type", isDocument ? "Upload a PDF, JPG or PNG file." : "Photos must be JPG or PNG images.");
+        }
+
+        var scan = await scanner.ScanAsync(bytes, contentType, cancellationToken);
+        if (!scan.IsClean)
+        {
+            return Error.Validation("pods.file_infected", scan.Detail ?? "The file did not pass the security scan.");
         }
 
         var warnings = new List<string>();
@@ -462,6 +468,7 @@ internal sealed class PodHandler(
                 result = pod.RequestResubmission(request.Reason ?? string.Empty, user.UserId, now);
                 if (result.IsSuccess)
                 {
+                    pod.RaiseResubmissionRequested(delivery, request.Reason!.Trim(), now);
                     await notifications.PublishAsync(Domain.NotificationKind.PodRejected, $"More evidence needed: {delivery.Number}", request.Reason!.Trim(), delivery.Id, pod.Id, null, delivery.TransporterId, null, $"resubmission:{pod.Id}:{pod.RejectionCount}", cancellationToken);
                 }
 

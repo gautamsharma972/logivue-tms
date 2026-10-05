@@ -1,9 +1,19 @@
 using FluentValidation;
+using Microsoft.AspNetCore.Http;
 using Tms.Modules.Deliveries.Domain;
 
 namespace Tms.Modules.Deliveries.Application;
 
 public sealed record ExceptionNoteDto(DateTimeOffset At, string Text, Guid? By);
+
+public sealed record ExceptionAttachmentDto(Guid Id, string FileName, string ContentType, long SizeBytes, string? Note, DateTimeOffset At, Guid? By);
+
+public sealed class AttachToExceptionForm
+{
+    public IFormFile? File { get; init; }
+
+    public string? Note { get; init; }
+}
 
 public sealed record ExceptionSummaryDto(
     Guid Id, string Number, Guid DeliveryId, string DeliveryNumber, string? CustomerName, string? TransporterReference, string? VehicleReference, Guid? PodId, ExceptionType Type,
@@ -11,7 +21,7 @@ public sealed record ExceptionSummaryDto(
 
 public sealed record ExceptionDto(
     ExceptionSummaryDto Summary, string Description, string? RootCause, ResponsibleParty ResponsibleParty, string? ActionTaken, string? Resolution, decimal? FinancialImpact,
-    DateTimeOffset? ResolvedAt, DateTimeOffset? EscalatedAt, IReadOnlyList<ExceptionNoteDto> Notes, long Version);
+    DateTimeOffset? ResolvedAt, DateTimeOffset? EscalatedAt, IReadOnlyList<ExceptionNoteDto> Notes, long Version, IReadOnlyList<ExceptionAttachmentDto>? Attachments = null);
 
 public sealed record ListExceptionsQuery(
     ExceptionType? Type = null, ExceptionStatus? Status = null, ExceptionSeverity? Severity = null, Guid? TransporterId = null, Guid? DeliveryId = null, bool? OpenOnly = null,

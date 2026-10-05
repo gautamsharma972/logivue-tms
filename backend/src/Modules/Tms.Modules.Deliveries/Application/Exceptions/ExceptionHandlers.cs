@@ -1,6 +1,9 @@
+using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
 using Tms.Modules.Deliveries.Domain;
 using Tms.Modules.Deliveries.Infrastructure.Persistence;
+using Tms.SharedKernel.Contracts;
+using Tms.SharedKernel.Files;
 using Tms.SharedKernel.Paging;
 using Tms.SharedKernel.Results;
 using Tms.SharedKernel.Security;
@@ -8,7 +11,7 @@ using Tms.SharedKernel.Security;
 namespace Tms.Modules.Deliveries.Application.Exceptions;
 
 /// <summary>Delivery exceptions: listing, raising by hand, and the moves an owner makes (acknowledge, assign, investigate, escalate, resolve, close).</summary>
-internal sealed class ExceptionHandler(DeliveriesDbContext db, DeliveryAccess access, ExceptionFactory factory, Notifications.NotificationPublisher notifications, ICurrentUser user, TimeProvider clock)
+internal sealed class ExceptionHandler(DeliveriesDbContext db, DeliveryAccess access, ExceptionFactory factory, Notifications.NotificationPublisher notifications, IFileStore files, IFileScanner scanner, ICurrentUser user, TimeProvider clock)
 {
     public async Task<Result<PagedResult<ExceptionSummaryDto>>> ListAsync(ListExceptionsQuery query, CancellationToken cancellationToken)
     {
@@ -123,6 +126,73 @@ internal sealed class ExceptionHandler(DeliveriesDbContext db, DeliveryAccess ac
     public Task<Result<ExceptionDto>> ResolveAsync(Guid id, ResolveExceptionRequest request, CancellationToken ct) =>
         ActAsync(id, e => e.Resolve(request.Resolution, request.RootCause, request.ResponsibleParty, request.ActionTaken, request.FinancialImpact, request.ClaimReference, user.UserId, clock.GetUtcNow()), ct);
 
+    /// <summary>Keeps a photo or document with the exception. Checked by its first bytes, never by the name or type it claims; stored privately.</summary>
+    public async Task<Result<ExceptionDto>> AttachAsync(Guid id, AttachToExceptionForm form, CancellationToken cancellationToken)
+    {
+        if (!access.CanManageExceptions)
+        {
+            return DeliveryAccess.Forbidden;
+        }
+
+        var found = await FindAsync(id, tracked: true, cancellationToken);
+        if (found.IsFailure)
+        {
+            return found.Error;
+        }
+
+        if (form.File is not { Length: > 0 } file)
+        {
+            return Error.Validation("exceptions.file_required", "Attach a file.");
+        }
+
+        if (file.Length > FileSniffer.MaxBytes)
+        {
+            return Error.Validation("exceptions.file_too_large", $"Files can be at most {FileSniffer.MaxBytes / (1024 * 1024)} MB.");
+        }
+
+        await using var upload = file.OpenReadStream();
+        using var memory = new MemoryStream((int)file.Length);
+        await upload.CopyToAsync(memory, cancellationToken);
+        var bytes = memory.ToArray();
+        if (FileSniffer.Identify(bytes.AsSpan(0, Math.Min(bytes.Length, 8))) is not var (contentType, extension))
+        {
+            return Error.Validation("exceptions.file_type", "Attach a PDF, JPG or PNG file.");
+        }
+
+        var scan = await scanner.ScanAsync(bytes, contentType, cancellationToken);
+        if (!scan.IsClean)
+        {
+            return Error.Validation("exceptions.file_infected", scan.Detail ?? "The file did not pass the security scan.");
+        }
+
+        var now = clock.GetUtcNow();
+        var key = $"exceptions/{now:yyyy}/{now:MM}/{found.Value.DeliveryId}/{found.Value.Id}/{Guid.CreateVersion7()}{extension}";
+        var name = Path.GetFileName(file.FileName) is { Length: > 0 } n ? n[..Math.Min(n.Length, 255)] : $"attachment{extension}";
+        var attached = found.Value.Attach(key, name, contentType, bytes.Length, Convert.ToHexStringLower(SHA256.HashData(bytes)), form.Note, user.UserId, now);
+        if (attached.IsFailure)
+        {
+            return attached.Error;
+        }
+
+        memory.Position = 0;
+        await files.SaveAsync(key, memory, cancellationToken);
+        await db.SaveChangesAsync(cancellationToken);
+        return await ToDtoAsync(found.Value, cancellationToken);
+    }
+
+    public async Task<Result<(Stream Content, string ContentType, string FileName)>> OpenAttachmentAsync(Guid attachmentId, CancellationToken cancellationToken)
+    {
+        var attachment = await db.ExceptionAttachments.AsNoTracking().FirstOrDefaultAsync(a => a.Id == attachmentId, cancellationToken);
+        var owner = attachment is null ? null : await db.Exceptions.AsNoTracking().Where(e => e.Id == attachment.ExceptionId).Select(e => new { e.TransporterId }).FirstOrDefaultAsync(cancellationToken);
+        if (attachment is null || owner is null || !access.CanSeeTransporter(owner.TransporterId))
+        {
+            return DeliveryAccess.ExceptionNotFound;
+        }
+
+        var stream = await files.OpenReadAsync(attachment.FileKey, cancellationToken);
+        return stream is null ? Error.NotFound("exceptions.file_missing", "The file is no longer available.") : (stream, attachment.ContentType, attachment.FileName);
+    }
+
     public Task<Result<ExceptionDto>> CloseAsync(Guid id, CancellationToken ct) => ActAsync(id, e => e.Close(user.UserId, clock.GetUtcNow()), ct);
 
     private Task<Result<ExceptionDto>> ActAsync(Guid id, Func<DeliveryException, Result> act, CancellationToken cancellationToken) =>
@@ -153,7 +223,7 @@ internal sealed class ExceptionHandler(DeliveriesDbContext db, DeliveryAccess ac
 
     private async Task<Result<DeliveryException>> FindAsync(Guid id, bool tracked, CancellationToken cancellationToken)
     {
-        var query = db.Exceptions.Include(e => e.Notes).AsQueryable();
+        var query = db.Exceptions.Include(e => e.Notes).Include(e => e.Attachments).AsSplitQuery();
         if (!tracked)
         {
             query = query.AsNoTracking();
@@ -168,7 +238,8 @@ internal sealed class ExceptionHandler(DeliveriesDbContext db, DeliveryAccess ac
         var summary = (await SummariesAsync([e], clock.GetUtcNow(), cancellationToken))[0];
         return new ExceptionDto(
             summary, e.Description, e.RootCause, e.ResponsibleParty, e.ActionTaken, e.Resolution, e.FinancialImpact, e.ResolvedAt, e.EscalatedAt,
-            e.Notes.OrderBy(n => n.At).Select(n => new ExceptionNoteDto(n.At, n.Text, n.By)).ToList(), e.Version);
+            e.Notes.OrderBy(n => n.At).Select(n => new ExceptionNoteDto(n.At, n.Text, n.By)).ToList(), e.Version,
+            e.Attachments.OrderBy(a => a.At).Select(a => new ExceptionAttachmentDto(a.Id, a.FileName, a.ContentType, a.SizeBytes, a.Note, a.At, a.By)).ToList());
     }
 
     private async Task<IReadOnlyList<ExceptionSummaryDto>> SummariesAsync(IReadOnlyList<DeliveryException> rows, DateTimeOffset now, CancellationToken cancellationToken)

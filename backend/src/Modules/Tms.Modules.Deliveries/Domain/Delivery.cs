@@ -276,6 +276,9 @@ public sealed class Delivery : AggregateRoot, ITenantScoped
 
     public string? DriverName { get; private set; }
 
+    /// <summary>How the load moves: FTL, PTL or Dedicated. Comes from the shipment; used to filter reports.</summary>
+    public string? ServiceType { get; private set; }
+
     public string? CustomerReference { get; private set; }
 
     public string CustomerName { get; private set; } = null!;
@@ -349,7 +352,7 @@ public sealed class Delivery : AggregateRoot, ITenantScoped
         string? CustomerReference, string CustomerName, string? CustomerPhone, string? CustomerEmail,
         string? OriginReference, string? DestinationReference, string? DestinationAddress,
         double? CustomerLatitude, double? CustomerLongitude, int? GeofenceRadiusM,
-        DateTimeOffset PlannedDeliveryAt, DateTimeOffset? WindowStart, DateTimeOffset? WindowEnd);
+        DateTimeOffset PlannedDeliveryAt, DateTimeOffset? WindowStart, DateTimeOffset? WindowEnd, string? ServiceType = null);
 
     public sealed record ItemInput(string Sku, string Description, decimal Ordered, decimal Dispatched, string? Unit);
 
@@ -641,6 +644,20 @@ public sealed class Delivery : AggregateRoot, ITenantScoped
         _attempts.Add(DeliveryAttempt.Create(TenantId, Id, _attempts.Count + 1, deliveredAt, AttemptResult.Delivered, null, recipient, driverRemarks, null, fix, actor.DeviceReference));
         Log(anyDiscrepancy ? DeliveryEventType.PartiallyDelivered : DeliveryEventType.Delivered, deliveredAt, fix, actor, outcome.ToString());
         Raise(new DeliveryCompleted(Id, TenantId, Number, ShipmentId, TransporterId, deliveredAt, anyDiscrepancy, OnTime, shortTotal, damagedTotal));
+        if (anyDiscrepancy)
+        {
+            Raise(new DeliveryPartiallyCompleted(Id, TenantId, Number, ShipmentId, TransporterId, deliveredAt, outcome.ToString()));
+        }
+
+        if (shortTotal > 0)
+        {
+            Raise(new ShortageRecorded(Id, TenantId, Number, ShipmentId, TransporterId, deliveredAt, shortTotal));
+        }
+
+        if (damagedTotal > 0)
+        {
+            Raise(new DamageRecorded(Id, TenantId, Number, ShipmentId, TransporterId, deliveredAt, damagedTotal));
+        }
         return new CompletionResult(reconciliation, anyDiscrepancy, mismatch);
     }
 
@@ -790,6 +807,7 @@ public sealed class Delivery : AggregateRoot, ITenantScoped
         VehicleId = h.VehicleId;
         VehicleReference = Clean(h.VehicleReference);
         DriverName = Clean(h.DriverName);
+        ServiceType = Clean(h.ServiceType);
         CustomerReference = Clean(h.CustomerReference);
         CustomerName = h.CustomerName.Trim();
         CustomerPhone = Clean(h.CustomerPhone);
@@ -807,8 +825,26 @@ public sealed class Delivery : AggregateRoot, ITenantScoped
 
     private static string? Clean(string? v) => string.IsNullOrWhiteSpace(v) ? null : v.Trim();
 
-    private void Log(DeliveryEventType type, DateTimeOffset at, GeoFix fix, Actor actor, string? remarks) =>
+    private void Log(DeliveryEventType type, DateTimeOffset at, GeoFix fix, Actor actor, string? remarks)
+    {
         _events.Add(DeliveryEvent.Create(TenantId, Id, type, at, fix, actor, remarks));
+
+        // Every step that matters to another module is also published. Delivered / PartiallyDelivered are covered by DeliveryCompleted and the events raised in Complete.
+        DomainEvent? published = type switch
+        {
+            DeliveryEventType.Assigned => new DeliveryAssigned(Id, TenantId, Number, ShipmentId, TransporterId, at, remarks),
+            DeliveryEventType.Started => new DeliveryStarted(Id, TenantId, Number, ShipmentId, TransporterId, at),
+            DeliveryEventType.Arrived => new VehicleArrived(Id, TenantId, Number, ShipmentId, TransporterId, at),
+            DeliveryEventType.AttemptFailed => new DeliveryAttempted(Id, TenantId, Number, ShipmentId, TransporterId, at, remarks),
+            DeliveryEventType.Failed => new DeliveryFailed(Id, TenantId, Number, ShipmentId, TransporterId, at, remarks),
+            DeliveryEventType.Refused => new CustomerRefused(Id, TenantId, Number, ShipmentId, TransporterId, at, remarks),
+            _ => null,
+        };
+        if (published is not null)
+        {
+            Raise(published);
+        }
+    }
 
     private Error Transition(string action, string needed) =>
         Error.Conflict("deliveries.invalid_state", $"Cannot {action} a delivery that is {Status}. It must be {needed} first.");

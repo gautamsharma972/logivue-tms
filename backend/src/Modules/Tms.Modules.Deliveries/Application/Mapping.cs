@@ -22,7 +22,7 @@ internal sealed class DeliveryMapper(DeliveriesDbContext db, IDeliverySettings s
             var podStatus = pod?.Status ?? PodStatus.Pending;
             return new DeliverySummaryDto(
                 d.Id, d.Number, d.ShipmentReference, d.CustomerName, d.DestinationReference, d.TransporterId, d.TransporterReference, d.VehicleReference, d.PlannedDeliveryAt, d.ActualDeliveryAt,
-                d.Status, d.Outcome, podStatus, pod?.Id, withDiscrepancy.Contains(d.Id), open.GetValueOrDefault(d.Id));
+                d.Status, d.Outcome, podStatus, pod?.Id, withDiscrepancy.Contains(d.Id), open.GetValueOrDefault(d.Id), d.ServiceType);
         }).ToList();
     }
 

@@ -4,6 +4,7 @@ import type { Dayjs } from 'dayjs'
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { PageHeader } from '@/components/PageHeader'
+import { AuditPanel } from '@/features/audit/AuditPanel'
 import { useAuth } from '@/features/auth/AuthContext'
 import { deliveriesApi } from '@/lib/api/endpoints'
 import { toApiError } from '@/lib/api/errors'
@@ -192,6 +193,14 @@ export function DeliveryDetailPage() {
                 }))}
               />
             </Card>
+            {!isVendor && (
+              <AuditPanel subjects={[
+                { entityType: 'Delivery', entityId: id },
+                ...(s.podId ? [{ entityType: 'PodRecord', entityId: s.podId }] : []),
+                ...(exceptions.data?.items ?? []).map((e) => ({ entityType: 'DeliveryException', entityId: e.id })),
+                ...d.discrepancies.map((x) => ({ entityType: 'DeliveryDiscrepancy', entityId: x.id })),
+              ]} />
+            )}
           </Flex>
         </Col>
       </Row>

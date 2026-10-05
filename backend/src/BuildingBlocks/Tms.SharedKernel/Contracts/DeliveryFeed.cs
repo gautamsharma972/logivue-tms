@@ -34,7 +34,8 @@ public sealed record DeliveryPlanFact(
     string? DriverName,
     string OriginCity,
     DateOnly PlannedPickupDate,
-    IReadOnlyList<DeliveryDropFact> Drops);
+    IReadOnlyList<DeliveryDropFact> Drops,
+    string? ServiceType = null);
 
 /// <summary>Read-only view of a dispatched shipment, owned by Shipments and consumed by Deliveries so nothing is copied that could drift.</summary>
 public interface IShipmentDeliveryFeed
@@ -56,6 +57,51 @@ public sealed record PodAccepted(
 public sealed record PodRejected(Guid DeliveryId, Guid PodId, Guid TenantId, string DeliveryNumber, Guid? TransporterId, string Reason, DateTimeOffset RejectedAt) : DomainEvent;
 
 public sealed record DeliveryExceptionRaised(Guid ExceptionId, Guid DeliveryId, Guid TenantId, string DeliveryNumber, Guid? TransporterId, string ExceptionType, string Severity) : DomainEvent;
+
+// ---- The rest of the delivery and proof story, so other modules can follow a delivery step by step. They are published through the same outbox as the events above.
+
+/// <summary>Common facts of a step in a delivery's life.</summary>
+public abstract record DeliveryLifecycleEvent(Guid DeliveryId, Guid TenantId, string DeliveryNumber, Guid? ShipmentId, Guid? TransporterId, DateTimeOffset At) : DomainEvent;
+
+public sealed record DeliveryAssigned(Guid DeliveryId, Guid TenantId, string DeliveryNumber, Guid? ShipmentId, Guid? TransporterId, DateTimeOffset At, string? VehicleReference)
+    : DeliveryLifecycleEvent(DeliveryId, TenantId, DeliveryNumber, ShipmentId, TransporterId, At);
+
+public sealed record DeliveryStarted(Guid DeliveryId, Guid TenantId, string DeliveryNumber, Guid? ShipmentId, Guid? TransporterId, DateTimeOffset At)
+    : DeliveryLifecycleEvent(DeliveryId, TenantId, DeliveryNumber, ShipmentId, TransporterId, At);
+
+public sealed record VehicleArrived(Guid DeliveryId, Guid TenantId, string DeliveryNumber, Guid? ShipmentId, Guid? TransporterId, DateTimeOffset At)
+    : DeliveryLifecycleEvent(DeliveryId, TenantId, DeliveryNumber, ShipmentId, TransporterId, At);
+
+/// <summary>An attempt failed (customer shut, address wrong...). The delivery is not over: it may be tried again.</summary>
+public sealed record DeliveryAttempted(Guid DeliveryId, Guid TenantId, string DeliveryNumber, Guid? ShipmentId, Guid? TransporterId, DateTimeOffset At, string? Remarks)
+    : DeliveryLifecycleEvent(DeliveryId, TenantId, DeliveryNumber, ShipmentId, TransporterId, At);
+
+/// <summary>Delivered with a shortage, damage or goods not accepted. Raised in addition to <see cref="DeliveryCompleted"/>.</summary>
+public sealed record DeliveryPartiallyCompleted(Guid DeliveryId, Guid TenantId, string DeliveryNumber, Guid? ShipmentId, Guid? TransporterId, DateTimeOffset At, string? Outcome)
+    : DeliveryLifecycleEvent(DeliveryId, TenantId, DeliveryNumber, ShipmentId, TransporterId, At);
+
+public sealed record DeliveryFailed(Guid DeliveryId, Guid TenantId, string DeliveryNumber, Guid? ShipmentId, Guid? TransporterId, DateTimeOffset At, string? Remarks)
+    : DeliveryLifecycleEvent(DeliveryId, TenantId, DeliveryNumber, ShipmentId, TransporterId, At);
+
+public sealed record CustomerRefused(Guid DeliveryId, Guid TenantId, string DeliveryNumber, Guid? ShipmentId, Guid? TransporterId, DateTimeOffset At, string? Remarks)
+    : DeliveryLifecycleEvent(DeliveryId, TenantId, DeliveryNumber, ShipmentId, TransporterId, At);
+
+public sealed record ShortageRecorded(Guid DeliveryId, Guid TenantId, string DeliveryNumber, Guid? ShipmentId, Guid? TransporterId, DateTimeOffset At, decimal Quantity)
+    : DeliveryLifecycleEvent(DeliveryId, TenantId, DeliveryNumber, ShipmentId, TransporterId, At);
+
+public sealed record DamageRecorded(Guid DeliveryId, Guid TenantId, string DeliveryNumber, Guid? ShipmentId, Guid? TransporterId, DateTimeOffset At, decimal Quantity)
+    : DeliveryLifecycleEvent(DeliveryId, TenantId, DeliveryNumber, ShipmentId, TransporterId, At);
+
+/// <summary>All the proof the rules ask for is now present (the proof moved from Draft to Captured).</summary>
+public sealed record PodCaptured(Guid DeliveryId, Guid PodId, Guid TenantId, string DeliveryNumber, Guid? ShipmentId, Guid? TransporterId, DateTimeOffset At) : DomainEvent;
+
+/// <summary>The checks were run on a proof. <paramref name="Outcome"/> is Valid, Warning, RequiresReview or Invalid. Raised on every run, so subscribers must be idempotent.</summary>
+public sealed record PodValidated(Guid DeliveryId, Guid PodId, Guid TenantId, string DeliveryNumber, Guid? TransporterId, string Outcome, DateTimeOffset At) : DomainEvent;
+
+public sealed record PodResubmissionRequested(Guid DeliveryId, Guid PodId, Guid TenantId, string DeliveryNumber, Guid? TransporterId, string Reason, DateTimeOffset At) : DomainEvent;
+
+public sealed record DeliveryExceptionResolved(
+    Guid ExceptionId, Guid DeliveryId, Guid TenantId, string DeliveryNumber, Guid? TransporterId, string ExceptionType, string ResponsibleParty, decimal? FinancialImpact, DateTimeOffset At) : DomainEvent;
 
 // ---- Hand-offs to claims, freight audit and planning. Each is a contract another module can implement; Deliveries ships a local adapter for each so it works alone.
 

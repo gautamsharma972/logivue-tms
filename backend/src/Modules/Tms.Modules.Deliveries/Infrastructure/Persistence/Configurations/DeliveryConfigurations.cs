@@ -23,6 +23,7 @@ internal sealed class DeliveryConfiguration : IEntityTypeConfiguration<Delivery>
         b.Property(d => d.TransporterReference).HasMaxLength(200);
         b.Property(d => d.VehicleReference).HasMaxLength(20);
         b.Property(d => d.DriverName).HasMaxLength(150);
+        b.Property(d => d.ServiceType).HasMaxLength(30);
         b.Property(d => d.CustomerReference).HasMaxLength(64);
         b.Property(d => d.CustomerName).HasMaxLength(200).IsRequired();
         b.Property(d => d.CustomerPhone).HasMaxLength(20);
@@ -327,6 +328,8 @@ internal sealed class DeliveryExceptionConfiguration : IEntityTypeConfiguration<
         b.Ignore(e => e.IsOpen);
         b.HasMany(e => e.Notes).WithOne().HasForeignKey(n => n.ExceptionId).OnDelete(DeleteBehavior.Cascade);
         b.Navigation(e => e.Notes).UsePropertyAccessMode(PropertyAccessMode.Field);
+        b.HasMany(e => e.Attachments).WithOne().HasForeignKey(a => a.ExceptionId).OnDelete(DeleteBehavior.Cascade);
+        b.Navigation(e => e.Attachments).UsePropertyAccessMode(PropertyAccessMode.Field);
         b.HasIndex(e => new { e.TenantId, e.Number }).IsUnique();
         b.HasIndex(e => new { e.TenantId, e.DeliveryId, e.ExceptionType });
         b.HasIndex(e => new { e.TenantId, e.Status, e.Severity, e.DueAt });
@@ -343,6 +346,22 @@ internal sealed class ExceptionNoteConfiguration : IEntityTypeConfiguration<Exce
         b.Property(n => n.Id).ValueGeneratedNever();
         b.Property(n => n.Text).HasMaxLength(1000).IsRequired();
         b.HasIndex(n => new { n.TenantId, n.ExceptionId, n.At });
+    }
+}
+
+internal sealed class ExceptionAttachmentConfiguration : IEntityTypeConfiguration<ExceptionAttachment>
+{
+    public void Configure(EntityTypeBuilder<ExceptionAttachment> b)
+    {
+        b.ToTable("exception_attachments");
+        b.HasKey(a => a.Id);
+        b.Property(a => a.Id).ValueGeneratedNever();
+        b.Property(a => a.FileKey).HasMaxLength(300).IsRequired();
+        b.Property(a => a.FileName).HasMaxLength(255).IsRequired();
+        b.Property(a => a.ContentType).HasMaxLength(100).IsRequired();
+        b.Property(a => a.FileHash).HasMaxLength(64).IsRequired();
+        b.Property(a => a.Note).HasMaxLength(500);
+        b.HasIndex(a => new { a.TenantId, a.ExceptionId, a.At });
     }
 }
 

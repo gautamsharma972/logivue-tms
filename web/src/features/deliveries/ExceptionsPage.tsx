@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { PaperClipOutlined } from '@ant-design/icons'
 import { Alert, App, Button, Card, Checkbox, DatePicker, Descriptions, Drawer, Flex, Input, InputNumber, Select, Table, Tag, Timeline, Typography, type TableColumnsType } from 'antd'
 import type { Dayjs } from 'dayjs'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { PageHeader } from '@/components/PageHeader'
 import { useAuth } from '@/features/auth/AuthContext'
@@ -30,6 +31,8 @@ function ExceptionDrawer({ id, canManage, onClose }: { id: string; canManage: bo
   const [impact, setImpact] = useState<number | null>(null)
   const [claim, setClaim] = useState('')
   const [escalation, setEscalation] = useState('')
+  const [attachNote, setAttachNote] = useState('')
+  const fileInput = useRef<HTMLInputElement>(null)
 
   const run = useMutation({
     mutationFn: (fn: () => Promise<DeliveryExceptionDto>) => fn(),
@@ -41,7 +44,17 @@ function ExceptionDrawer({ id, canManage, onClose }: { id: string; canManage: bo
     onError: (e) => void message.error(toApiError(e).message),
   })
 
+  const claim_ = useMutation({
+    mutationFn: (deliveryId: string) => deliveriesApi.createClaims(deliveryId, null),
+    onSuccess: async (made) => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.deliveries.all })
+      void message.success(made.length === 0 ? 'Nothing new to claim' : `Claim sent with the evidence: ${made.map((c) => c.reference).join(', ')}`)
+    },
+    onError: (x) => void message.error(toApiError(x).message),
+  })
+
   const e = detail.data
+  const claimable = e && ['Shortage', 'Damage', 'CustomerRefusal'].includes(e.summary.type) && !e.summary.claimReference
   const open = e && !['Resolved', 'Closed'].includes(e.summary.status)
   return (
     <Drawer open onClose={onClose} size="large" title={e ? `${e.summary.number} · ${exceptionTypeLabel[e.summary.type]}` : 'Exception'} destroyOnHidden>
@@ -97,6 +110,25 @@ function ExceptionDrawer({ id, canManage, onClose }: { id: string; canManage: bo
             </Card>
           )}
           {canManage && e.summary.status === 'Resolved' && <Button onClick={() => run.mutate(() => deliveriesApi.closeException(id))}>Close</Button>}
+
+          <Card size="small" title="Attachments" extra={canManage && open && (
+            <>
+              <input ref={fileInput} type="file" accept="image/jpeg,image/png,application/pdf" hidden aria-label="Choose a file"
+                onChange={(x) => { const f = x.target.files?.[0]; if (f) run.mutate(() => deliveriesApi.attachToException(id, f, attachNote.trim() || undefined)); x.target.value = ''; setAttachNote('') }} />
+              <Flex gap={8}>
+                <Input size="small" style={{ width: 180 }} aria-label="Attachment note" placeholder="What is it? (optional)" value={attachNote} onChange={(x) => setAttachNote(x.target.value)} />
+                <Button size="small" icon={<PaperClipOutlined />} loading={run.isPending} onClick={() => fileInput.current?.click()}>Attach a file</Button>
+              </Flex>
+            </>
+          )}>
+            {(e.attachments ?? []).length === 0 ? <Typography.Text type="secondary">Nothing attached.</Typography.Text> : (e.attachments ?? []).map((a) => (
+              <div key={a.id} style={{ marginBottom: 6 }}>
+                <Button type="link" style={{ padding: 0 }} onClick={() => void deliveriesApi.downloadExceptionAttachment(a.id, a.fileName)}>{a.fileName}</Button>
+                <Typography.Text type="secondary"> · {Math.max(1, Math.round(a.sizeBytes / 1024))} KB · {formatDateTime(a.at)}{a.note ? ` · ${a.note}` : ''}</Typography.Text>
+              </div>
+            ))}
+          </Card>
+          {canManage && claimable && <Button loading={claim_.isPending} onClick={() => claim_.mutate(e.summary.deliveryId)}>Create claim</Button>}
 
           <Timeline items={e.notes.map((n) => ({ content: <div>{n.text}<br /><Typography.Text type="secondary">{formatDateTime(n.at)}</Typography.Text></div> }))} />
         </Flex>

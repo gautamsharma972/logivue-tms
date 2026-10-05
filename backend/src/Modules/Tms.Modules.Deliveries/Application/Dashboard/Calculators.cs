@@ -6,7 +6,7 @@ namespace Tms.Modules.Deliveries.Application.Dashboard;
 internal sealed record ProofRow(
     Guid DeliveryId, string Number, string Customer, string? Transporter, Guid? TransporterId, string? Origin, string? Destination, DeliveryStatus Status, DeliveryOutcome? Outcome,
     DateTimeOffset Planned, DateTimeOffset? Delivered, DateTimeOffset? WindowEnd, Guid? PodId, PodStatus? PodStatus, DateTimeOffset? FirstSubmittedAt, DateTimeOffset? SubmittedAt,
-    DateTimeOffset? ApprovedAt, DateTimeOffset? ReviewedAt, DateTimeOffset? ReturnedAt, DateTimeOffset? ResubmittedAt, int Rejections)
+    DateTimeOffset? ApprovedAt, DateTimeOffset? ReviewedAt, DateTimeOffset? ReturnedAt, DateTimeOffset? ResubmittedAt, int Rejections, string? Vehicle = null, string? ServiceType = null)
 {
     /// <summary>A delivery that was made and so needs a proof. Failed and refused deliveries do not: for them proof compliance is not applicable, not zero.</summary>
     public bool NeedsProof => Status is DeliveryStatus.Delivered or DeliveryStatus.PartiallyDelivered or DeliveryStatus.Closed && Outcome is not (DeliveryOutcome.Failed or DeliveryOutcome.Refused) && Delivered is not null;

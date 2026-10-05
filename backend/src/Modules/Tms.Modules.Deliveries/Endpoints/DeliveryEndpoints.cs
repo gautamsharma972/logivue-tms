@@ -86,6 +86,12 @@ internal static class DeliveryEndpoints
         group.MapPost("/{id:guid}/close", async (Guid id, Application.ReasonRequest body, ExecutionHandler h, CancellationToken ct) => (await h.CloseAsync(id, body, ct)).ToHttpResult())
             .WithValidation<Application.ReasonRequest>().WithName("CloseDelivery").Produces<DeliveryDto>();
 
+        group.MapGet("/{id:guid}/items", async (Guid id, DeliveryItemsHandler h, CancellationToken ct) => (await h.ListAsync(id, ct)).ToHttpResult())
+            .WithName("ListDeliveryItems").Produces<IReadOnlyList<DeliveryItemDto>>();
+
+        group.MapPost("/{id:guid}/items/reconcile", async (Guid id, ReconcileItemsRequest body, DeliveryItemsHandler h, CancellationToken ct) => (await h.ReconcileAsync(id, body, ct)).ToHttpResult())
+            .WithName("ReconcileDeliveryItems").Produces<IReadOnlyList<ReconciliationDto>>();
+
         group.MapPost("/{id:guid}/claims", async (Guid id, CreateClaimsRequest body, ClaimHandler h, CancellationToken ct) => (await h.CreateAsync(id, body, ct)).ToHttpResult())
             .WithName("CreateDeliveryClaims").Produces<IReadOnlyList<ClaimResultDto>>();
 
@@ -102,6 +108,9 @@ internal static class DeliveryEndpoints
 
         group.MapGet("/", async ([AsParameters] ListPodsQuery query, ListPodsHandler h, CancellationToken ct) => (await h.HandleAsync(query, reviewQueue: false, ct)).ToHttpResult())
             .WithName("ListPods").Produces<PagedResult<PodSummaryDto>>();
+
+        group.MapPost("/", async (CreatePodRequest body, PodHandler h, CancellationToken ct) => (await h.CreateAsync(body.DeliveryId, ct)).ToHttpResult())
+            .WithName("CreatePod").Produces<PodDto>();
 
         group.MapGet("/review-queue", async ([AsParameters] ListPodsQuery query, ListPodsHandler h, CancellationToken ct) => (await h.HandleAsync(query, reviewQueue: true, ct)).ToHttpResult())
             .WithName("PodReviewQueue").Produces<PagedResult<PodSummaryDto>>();
@@ -202,6 +211,18 @@ internal static class DeliveryEndpoints
 
         group.MapPost("/{id:guid}/escalate", async (Guid id, Application.ReasonRequest body, ExceptionHandler h, CancellationToken ct) => (await h.EscalateAsync(id, body, ct)).ToHttpResult())
             .WithValidation<Application.ReasonRequest>().WithName("EscalateDeliveryException").Produces<ExceptionDto>();
+
+        group.MapPost("/{id:guid}/attachments", async (Guid id, [FromForm] AttachToExceptionForm form, ExceptionHandler h, CancellationToken ct) => (await h.AttachAsync(id, form, ct)).ToHttpResult())
+            .DisableAntiforgery() // bearer-token API: there is no cookie session for a CSRF attack to ride on
+            .WithMetadata(new RequestSizeLimitAttribute(12 * 1024 * 1024))
+            .WithName("AttachToDeliveryException").Accepts<AttachToExceptionForm>("multipart/form-data").Produces<ExceptionDto>().ProducesValidationProblem();
+
+        api.MapGet("/exception-attachments/{attachmentId:guid}/file", async (Guid attachmentId, ExceptionHandler h, CancellationToken ct) =>
+            {
+                var result = await h.OpenAttachmentAsync(attachmentId, ct);
+                return result.IsSuccess ? Results.File(result.Value.Content, result.Value.ContentType, result.Value.FileName) : result.Error.ToProblem();
+            })
+            .WithName("DownloadExceptionAttachment").Produces(StatusCodes.Status200OK);
 
         group.MapPost("/{id:guid}/notes", async (Guid id, NoteRequest body, ExceptionHandler h, CancellationToken ct) => (await h.NoteAsync(id, body, ct)).ToHttpResult())
             .WithValidation<NoteRequest>().WithName("AddDeliveryExceptionNote").Produces<ExceptionDto>();

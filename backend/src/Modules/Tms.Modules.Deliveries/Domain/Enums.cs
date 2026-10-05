@@ -77,6 +77,9 @@ public enum ProofMethod
     Otp = 2,
     Photo = 3,
     Contactless = 4,
+
+    /// <summary>The driver scans the QR code the customer shows. It carries the same one-time delivery code, so it is verified exactly like <see cref="Otp"/>.</summary>
+    Qr = 5,
 }
 
 public enum EvidenceType

@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Tms.Modules.Deliveries.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using Tms.Modules.Deliveries.Infrastructure.Persistence;
 namespace Tms.Modules.Deliveries.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(DeliveriesDbContext))]
-    partial class DeliveriesDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261005121739_ServiceType")]
+    partial class ServiceType
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -914,73 +917,6 @@ namespace Tms.Modules.Deliveries.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ix_settings_tenant_id_key");
 
                     b.ToTable("settings", "pd");
-                });
-
-            modelBuilder.Entity("Tms.Modules.Deliveries.Domain.ExceptionAttachment", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .HasColumnType("char(36)")
-                        .HasColumnName("id");
-
-                    b.Property<DateTimeOffset>("At")
-                        .HasColumnType("datetime(6)")
-                        .HasColumnName("at");
-
-                    b.Property<Guid?>("By")
-                        .HasColumnType("char(36)")
-                        .HasColumnName("by");
-
-                    b.Property<string>("ContentType")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)")
-                        .HasColumnName("content_type");
-
-                    b.Property<Guid>("ExceptionId")
-                        .HasColumnType("char(36)")
-                        .HasColumnName("exception_id");
-
-                    b.Property<string>("FileHash")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("varchar(64)")
-                        .HasColumnName("file_hash");
-
-                    b.Property<string>("FileKey")
-                        .IsRequired()
-                        .HasMaxLength(300)
-                        .HasColumnType("varchar(300)")
-                        .HasColumnName("file_key");
-
-                    b.Property<string>("FileName")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("varchar(255)")
-                        .HasColumnName("file_name");
-
-                    b.Property<string>("Note")
-                        .HasMaxLength(500)
-                        .HasColumnType("varchar(500)")
-                        .HasColumnName("note");
-
-                    b.Property<long>("SizeBytes")
-                        .HasColumnType("bigint")
-                        .HasColumnName("size_bytes");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("char(36)")
-                        .HasColumnName("tenant_id");
-
-                    b.HasKey("Id")
-                        .HasName("pk_exception_attachments");
-
-                    b.HasIndex("ExceptionId")
-                        .HasDatabaseName("ix_exception_attachments_exception_id");
-
-                    b.HasIndex("TenantId", "ExceptionId", "At")
-                        .HasDatabaseName("ix_exception_attachments_tenant_id_exception_id_at");
-
-                    b.ToTable("exception_attachments", "pd");
                 });
 
             modelBuilder.Entity("Tms.Modules.Deliveries.Domain.ExceptionNote", b =>
@@ -2101,16 +2037,6 @@ namespace Tms.Modules.Deliveries.Infrastructure.Persistence.Migrations
                         .HasConstraintName("fk_delivery_items_deliveries_delivery_id");
                 });
 
-            modelBuilder.Entity("Tms.Modules.Deliveries.Domain.ExceptionAttachment", b =>
-                {
-                    b.HasOne("Tms.Modules.Deliveries.Domain.DeliveryException", null)
-                        .WithMany("Attachments")
-                        .HasForeignKey("ExceptionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_exception_attachments_delivery_exceptions_exception_id");
-                });
-
             modelBuilder.Entity("Tms.Modules.Deliveries.Domain.ExceptionNote", b =>
                 {
                     b.HasOne("Tms.Modules.Deliveries.Domain.DeliveryException", null)
@@ -2204,8 +2130,6 @@ namespace Tms.Modules.Deliveries.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Tms.Modules.Deliveries.Domain.DeliveryException", b =>
                 {
-                    b.Navigation("Attachments");
-
                     b.Navigation("Notes");
                 });
 

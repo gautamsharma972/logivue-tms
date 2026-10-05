@@ -62,6 +62,24 @@ internal sealed class ListDeliveriesHandler(DeliveriesDbContext db, DeliveryAcce
             rows = rows.Where(d => d.CustomerName.Contains(customer) || (d.CustomerReference != null && d.CustomerReference.Contains(customer)));
         }
 
+        if (!string.IsNullOrWhiteSpace(query.Vehicle))
+        {
+            var vehicle = query.Vehicle.Trim();
+            rows = rows.Where(d => d.VehicleReference != null && d.VehicleReference.Contains(vehicle));
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.ServiceType))
+        {
+            var service = query.ServiceType.Trim();
+            rows = rows.Where(d => d.ServiceType == service);
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.Lane))
+        {
+            var lane = query.Lane.Trim();
+            rows = rows.Where(d => (d.OriginReference != null && d.OriginReference.Contains(lane)) || (d.DestinationReference != null && d.DestinationReference.Contains(lane)));
+        }
+
         if (query.From is { } from)
         {
             var start = new DateTimeOffset(from.ToDateTime(TimeOnly.MinValue), Clock.India);
@@ -97,6 +115,50 @@ internal sealed class GetDeliveryHandler(DeliveriesDbContext db, DeliveryAccess 
     {
         var delivery = await db.Deliveries.AsNoTracking().WithAll().AsSplitQuery().FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
         return delivery is null || !access.CanSee(delivery) ? DeliveryAccess.DeliveryNotFound : await mapper.ToDtoAsync(delivery, cancellationToken);
+    }
+}
+
+/// <summary>The lines of a delivery, and a dry run of the quantity rules over quantities that have not been reported yet.</summary>
+internal sealed class DeliveryItemsHandler(DeliveriesDbContext db, DeliveryAccess access, IDeliverySettings settings)
+{
+    public async Task<Result<IReadOnlyList<DeliveryItemDto>>> ListAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var delivery = await db.Deliveries.AsNoTracking().Include(d => d.Items).FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
+        if (delivery is null || !access.CanSee(delivery))
+        {
+            return DeliveryAccess.DeliveryNotFound;
+        }
+
+        return delivery.Items.OrderBy(i => i.SkuReference).Select(i => new DeliveryItemDto(
+            i.Id, i.SkuReference, i.Description, i.OrderedQuantity, i.DispatchedQuantity, i.DeliveredQuantity, i.ShortQuantity, i.DamagedQuantity, i.RejectedQuantity, i.UnitOfMeasure,
+            i.Remarks, i.ShortageReasonCode, i.DamageType, i.DamageReason, i.DamageDescription,
+            i.IsReported ? i.DispatchedQuantity - (i.DeliveredQuantity!.Value + i.ShortQuantity + i.DamagedQuantity + i.RejectedQuantity) : null)).ToList();
+    }
+
+    /// <summary>Reports exactly how the quantities relate to what was dispatched. Nothing is saved and nothing is corrected.</summary>
+    public async Task<Result<IReadOnlyList<ReconciliationDto>>> ReconcileAsync(Guid id, ReconcileItemsRequest request, CancellationToken cancellationToken)
+    {
+        var delivery = await db.Deliveries.AsNoTracking().Include(d => d.Items).FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
+        if (delivery is null || !access.CanSee(delivery))
+        {
+            return DeliveryAccess.DeliveryNotFound;
+        }
+
+        var rules = await settings.GetAsync<QuantityRulesSetting>(DeliverySettingKeys.Quantity, cancellationToken);
+        var results = new List<ReconciliationDto>();
+        foreach (var line in request.Items)
+        {
+            var item = delivery.Items.FirstOrDefault(i => i.Id == line.ItemId);
+            if (item is null)
+            {
+                return Error.Validation("deliveries.unknown_item", "One of the lines is not part of this delivery.");
+            }
+
+            var r = QuantityReconciliation.Check(item, line.ToQuantities(), rules);
+            results.Add(new ReconciliationDto(r.ItemId, r.Sku, r.Dispatched, r.Accounted, r.Unaccounted, r.Reconciled, r.Problems));
+        }
+
+        return results;
     }
 }
 
@@ -154,7 +216,7 @@ internal sealed class SaveDeliveryHandler(DeliveriesDbContext db, DeliveryAccess
     internal static Delivery.Header Header(SaveDeliveryRequest r) => new(
         null, r.ShipmentReference, null, r.OrderReference, r.LoadReference, r.TripReference, r.LrNumber, r.Sequence, r.TransporterId, r.TransporterReference, r.VehicleId,
         r.VehicleReference, r.DriverName, r.CustomerReference, r.CustomerName ?? string.Empty, r.CustomerPhone, r.CustomerEmail, r.OriginReference, r.DestinationReference,
-        r.DestinationAddress, r.CustomerLatitude, r.CustomerLongitude, r.GeofenceRadiusM, r.PlannedDeliveryAt, r.WindowStart, r.WindowEnd);
+        r.DestinationAddress, r.CustomerLatitude, r.CustomerLongitude, r.GeofenceRadiusM, r.PlannedDeliveryAt, r.WindowStart, r.WindowEnd, r.ServiceType);
 }
 
 internal sealed class AssignDeliveryHandler(DeliveriesDbContext db, DeliveryAccess access, DeliveryMapper mapper, ITransporterDirectory transporters, IFleetDirectory fleet, TimeProvider clock)

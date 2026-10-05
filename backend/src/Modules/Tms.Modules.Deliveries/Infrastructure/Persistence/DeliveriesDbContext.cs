@@ -40,6 +40,8 @@ public sealed class DeliveriesDbContext(DbContextOptions<DeliveriesDbContext> op
 
     public DbSet<ExceptionNote> ExceptionNotes => Set<ExceptionNote>();
 
+    public DbSet<ExceptionAttachment> ExceptionAttachments => Set<ExceptionAttachment>();
+
     public DbSet<SyncRecord> SyncRecords => Set<SyncRecord>();
 
     public DbSet<DeliverySetting> Settings => Set<DeliverySetting>();

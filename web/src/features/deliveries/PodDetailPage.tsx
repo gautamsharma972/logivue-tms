@@ -4,6 +4,7 @@ import { Alert, App, Button, Card, Col, Descriptions, Empty, Flex, Input, Modal,
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { PageHeader } from '@/components/PageHeader'
+import { AuditPanel } from '@/features/audit/AuditPanel'
 import { useAuth } from '@/features/auth/AuthContext'
 import { deliveriesApi } from '@/lib/api/endpoints'
 import { toApiError } from '@/lib/api/errors'
@@ -212,6 +213,7 @@ export function PodDetailPage() {
                 </div>
               ))}
             </Card>
+            {canReview && <AuditPanel subjects={[{ entityType: 'PodRecord', entityId: pod.summary.id }, { entityType: 'Delivery', entityId: pod.summary.deliveryId }]} />}
             {delivery && delivery.discrepancies.length > 0 && <Alert type="warning" showIcon title={`${delivery.discrepancies.length} discrepancy record(s) on the delivery`} />}
           </Flex>
         </Col>

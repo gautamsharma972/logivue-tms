@@ -20,7 +20,7 @@ public sealed record DiscrepancyDto(Guid Id, Guid ItemId, string Sku, Discrepanc
 
 public sealed record DeliverySummaryDto(
     Guid Id, string Number, string? ShipmentReference, string CustomerName, string? DestinationReference, Guid? TransporterId, string? TransporterReference, string? VehicleReference,
-    DateTimeOffset PlannedDeliveryAt, DateTimeOffset? ActualDeliveryAt, DeliveryStatus Status, DeliveryOutcome? Outcome, PodStatus PodStatus, Guid? PodId, bool HasDiscrepancy, int OpenExceptions);
+    DateTimeOffset PlannedDeliveryAt, DateTimeOffset? ActualDeliveryAt, DeliveryStatus Status, DeliveryOutcome? Outcome, PodStatus PodStatus, Guid? PodId, bool HasDiscrepancy, int OpenExceptions, string? ServiceType = null);
 
 public sealed record DeliveryDto(
     DeliverySummaryDto Summary,
@@ -41,7 +41,7 @@ public sealed record SaveDeliveryRequest(
     Guid? TransporterId, string? TransporterReference, Guid? VehicleId, string? VehicleReference, string? DriverName,
     string? CustomerReference, string CustomerName, string? CustomerPhone, string? CustomerEmail,
     string? OriginReference, string? DestinationReference, string? DestinationAddress, double? CustomerLatitude, double? CustomerLongitude, int? GeofenceRadiusM,
-    DateTimeOffset PlannedDeliveryAt, DateTimeOffset? WindowStart, DateTimeOffset? WindowEnd, IReadOnlyList<CreateDeliveryItemRequest>? Items, long? Version = null);
+    DateTimeOffset PlannedDeliveryAt, DateTimeOffset? WindowStart, DateTimeOffset? WindowEnd, IReadOnlyList<CreateDeliveryItemRequest>? Items, long? Version = null, string? ServiceType = null);
 
 public sealed record AssignDeliveryRequest(Guid TransporterId, string? TransporterReference, Guid? VehicleId, string? VehicleReference, string? DriverName);
 
@@ -70,13 +70,19 @@ public sealed record RescheduleRequest(DateTimeOffset PlannedDeliveryAt, DateTim
 
 public sealed record ReasonRequest(string Reason);
 
+/// <summary>Quantities someone is about to report, to be checked against the dispatch without saving anything.</summary>
+public sealed record ReconcileItemsRequest(IReadOnlyList<ItemQuantityRequest> Items);
+
+/// <summary>Starts the proof of delivery for a delivery that has been completed.</summary>
+public sealed record CreatePodRequest(Guid DeliveryId);
+
 public sealed record VerifyOtpRequest(string Code, DeviceContext? Context);
 
 public sealed record OtpIssuedDto(bool Sent, string? Channel, DateTimeOffset ExpiresAt);
 
 public sealed record ListDeliveriesQuery(
     DeliveryStatus? Status = null, PodStatus? PodStatus = null, string? Search = null, Guid? TransporterId = null, string? Customer = null, DateOnly? From = null, DateOnly? To = null,
-    bool? HasException = null, bool? HasDiscrepancy = null, int Page = 1, int PageSize = 25);
+    bool? HasException = null, bool? HasDiscrepancy = null, int Page = 1, int PageSize = 25, string? Vehicle = null, string? Lane = null, string? ServiceType = null);
 
 internal sealed class SaveDeliveryRequestValidator : AbstractValidator<SaveDeliveryRequest>
 {

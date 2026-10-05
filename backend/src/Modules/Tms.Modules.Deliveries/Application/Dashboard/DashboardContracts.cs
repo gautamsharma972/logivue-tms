@@ -18,7 +18,7 @@ public sealed record ComplianceRowDto(string Key, string Name, ComplianceMetrics
 
 public sealed record ComplianceDto(DateOnly From, DateOnly To, string GroupBy, ComplianceMetricsDto Overall, IReadOnlyList<ComplianceRowDto> Rows);
 
-public sealed record ComplianceQuery(DateOnly? From = null, DateOnly? To = null, string? GroupBy = null, Guid? TransporterId = null, string? Customer = null, string? Lane = null);
+public sealed record ComplianceQuery(DateOnly? From = null, DateOnly? To = null, string? GroupBy = null, Guid? TransporterId = null, string? Customer = null, string? Lane = null, string? Vehicle = null, string? ServiceType = null);
 
 public sealed record AgeingStageDto(AgeingStage Stage, string Label, int Count, int Overdue, int TargetHours, IReadOnlyList<int> Buckets);
 
@@ -35,4 +35,4 @@ public sealed record ExceptionsSummaryDto(int Open, int Overdue, int Escalated, 
 
 public sealed record KeyCountDto(string Key, int Count);
 
-public sealed record ReportQuery(DateOnly? From = null, DateOnly? To = null, Guid? TransporterId = null, string? Customer = null, string? GroupBy = null, string? Format = null);
+public sealed record ReportQuery(DateOnly? From = null, DateOnly? To = null, Guid? TransporterId = null, string? Customer = null, string? GroupBy = null, string? Format = null, string? Lane = null, string? Vehicle = null, string? ServiceType = null);

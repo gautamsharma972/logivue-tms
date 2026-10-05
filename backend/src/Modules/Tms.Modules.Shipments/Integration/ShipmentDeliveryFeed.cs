@@ -30,6 +30,6 @@ internal sealed class ShipmentDeliveryFeed(ShipmentsDbContext db) : IShipmentDel
                 location?.Latitude, location?.Longitude, o.Description, o.Packages, o.WeightKg, o.DeliverByDate, o.DeliveryWindowFrom, o.DeliveryWindowTo);
         }).ToList();
 
-        return new DeliveryPlanFact(shipment.Id, shipment.Number, shipment.TransporterId!.Value, shipment.VehicleId, shipment.VehicleRegistration, shipment.DriverName, shipment.OriginCity, shipment.PlannedPickupDate, drops);
+        return new DeliveryPlanFact(shipment.Id, shipment.Number, shipment.TransporterId!.Value, shipment.VehicleId, shipment.VehicleRegistration, shipment.DriverName, shipment.OriginCity, shipment.PlannedPickupDate, drops, shipment.Mode.ToString());
     }
 }
