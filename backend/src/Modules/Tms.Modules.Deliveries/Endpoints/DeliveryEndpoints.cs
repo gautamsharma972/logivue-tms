@@ -120,7 +120,7 @@ internal static class DeliveryEndpoints
             .WithName("ApprovePod").Produces<PodDto>();
 
         group.MapPost("/{id:guid}/reject", async (Guid id, Application.ReasonRequest body, PodHandler h, CancellationToken ct) => (await h.DecideAsync(id, new ReviewPodRequest(ReviewActions.Reject, body.Reason), ct)).ToHttpResult())
-            .WithValidation<Application.ReasonRequest>().WithName("RejectPod").Produces<PodDto>();
+            .WithValidation<Application.ReasonRequest>().WithName("RejectProofOfDelivery").Produces<PodDto>();
 
         group.MapPost("/{id:guid}/correction", async (Guid id, RequestCorrectionRequest body, PodHandler h, CancellationToken ct) => (await h.RequestCorrectionAsync(id, body, ct)).ToHttpResult())
             .WithValidation<RequestCorrectionRequest>().WithName("RequestPodCorrection").Produces<PodDto>();

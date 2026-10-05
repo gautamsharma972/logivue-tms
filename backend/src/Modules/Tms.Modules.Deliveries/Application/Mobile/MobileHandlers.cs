@@ -60,6 +60,9 @@ internal sealed class MobileSyncRequestValidator : AbstractValidator<MobileSyncR
 internal sealed class MobileHandler(
     DeliveriesDbContext db, DeliveryAccess access, IDeliverySettings settings, DeliveryMapper mapper, ExecutionHandler execution, ICurrentUser user, TimeProvider clock)
 {
+    // The device sends the same JSON the API takes: enums as names.
+    private static readonly JsonSerializerOptions PayloadJson = new(JsonSerializerDefaults.Web) { Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() } };
+
     private static readonly DeliveryStatus[] Open = [DeliveryStatus.Assigned, DeliveryStatus.EnRoute, DeliveryStatus.Arrived, DeliveryStatus.Attempted];
 
     private static readonly PodStatus[] Unfinished = [PodStatus.Draft, PodStatus.Captured, PodStatus.Rejected, PodStatus.ResubmissionRequired];
@@ -159,7 +162,7 @@ internal sealed class MobileHandler(
 
     private async Task<Result<DeliveryDto>> DispatchAsync(SyncCommand command, string? deviceId, CancellationToken ct)
     {
-        T? Read<T>() where T : class => command.Payload is { ValueKind: JsonValueKind.Object } p ? p.Deserialize<T>(DeliverySettings.Json) : null;
+        T? Read<T>() where T : class => command.Payload is { ValueKind: JsonValueKind.Object } p ? p.Deserialize<T>(PayloadJson) : null;
 
         // The device's own clock and id travel with every command, so the timeline shows when it really happened.
         DeviceContext Context(DeviceContext? given) => new(given?.Fix, given?.DeviceReference ?? deviceId, given?.At ?? command.ClientCreatedAt);

@@ -54,7 +54,7 @@ public static partial class OcrReconciler
             }
             else
             {
-                check = new(field.Name, OcrFieldStatus.Mismatch, $"The paper says '{value}'; the system has '{expected}'.");
+                check = new(field.Name, OcrFieldStatus.Mismatch, $"The paper says '{field.Raw ?? value}'; the system has '{expected}'.");
             }
 
             results.Add(check);
