@@ -1,4 +1,4 @@
-import type { ListLocationsParams, ListPodParams, ListOrdersParams, ListShipmentsParams, ListContractsParams, ListAuditLogsParams, ListRequestsParams, ListTransportersParams, ListUsersParams } from './types'
+import type { ListDeliveriesParams, ListDeliveryExceptionsParams, ListPodsParams, ListLocationsParams, ListPodParams, ListOrdersParams, ListShipmentsParams, ListContractsParams, ListAuditLogsParams, ListRequestsParams, ListTransportersParams, ListUsersParams } from './types'
 
 /** One place for cache keys so invalidation after a mutation can never drift from the queries. */
 export const queryKeys = {
@@ -90,6 +90,19 @@ export const queryKeys = {
     openOrders: ['planning', 'open-orders'] as const,
     compatibility: ['planning', 'compatibility-rules'] as const,
     dashboard: (from?: string, to?: string) => ['planning', 'dashboard', from, to] as const,
+  },
+  deliveries: {
+    all: ['deliveries'] as const,
+    list: (params: ListDeliveriesParams) => ['deliveries', 'list', params] as const,
+    detail: (id: string) => ['deliveries', 'detail', id] as const,
+    pods: (params: ListPodsParams) => ['deliveries', 'pods', params] as const,
+    reviewQueue: (params: ListPodsParams) => ['deliveries', 'review-queue', params] as const,
+    pod: (id: string) => ['deliveries', 'pod', id] as const,
+    review: (id: string) => ['deliveries', 'review', id] as const,
+    exceptions: (params: ListDeliveryExceptionsParams) => ['deliveries', 'exceptions', params] as const,
+    exception: (id: string) => ['deliveries', 'exception', id] as const,
+    settings: ['deliveries', 'settings'] as const,
+    mobile: ['deliveries', 'mobile'] as const,
   },
   masterData: {
     types: ['master-data', 'types'] as const,

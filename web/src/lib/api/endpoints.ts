@@ -64,6 +64,30 @@ import type {
   OrderDto,
   ShipmentDto,
   ShipmentQuotesDto,
+  AttemptRequest,
+  CompleteDeliveryRequest,
+  DeliveryDto,
+  DeliveryExceptionDto,
+  DeliveryExceptionSummaryDto,
+  DeliverySettingDto,
+  DeliverySummaryDto,
+  FailDeliveryRequest,
+  ListDeliveriesParams,
+  ListDeliveryExceptionsParams,
+  ListPodsParams,
+  MobileBundleDto,
+  PodDto,
+  PodEvidenceDto,
+  PodReviewDto,
+  PodSummaryDto,
+  RefuseDeliveryRequest,
+  SaveDeliveryRequest,
+  SyncCommand,
+  SyncResultDto,
+  DeviceContext,
+  EvidenceType,
+  OcrResultDto,
+  ProofRequest,
   MasterEntryDto,
   SaveMasterItemRequest,
   DocumentRuleDto,
@@ -473,4 +497,81 @@ export const masterDataApi = {
   saveCapabilityType: (body: SaveMasterItemRequest) => http.put<MasterEntryDto>(`${v1}/transporters/capability-types`, body).then((r) => r.data),
   documentRules: () => http.get<DocumentRuleDto[]>(`${v1}/transporters/document-rules`).then((r) => r.data),
   saveDocumentRule: (kind: string, body: SaveDocumentRuleRequest) => http.put<DocumentRuleDto>(`${v1}/transporters/document-rules/${kind}`, body).then((r) => r.data),
+}
+
+const dl = (id: string) => `${v1}/deliveries/${id}`
+const pd = (id: string) => `${v1}/pods/${id}`
+
+/** Delivery execution, proof of delivery, exceptions and the mobile app's synchronisation. */
+export const deliveriesApi = {
+  list: (params: ListDeliveriesParams) => http.get<PagedResult<DeliverySummaryDto>>(`${v1}/deliveries`, { params }).then((r) => r.data),
+  get: (id: string) => http.get<DeliveryDto>(dl(id)).then((r) => r.data),
+  create: (body: SaveDeliveryRequest) => http.post<DeliveryDto>(`${v1}/deliveries`, body).then((r) => r.data),
+  assign: (id: string, body: { transporterId: string; transporterReference: string | null; vehicleId: string | null; vehicleReference: string | null; driverName: string | null }) =>
+    http.post<DeliveryDto>(`${dl(id)}/assign`, body).then((r) => r.data),
+  start: (id: string, context: DeviceContext | null) => http.post<DeliveryDto>(`${dl(id)}/start`, context).then((r) => r.data),
+  arrive: (id: string, context: DeviceContext | null) => http.post<DeliveryDto>(`${dl(id)}/arrive`, context).then((r) => r.data),
+  verifyOtp: (id: string, code: string, context: DeviceContext | null) => http.post<DeliveryDto>(`${dl(id)}/otp/verify`, { code, context }).then((r) => r.data),
+  issueOtp: (id: string, context: DeviceContext | null) => http.post<DeliveryDto>(`${dl(id)}/otp/issue`, context).then((r) => r.data),
+  attempt: (id: string, body: AttemptRequest) => http.post<DeliveryDto>(`${dl(id)}/attempt`, body).then((r) => r.data),
+  complete: (id: string, body: CompleteDeliveryRequest) => http.post<DeliveryDto>(`${dl(id)}/complete`, body).then((r) => r.data),
+  fail: (id: string, body: FailDeliveryRequest) => http.post<DeliveryDto>(`${dl(id)}/fail`, body).then((r) => r.data),
+  refuse: (id: string, body: RefuseDeliveryRequest) => http.post<DeliveryDto>(`${dl(id)}/refuse`, body).then((r) => r.data),
+  reschedule: (id: string, plannedDeliveryAt: string) => http.post<DeliveryDto>(`${dl(id)}/reschedule`, { plannedDeliveryAt, windowStart: null, windowEnd: null }).then((r) => r.data),
+  cancel: (id: string, reason: string) => http.post<DeliveryDto>(`${dl(id)}/cancel`, { reason }).then((r) => r.data),
+  close: (id: string, reason: string) => http.post<DeliveryDto>(`${dl(id)}/close`, { reason }).then((r) => r.data),
+  startPod: (id: string) => http.post<PodDto>(`${dl(id)}/pod`).then((r) => r.data),
+
+  pods: (params: ListPodsParams) => http.get<PagedResult<PodSummaryDto>>(`${v1}/pods`, { params }).then((r) => r.data),
+  reviewQueue: (params: ListPodsParams) => http.get<PagedResult<PodSummaryDto>>(`${v1}/pods/review-queue`, { params }).then((r) => r.data),
+  pod: (id: string) => http.get<PodDto>(pd(id)).then((r) => r.data),
+  podForReview: (id: string) => http.get<PodReviewDto>(`${pd(id)}/review`).then((r) => r.data),
+  updateProof: (id: string, proof: ProofRequest) => http.put<PodDto>(`${pd(id)}/proof`, { proof }).then((r) => r.data),
+  submitPod: (id: string) => http.post<PodDto>(`${pd(id)}/submit`).then((r) => r.data),
+  validatePod: (id: string) => http.post<PodDto>(`${pd(id)}/validate`).then((r) => r.data),
+  reviewPod: (id: string, action: 'accept' | 'reject' | 'resubmission', reason: string | null) => http.post<PodDto>(`${pd(id)}/review`, { action, reason }).then((r) => r.data),
+  requestCorrection: (id: string, reason: string) => http.post<PodDto>(`${pd(id)}/correction`, { reason }).then((r) => r.data),
+  addEvidence: (id: string, file: Blob, type: EvidenceType, fix: { latitude?: number | null; longitude?: number | null; accuracyM?: number | null } | null, clientRecordId: string, device: string | null) => {
+    const form = new FormData()
+    form.set('file', file, 'capture')
+    form.set('type', type)
+    form.set('clientRecordId', clientRecordId)
+    if (device) form.set('deviceReference', device)
+    if (fix?.latitude != null && fix.longitude != null) {
+      form.set('latitude', String(fix.latitude))
+      form.set('longitude', String(fix.longitude))
+      if (fix.accuracyM != null) form.set('accuracyM', String(fix.accuracyM))
+    }
+    return http.post<PodEvidenceDto>(`${pd(id)}/evidence`, form, { headers: { 'Idempotency-Key': clientRecordId } }).then((r) => r.data)
+  },
+  removeEvidence: (id: string, evidenceId: string, reason: string) => http.delete<PodDto>(`${pd(id)}/evidence/${evidenceId}`, { params: { reason } }).then((r) => r.data),
+  addSignature: (id: string, file: Blob, signerName: string) => {
+    const form = new FormData()
+    form.set('file', file, 'signature.png')
+    form.set('signerName', signerName)
+    return http.post(`${pd(id)}/signature`, form).then((r) => r.data)
+  },
+  evidenceUrl: (evidenceId: string) => `${v1}/pod-evidence/${evidenceId}/file`,
+  signatureUrl: (signatureId: string) => `${v1}/pod-signatures/${signatureId}/file`,
+  fetchFile: (url: string) => http.get<Blob>(url, { responseType: 'blob' }).then((r) => r.data),
+  queueOcr: (id: string) => http.post<OcrResultDto>(`${pd(id)}/ocr`).then((r) => r.data),
+  reviewOcrField: (id: string, field: string, value: string, reason: string) => http.post<PodDto>(`${pd(id)}/ocr/review`, { field, value, reason }).then((r) => r.data),
+
+  exceptions: (params: ListDeliveryExceptionsParams) => http.get<PagedResult<DeliveryExceptionSummaryDto>>(`${v1}/delivery-exceptions`, { params }).then((r) => r.data),
+  exception: (id: string) => http.get<DeliveryExceptionDto>(`${v1}/delivery-exceptions/${id}`).then((r) => r.data),
+  raiseException: (body: { deliveryId: string; type: string; description: string; severity: string | null }) => http.post<DeliveryExceptionDto>(`${v1}/delivery-exceptions`, body).then((r) => r.data),
+  acknowledgeException: (id: string) => http.post<DeliveryExceptionDto>(`${v1}/delivery-exceptions/${id}/acknowledge`).then((r) => r.data),
+  assignException: (id: string, body: { ownerUserId: string | null; department: string | null; dueAt: string | null; severity: string | null }) =>
+    http.post<DeliveryExceptionDto>(`${v1}/delivery-exceptions/${id}/assign`, body).then((r) => r.data),
+  escalateException: (id: string, reason: string) => http.post<DeliveryExceptionDto>(`${v1}/delivery-exceptions/${id}/escalate`, { reason }).then((r) => r.data),
+  noteException: (id: string, text: string) => http.post<DeliveryExceptionDto>(`${v1}/delivery-exceptions/${id}/notes`, { text }).then((r) => r.data),
+  resolveException: (id: string, body: { resolution: string; rootCause: string | null; responsibleParty: string; actionTaken: string | null; financialImpact: number | null; claimReference: string | null }) =>
+    http.post<DeliveryExceptionDto>(`${v1}/delivery-exceptions/${id}/resolve`, body).then((r) => r.data),
+  closeException: (id: string) => http.post<DeliveryExceptionDto>(`${v1}/delivery-exceptions/${id}/close`).then((r) => r.data),
+
+  mobileDeliveries: (transporterId?: string) => http.get<MobileBundleDto>(`${v1}/mobile/deliveries`, { params: { transporterId } }).then((r) => r.data),
+  sync: (deviceId: string, commands: SyncCommand[]) => http.post<{ results: SyncResultDto[] }>(`${v1}/mobile/sync`, { deviceId, commands }).then((r) => r.data),
+
+  settings: () => http.get<DeliverySettingDto[]>(`${v1}/delivery-settings`).then((r) => r.data),
+  saveSetting: (key: string, value: unknown) => http.put<DeliverySettingDto>(`${v1}/delivery-settings/${key}`, value).then((r) => r.data),
 }

@@ -33,6 +33,15 @@ const DeliveriesPage = lazy(() => import('@/features/shipments/DeliveriesPage').
 const ShipmentsPage = lazy(() => import('@/features/shipments/ShipmentsPage').then((m) => ({ default: m.ShipmentsPage })))
 const ShipmentDetailPage = lazy(() => import('@/features/shipments/ShipmentDetailPage').then((m) => ({ default: m.ShipmentDetailPage })))
 const RateMastersPage = lazy(() => import('@/features/contracts/RateMastersPage').then((m) => ({ default: m.RateMastersPage })))
+const DeliveriesListPage = lazy(() => import('@/features/deliveries/DeliveriesListPage').then((m) => ({ default: m.DeliveriesListPage })))
+const DeliveryDetailPage = lazy(() => import('@/features/deliveries/DeliveryDetailPage').then((m) => ({ default: m.DeliveryDetailPage })))
+const PodsListPage = lazy(() => import('@/features/deliveries/PodsListPage').then((m) => ({ default: m.PodsListPage })))
+const PodDetailPage = lazy(() => import('@/features/deliveries/PodDetailPage').then((m) => ({ default: m.PodDetailPage })))
+const ExceptionsPage = lazy(() => import('@/features/deliveries/ExceptionsPage').then((m) => ({ default: m.ExceptionsPage })))
+const DeliverySettingsPage = lazy(() => import('@/features/deliveries/DeliverySettingsPage').then((m) => ({ default: m.DeliverySettingsPage })))
+const DriverArea = lazy(() => import('@/features/deliveries/DriverArea').then((m) => ({ default: m.DriverArea })))
+const MobileDeliveriesPage = lazy(() => import('@/features/deliveries/MobileDeliveriesPage').then((m) => ({ default: m.MobileDeliveriesPage })))
+const MobileDeliveryPage = lazy(() => import('@/features/deliveries/MobileDeliveryPage').then((m) => ({ default: m.MobileDeliveryPage })))
 const AuditLogPage = lazy(() => import('@/features/audit/AuditLogPage').then((m) => ({ default: m.AuditLogPage })))
 
 /** Vendor-portal users land on their own company record. */
@@ -109,6 +118,24 @@ export function App() {
             <Route path="shipments" element={<ShipmentsPage />} />
             <Route path="deliveries" element={<DeliveriesPage />} />
             <Route path="shipments/:id" element={<ShipmentDetailPage />} />
+          </Route>
+          <Route path="delivery">
+            <Route element={<RequireAnyPermission permissions={['deliveries.read', 'deliveries.manage', 'deliveries.pod.review', 'deliveries.execute']} />}>
+              <Route index element={<DeliveriesListPage />} />
+              <Route path="pods" element={<PodsListPage />} />
+              <Route path="pods/:id" element={<PodDetailPage />} />
+              <Route path="exceptions" element={<ExceptionsPage />} />
+              <Route path=":id" element={<DeliveryDetailPage />} />
+            </Route>
+            <Route element={<RequirePermission permission="deliveries.configure" />}>
+              <Route path="settings" element={<DeliverySettingsPage />} />
+            </Route>
+          </Route>
+          <Route element={<RequirePermission permission="deliveries.execute" />}>
+            <Route path="driver" element={<DriverArea />}>
+              <Route index element={<MobileDeliveriesPage />} />
+              <Route path=":id" element={<MobileDeliveryPage />} />
+            </Route>
           </Route>
           <Route path="admin">
             <Route index element={<Navigate to="users" replace />} />

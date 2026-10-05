@@ -2041,3 +2041,427 @@ export interface SaveBranchRequest {
   isActive: boolean
   version: number | null
 }
+
+// ---- Deliveries and proof of delivery (module 'pd')
+
+export type DeliveryStatus = 'Planned' | 'Assigned' | 'EnRoute' | 'Arrived' | 'Attempted' | 'Delivered' | 'PartiallyDelivered' | 'Refused' | 'Failed' | 'Closed' | 'Cancelled'
+export type DeliveryOutcome = 'Full' | 'Partial' | 'Shortage' | 'Damaged' | 'Refused' | 'Failed'
+export type RemainingDisposition = 'Backorder' | 'Reschedule' | 'Return' | 'Cancel' | 'Exception'
+export type ProofStatus = 'Pending' | 'Draft' | 'Captured' | 'Submitted' | 'UnderReview' | 'Accepted' | 'Rejected' | 'ResubmissionRequired' | 'Cancelled'
+export type ProofMethod = 'Signature' | 'Otp' | 'Photo' | 'Contactless'
+export type EvidenceType = 'PackagePhoto' | 'DamagePhoto' | 'LocationPhoto' | 'SitePhoto' | 'SealPhoto' | 'VehiclePhoto' | 'PodDocument'
+export type GeofenceStatus = 'NotApplicable' | 'Inside' | 'Outside' | 'GpsUnavailable' | 'AccuracyInsufficient'
+export type ValidationOutcome = 'Valid' | 'Warning' | 'RequiresReview' | 'Invalid'
+export type OcrStatus = 'Queued' | 'Processing' | 'Completed' | 'Failed'
+export type OcrFieldStatus = 'NotChecked' | 'Matched' | 'Mismatch' | 'LowConfidence'
+export type DiscrepancyType = 'Shortage' | 'Damage' | 'Rejection'
+export type DeliveryEventType =
+  | 'Created' | 'Assigned' | 'Started' | 'Arrived' | 'AttemptFailed' | 'Delivered' | 'PartiallyDelivered' | 'Failed' | 'Refused' | 'Rescheduled' | 'Cancelled' | 'Closed' | 'OtpIssued' | 'OtpVerified'
+export type DeliveryExceptionType =
+  | 'Shortage' | 'Damage' | 'CustomerRefusal' | 'DeliveryFailed' | 'LateDelivery' | 'AddressIssue' | 'PodMissing' | 'PodRejected' | 'QuantityMismatch' | 'GpsException'
+  | 'SignatureMissing' | 'OcrValidationFailed' | 'DuplicatePod' | 'PartialDelivery'
+export type DeliveryExceptionStatus = 'Open' | 'Acknowledged' | 'UnderInvestigation' | 'ActionRequired' | 'Resolved' | 'Closed' | 'Escalated'
+export type DeliveryExceptionSeverity = 'Low' | 'Medium' | 'High' | 'Critical'
+export type ResponsibleParty = 'Unknown' | 'Transporter' | 'Warehouse' | 'Customer' | 'Supplier'
+export type SyncStatus = 'Pending' | 'Synced' | 'Failed' | 'Conflict'
+
+export interface GeoDto {
+  latitude: number | null
+  longitude: number | null
+  accuracyM: number | null
+}
+
+/** Sent with every action from a device: where it was, which device, and when it really happened (it may have been offline). */
+export interface DeviceContext {
+  fix: GeoDto | null
+  deviceReference: string | null
+  at: string | null
+}
+
+export interface DeliveryItemDto {
+  id: string
+  sku: string
+  description: string
+  orderedQuantity: number
+  dispatchedQuantity: number
+  deliveredQuantity: number | null
+  shortQuantity: number
+  damagedQuantity: number
+  rejectedQuantity: number
+  unitOfMeasure: string
+  remarks: string | null
+  shortageReasonCode: string | null
+  damageType: string | null
+  damageReason: string | null
+  damageDescription: string | null
+  unaccounted: number | null
+}
+
+export interface DeliverySummaryDto {
+  id: string
+  number: string
+  shipmentReference: string | null
+  customerName: string
+  destinationReference: string | null
+  transporterId: string | null
+  transporterReference: string | null
+  vehicleReference: string | null
+  plannedDeliveryAt: string
+  actualDeliveryAt: string | null
+  status: DeliveryStatus
+  outcome: DeliveryOutcome | null
+  podStatus: ProofStatus
+  podId: string | null
+  hasDiscrepancy: boolean
+  openExceptions: number
+}
+
+export interface DeliveryDto {
+  summary: DeliverySummaryDto
+  orderReference: string | null
+  loadReference: string | null
+  tripReference: string | null
+  lrNumber: string | null
+  sequence: number
+  driverName: string | null
+  customerReference: string | null
+  customerPhone: string | null
+  customerEmail: string | null
+  originReference: string | null
+  destinationAddress: string | null
+  customerLatitude: number | null
+  customerLongitude: number | null
+  geofenceRadiusM: number | null
+  windowStart: string | null
+  windowEnd: string | null
+  actualArrivalAt: string | null
+  remainingDisposition: RemainingDisposition | null
+  hasQuantityMismatch: boolean
+  otpIssued: boolean
+  otpVerified: boolean
+  items: DeliveryItemDto[]
+  attempts: { attemptNumber: number; attemptedAt: string; result: 'Failed' | 'Delivered'; reasonCode: string | null; recipientName: string | null; driverRemarks: string | null; customerRemarks: string | null; latitude: number | null; longitude: number | null }[]
+  events: { at: string; type: DeliveryEventType; latitude: number | null; longitude: number | null; deviceReference: string | null; remarks: string | null }[]
+  discrepancies: { id: string; itemId: string; sku: string; type: DiscrepancyType; quantity: number; reasonCode: string | null; description: string | null; customerAcknowledged: boolean; claimReference: string | null }[]
+  reconciliation: { itemId: string; sku: string; dispatched: number; accounted: number; unaccounted: number; reconciled: boolean; problems: string[] }[]
+  version: number
+}
+
+export interface ListDeliveriesParams {
+  status?: DeliveryStatus
+  podStatus?: ProofStatus
+  search?: string
+  transporterId?: string
+  customer?: string
+  from?: string
+  to?: string
+  hasException?: boolean
+  hasDiscrepancy?: boolean
+  page?: number
+  pageSize?: number
+}
+
+export interface SaveDeliveryRequest {
+  shipmentReference: string | null
+  orderReference: string | null
+  loadReference: string | null
+  tripReference: string | null
+  lrNumber: string | null
+  sequence: number
+  transporterId: string | null
+  transporterReference: string | null
+  vehicleId: string | null
+  vehicleReference: string | null
+  driverName: string | null
+  customerReference: string | null
+  customerName: string
+  customerPhone: string | null
+  customerEmail: string | null
+  originReference: string | null
+  destinationReference: string | null
+  destinationAddress: string | null
+  customerLatitude: number | null
+  customerLongitude: number | null
+  geofenceRadiusM: number | null
+  plannedDeliveryAt: string
+  windowStart: string | null
+  windowEnd: string | null
+  items: { sku: string; description: string; orderedQuantity: number; dispatchedQuantity: number | null; unitOfMeasure: string | null }[]
+  version?: number | null
+}
+
+export interface ItemQuantityRequest {
+  itemId: string
+  deliveredQuantity: number
+  shortQuantity: number
+  damagedQuantity: number
+  rejectedQuantity: number
+  shortageReasonCode: string | null
+  damageType: string | null
+  damageReason: string | null
+  damageDescription: string | null
+  remarks: string | null
+}
+
+export interface ProofRequest {
+  method: ProofMethod
+  recipientName: string | null
+  recipientDesignation: string | null
+  recipientPhone: string | null
+  recipientRemarks: string | null
+  driverConfirmed: boolean
+  customerAcknowledged: boolean
+}
+
+export interface CompleteDeliveryRequest {
+  outcome: DeliveryOutcome
+  items: ItemQuantityRequest[]
+  remainingDisposition: RemainingDisposition | null
+  driverRemarks: string | null
+  proof: ProofRequest
+  context: DeviceContext | null
+}
+
+export interface AttemptRequest {
+  reasonCode: string
+  driverRemarks: string | null
+  customerRemarks: string | null
+  recipientName: string | null
+  context: DeviceContext | null
+}
+
+export interface FailDeliveryRequest {
+  reasonCode: string
+  remarks: string | null
+  context: DeviceContext | null
+}
+
+export interface RefuseDeliveryRequest {
+  reasonCode: string
+  recipientName: string | null
+  remarks: string | null
+  customerAcknowledged: boolean
+  context: DeviceContext | null
+}
+
+export interface PodEvidenceDto {
+  id: string
+  type: EvidenceType
+  fileName: string
+  contentType: string
+  sizeBytes: number
+  fileHash: string
+  capturedAt: string
+  latitude: number | null
+  longitude: number | null
+  deviceReference: string | null
+  width: number | null
+  height: number | null
+  warnings: string | null
+  removed: boolean
+  removedReason: string | null
+}
+
+export interface PodSummaryDto {
+  id: string
+  podNumber: string
+  version: number
+  isCurrent: boolean
+  deliveryId: string
+  deliveryNumber: string
+  customerName: string
+  transporterReference: string | null
+  status: ProofStatus
+  deliveredAt: string | null
+  submittedAt: string | null
+  approvedAt: string | null
+  hoursSinceSubmitted: number | null
+  validation: ValidationOutcome
+  hasDiscrepancy: boolean
+  ocr: OcrStatus | null
+}
+
+export interface OcrFieldDto {
+  name: string
+  rawValue: string | null
+  normalizedValue: string | null
+  confidence: number
+  status: OcrFieldStatus
+  message: string | null
+  reviewedValue: string | null
+  effectiveValue: string | null
+  expected: string | null
+  threshold: number
+}
+
+export interface OcrResultDto {
+  id: string
+  evidenceId: string
+  provider: string
+  status: OcrStatus
+  overallConfidence: number | null
+  queuedAt: string
+  processedAt: string | null
+  error: string | null
+  fields: OcrFieldDto[]
+}
+
+export interface PodDto {
+  summary: PodSummaryDto
+  method: ProofMethod | null
+  recipientName: string | null
+  recipientDesignation: string | null
+  recipientPhone: string | null
+  arrivalAt: string | null
+  capturedAt: string
+  reviewedAt: string | null
+  latitude: number | null
+  longitude: number | null
+  gpsAccuracy: number | null
+  geofence: GeofenceStatus
+  driverRemarks: string | null
+  recipientRemarks: string | null
+  driverConfirmed: boolean
+  otpVerified: boolean
+  customerAcknowledged: boolean
+  rejectionReason: string | null
+  rejectionCount: number
+  autoAccepted: boolean
+  items: { deliveryItemId: string; sku: string; orderedQuantity: number; dispatchedQuantity: number; deliveredQuantity: number; shortQuantity: number; damagedQuantity: number; rejectedQuantity: number; remarks: string | null }[]
+  evidence: PodEvidenceDto[]
+  signatures: { id: string; signerName: string; signerDesignation: string | null; capturedAt: string; latitude: number | null; longitude: number | null; verificationMethod: string }[]
+  validations: { type: string; check: string; status: ValidationOutcome; message: string; validatedAt: string }[]
+  reviews: { at: string; action: string; fieldName: string | null; oldValue: string | null; newValue: string | null; reason: string | null; by: string | null }[]
+  ocr: OcrResultDto[]
+  missing: string[]
+  rowVersion: number
+}
+
+export interface PodReviewDto {
+  pod: PodDto
+  delivery: DeliveryDto
+  documentEvidenceId: string | null
+  ocr: OcrResultDto | null
+}
+
+export interface ListPodsParams {
+  status?: ProofStatus
+  search?: string
+  transporterId?: string
+  overdue?: boolean
+  currentOnly?: boolean
+  page?: number
+  pageSize?: number
+}
+
+export interface DeliveryExceptionSummaryDto {
+  id: string
+  number: string
+  deliveryId: string
+  deliveryNumber: string
+  customerName: string | null
+  transporterReference: string | null
+  vehicleReference: string | null
+  podId: string | null
+  type: DeliveryExceptionType
+  severity: DeliveryExceptionSeverity
+  status: DeliveryExceptionStatus
+  ownerUserId: string | null
+  department: string | null
+  raisedAt: string
+  dueAt: string
+  overdue: boolean
+  ageHours: number
+  claimReference: string | null
+}
+
+export interface DeliveryExceptionDto {
+  summary: DeliveryExceptionSummaryDto
+  description: string
+  rootCause: string | null
+  responsibleParty: ResponsibleParty
+  actionTaken: string | null
+  resolution: string | null
+  financialImpact: number | null
+  resolvedAt: string | null
+  escalatedAt: string | null
+  notes: { at: string; text: string; by: string | null }[]
+  version: number
+}
+
+export interface ListDeliveryExceptionsParams {
+  type?: DeliveryExceptionType
+  status?: DeliveryExceptionStatus
+  severity?: DeliveryExceptionSeverity
+  transporterId?: string
+  deliveryId?: string
+  openOnly?: boolean
+  overdue?: boolean
+  page?: number
+  pageSize?: number
+}
+
+export interface ReasonSetting {
+  code: string
+  name: string
+  evidenceRequired: boolean
+}
+
+export interface PodRulesSetting {
+  signatureRequired: boolean
+  otpRequired: boolean
+  gpsRequired: boolean
+  photoRequired: boolean
+  minPhotos: number
+  geofenceRequired: boolean
+  contactlessAllowed: boolean
+  galleryAllowed: boolean
+  maxGpsAccuracyM: number
+  otpValidityMinutes: number
+  otpMaxAttempts: number
+}
+
+export interface MobileConfigDto {
+  pod: PodRulesSetting
+  attemptReasons: ReasonSetting[]
+  shortageReasons: ReasonSetting[]
+  damageTypes: ReasonSetting[]
+  refusalReasons: ReasonSetting[]
+  quantity: { overDeliveryPct: number; blockUnreconciledCompletion: boolean }
+  discrepancy: { shortageAcknowledgementRequired: boolean; damageAcknowledgementRequired: boolean; refusalAcknowledgementRequired: boolean; autoCreateClaim: boolean }
+  images: { maxBytes: number; minWidth: number; minHeight: number; rejectLowResolution: boolean }
+}
+
+export interface MobileBundleDto {
+  deliveries: { delivery: DeliveryDto; pod: PodDto | null }[]
+  config: MobileConfigDto
+  downloadedAt: string
+}
+
+export type SyncOperation = 'start' | 'arrive' | 'attempt' | 'complete' | 'fail' | 'refuse' | 'otp-verify' | 'otp-issue'
+
+export interface SyncCommand {
+  clientRecordId: string
+  type: SyncOperation
+  deliveryId: string
+  clientCreatedAt: string
+  clientUpdatedAt: string
+  payload: unknown
+}
+
+export interface SyncResultDto {
+  clientRecordId: string
+  status: SyncStatus
+  duplicate: boolean
+  attempt: number
+  error: string | null
+  errorCode: string | null
+  deliveryStatus: DeliveryStatus | null
+  podId: string | null
+}
+
+export interface DeliverySettingDto {
+  key: string
+  value: unknown
+  isCustomised: boolean
+}
