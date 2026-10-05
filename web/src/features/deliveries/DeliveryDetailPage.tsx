@@ -158,6 +158,14 @@ export function DeliveryDetailPage() {
               )}
               {!isVendor && <Link to={`/delivery/exceptions?deliveryId=${id}`}>Manage exceptions</Link>}
             </Card>
+            {!isVendor && (
+              <AuditPanel subjects={[
+                { entityType: 'Delivery', entityId: id },
+                ...(s.podId ? [{ entityType: 'PodRecord', entityId: s.podId }] : []),
+                ...(exceptions.data?.items ?? []).map((e) => ({ entityType: 'DeliveryException', entityId: e.id })),
+                ...d.discrepancies.map((x) => ({ entityType: 'DeliveryDiscrepancy', entityId: x.id })),
+              ]} />
+            )}
           </Flex>
         </Col>
         <Col xs={24} xl={8}>
@@ -193,14 +201,6 @@ export function DeliveryDetailPage() {
                 }))}
               />
             </Card>
-            {!isVendor && (
-              <AuditPanel subjects={[
-                { entityType: 'Delivery', entityId: id },
-                ...(s.podId ? [{ entityType: 'PodRecord', entityId: s.podId }] : []),
-                ...(exceptions.data?.items ?? []).map((e) => ({ entityType: 'DeliveryException', entityId: e.id })),
-                ...d.discrepancies.map((x) => ({ entityType: 'DeliveryDiscrepancy', entityId: x.id })),
-              ]} />
-            )}
           </Flex>
         </Col>
       </Row>

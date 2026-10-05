@@ -19,7 +19,7 @@ function Tile({ title, value, to, warn }: { title: string; value: number | strin
 function AgeingWidget({ ageing, onDrill }: { ageing: ProofAgeingDto; onDrill: (stage?: AgeingStage, bucket?: number) => void }) {
   const total = Math.max(1, ...ageing.bucketTotals)
   return (
-    <Card title="Proof ageing" extra={<Typography.Text type="secondary">Click a number to see the deliveries</Typography.Text>}>
+    <Card title="Proof ageing" extra={<Typography.Text type="secondary">Everything still waiting, whatever its date. Click a card or a bar to see the deliveries.</Typography.Text>}>
       <Row gutter={[12, 12]}>
         {ageing.stages.map((s) => (
           <Col xs={12} md={6} key={s.stage}>
@@ -84,6 +84,8 @@ export function DeliveryDashboardPage() {
     queryKey: queryKeys.deliveries.ageingItems(drill ?? {}), queryFn: () => deliveriesApi.ageingItems({ stage: drill?.stage, bucket: drill?.bucket, pageSize: 50 }), enabled: drill !== null,
   })
   const s = summary.data
+  const stageLabel = (stage: AgeingStage) => ageing.data?.stages.find((x) => x.stage === stage)?.label ?? stage
+  const drillTitle = [drill?.stage ? stageLabel(drill.stage) : null, drill?.bucket != null ? ageing.data?.bucketLabels[drill.bucket] : null].filter(Boolean).join(' · ') || 'Deliveries waiting on a proof'
 
   return (
     <>
@@ -117,13 +119,13 @@ export function DeliveryDashboardPage() {
         </Flex>
       )}
 
-      <Drawer open={drill !== null} onClose={() => setDrill(null)} size="large" title="Waiting for a proof" destroyOnHidden>
+      <Drawer open={drill !== null} onClose={() => setDrill(null)} size={940} destroyOnHidden title={drillTitle}>
         <Table
           size="small" rowKey="deliveryId" loading={items.isLoading} pagination={false} dataSource={items.data?.items} scroll={{ x: 'max-content' }}
           columns={[
             { title: 'Delivery', key: 'd', render: (_, i) => <Link to={i.podId ? `/delivery/pods/${i.podId}` : `/delivery/${i.deliveryId}`}>{i.deliveryNumber}</Link> },
             { title: 'Customer', dataIndex: 'customerName' }, { title: 'Transporter', dataIndex: 'transporterReference', render: (v: string | null) => v ?? '—' },
-            { title: 'Waiting for', dataIndex: 'stage' }, { title: 'Age', key: 'a', render: (_, i) => `${i.bucket} · ${i.ageHours} h` },
+            { title: 'Waiting for', dataIndex: 'stage', render: (v: AgeingStage) => stageLabel(v) }, { title: 'Age', key: 'a', render: (_, i) => `${i.bucket} · ${i.ageHours} h` },
             { title: '', dataIndex: 'overdue', render: (v: boolean, i) => (v ? <Tag color="red">Past {i.targetHours} h</Tag> : null) },
           ]}
         />
