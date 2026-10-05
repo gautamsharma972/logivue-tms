@@ -72,6 +72,12 @@ Tendering to several transporters is a `TenderRound` in Shipments (sequential or
 prices or other invitees). Document-paper rules and master lists are per-tenant data over built-in defaults (`DocumentPolicy`, `MasterCatalog`);
 never hard-code which papers are required.
 
+## Deliveries and proof of delivery
+Module `Tms.Modules.Deliveries` (`docs/POD_DELIVERY_MANAGEMENT_INTEGRATION.md`, tables `pd_*`): delivery execution, versioned PODs, OCR review, exceptions, offline sync.
+Delivered is not accepted: delivery status and POD status are separate. Quantities are reported as given and a difference is raised, never absorbed. An accepted POD is
+never edited (a correction is a new version). Blame is a finding, never a default (`ResponsibleParty.Unknown`). Mobile commands are idempotent by client key. Evidence files are
+only served through authenticated endpoints. Policy (required evidence, reasons, thresholds, auto-accept) lives in per-tenant settings, never in code. It reads Shipments only through `IShipmentDeliveryFeed`.
+
 ## Vendor portal (transporter users)
 A user of type `Transporter` carries a `trn` claim (`ICurrentUser.TransporterId`). Any module serving transporter-owned data
 must scope by it and answer another company's ids with **404, not 403**. In Transporters this lives in `TransporterAccess`;
