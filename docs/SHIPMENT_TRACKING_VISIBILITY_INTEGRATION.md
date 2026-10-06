@@ -35,10 +35,10 @@ predictions), and **no `st_tracking_audit_logs`** (all writes go to the platform
 Mobile (permission `tracking.execute`, a vendor sees only its own carrier's trips): `GET mobile/tracking/trips`, `GET mobile/tracking/trips/{trip}`, `POST …/start`, `…/stop`, `…/location`,
 `…/location/batch`, `…/status`, `…/sync` (replays everything saved offline; every command carries a client key, repeating it changes nothing).
 Staff: `GET tracking/shipments` (+ `/{id}`, `/current-location`, `/timeline`, `/eta`, `/route`, `/locations`, `/exceptions`, `/health`, `/analytics`, `/evidence`, `/links`), `POST …/eta/override`,
-`DELETE …/eta/override`, `POST …/milestones`, `POST …/delay-reason`, `POST tracking/deviations/{id}/reason`, `POST tracking/eta/recalculate`; `GET control-tower/{summary,shipments,map,exceptions,vehicles}`;
+`DELETE …/eta/override`, `POST …/milestones`, `POST …/delay-reason`, `POST tracking/deviations/{id}/reason`, `POST tracking/eta/recalculate`; `GET tracking/shipments/{id}/replay` (play-back points: the raw GPS while it exists, else the saved simplified path), `GET tracking/compliance` (tracking coverage and driver behaviour, by transporter, driver or vehicle); `GET control-tower/{summary,shipments,map,exceptions,vehicles}`;
 `GET tracking/vehicles`, `/{vehicle}/current`, `/{vehicle}/history`; geofences CRUD; alerts (list, acknowledge, resolve); exceptions (list, get, acknowledge, assign, escalate, resolve, close, notes);
 `POST tracking/links`, `POST tracking/links/{id}/revoke`; `GET/PUT tracking/settings/{key}`; `GET tracking/reports/{report}` (CSV/Excel: shipments, vehicles, deviations, dwell, eta-accuracy, tracking-health, delays,
-exceptions, planned-vs-actual). Anonymous: `GET public/tracking/{token}` (rate-limited, every failure is a 404). Live: SignalR hub `/hubs/tracking` (events `position`, `alert`, `exception`, `notification`);
+exceptions, planned-vs-actual, compliance). Anonymous: `GET public/tracking/{token}` (rate-limited, every failure is a 404). Live: SignalR hub `/hubs/tracking` (events `position`, `alert`, `exception`, `notification`);
 the web falls back to polling every 20 s and says so.
 
 ## Permissions
@@ -48,6 +48,17 @@ the web falls back to polling every 20 s and says so.
 validate (accuracy, speed, jumps, timestamps, mock flag, repeats) → dedupe by client id → store (suspicious points are kept but **never** move the vehicle, fire a geofence or feed an ETA; late points are history only)
 → current position → route progress (match to the road, never backwards beyond tolerance) → geofence (needs N consecutive fixes or S seconds, ignores poor accuracy) → deviation → dwell/unplanned stop →
 ETA and risk → alerts and exceptions → events → live push. Risk: delay ≤10 min on time, ≤30 at risk, ≤60 delayed, above that severely delayed; confidence is capped at 0.95.
+
+## Retention, replay and the saved path
+Raw GPS is kept per tenant for `tracking.retention.rawLocationDays` (default 90) and the simplified path for `aggregatedRouteDays` (default 365). When a trip completes, its path is simplified (Douglas-Peucker, 25 m,
+points either side of a silence kept) and stored on the trip (`ActualRouteJson`). A daily `RetentionWorker` (`Tracking:Retention:Enabled` / `IntervalHours`) deletes the raw points of *finished* trips past the period
+(writing the summary first if it was missing) and drops ETA predictions other than the final destination's; a trip still on the road keeps every point. Milestones, events, alerts and exceptions are never purged.
+The replay page plays the raw points while they exist and the saved path afterwards, and says which it is showing. Actual-route reads for other modules fall back to the saved path as well.
+
+## Compliance
+`GET tracking/compliance` reports coverage (time with a location over the time the trip ran), gaps, stale/lost trips, and driver behaviour: started tracking within a tolerance of the planned start, kept tracking
+at or above a coverage floor, stopped by completing the trip, repeated gaps. Thresholds are `tracking.compliance`. A rate with nothing to measure is null ("Not measurable"), never zero, and nothing here changes a
+transporter's score.
 
 ## Alerts and exceptions
 An alert is automatic, de-duplicated by a key and resolves itself when its cause clears. An exception needs a person, is raised only by rules marked `CreatesException`, and is **never** auto-resolved
@@ -75,13 +86,13 @@ Transporters (`TrackingObservation`, subscriber, handler, migration `TrackingObs
 - Trip reference = shipment number (one number for both).
 - No `st_route_progress` / `st_tracking_audit_logs` (above).
 - Map pins are merged by a small built-in grid cluster, not a clustering library.
+- Some §89 components are not separate files (`VehicleMarker` and `GeofenceOverlay` live inside `TrackingMap`; the geofence circle is drawn there for stops only). The overview page is `TrackingDashboardPage`; driver screens are `DriverTrackingPage` (my trips), `DriverTripPage` and `DriverTrackingSyncPage`.
 
 ## Known limits (said plainly)
 - **The browser driver page cannot track in the background**: it works only while open with the screen on (it requests a wake lock). It is a stand-in for a native app; the API is ready for one.
 - No server-side map matching: a point is matched to the planned route only. Without a road server (OSRM) the route is a straight-line estimate and the page says so.
 - The ETA is rule-based (remaining distance, recent speed, standing time, planned dwell), not a learned model; there is no live traffic.
 - A GPS device, telematics or carrier-API provider is not built; each is another class behind `ITrackingLocationProvider`.
-- **No history replay player yet**: the trip's *Live map* draws the trail and the *Location history* tab lists every point (with suspicious ones on request), but there is no play/pause/speed control.
 - Map tiles come from OpenStreetMap's public server: fine for office use, not for heavy traffic.
 - Notifications beyond in-app (email, SMS, WhatsApp) are not built; the notification service is an interface with only the in-app implementation.
 - Geofences are circles on the web screen (the API also accepts polygons); there is no draw-on-map editor.

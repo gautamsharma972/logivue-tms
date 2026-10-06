@@ -1,12 +1,13 @@
 import { useQuery } from '@tanstack/react-query'
-import { Alert, Badge, Button, Card, Col, Descriptions, Drawer, Flex, Input, Row, Select, Statistic, Table, Tag, Typography } from 'antd'
+import { Alert, Badge, Button, Card, Col, Drawer, Row, Statistic, Table, Tag, Typography } from 'antd'
 import { lazy, Suspense, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { PageHeader } from '@/components/PageHeader'
 import { trackingApi } from '@/lib/api/endpoints'
 import { queryKeys } from '@/lib/api/queryKeys'
-import type { ListTrackedParams, RiskStatus, TrackedSummaryDto, TrackingHealth } from '@/lib/api/types'
-import { Age, clock, Delay, executionLabel, HealthTag, healthLabel, km, RiskTag, riskLabel } from './shared'
+import type { ListTrackedParams, TrackedSummaryDto } from '@/lib/api/types'
+import { ControlTowerFilters, ShipmentTrackingPanel } from './components'
+import { HealthTag, RiskTag } from './shared'
 import { useTrackingLive } from './useTrackingLive'
 
 const TrackingMap = lazy(() => import('./TrackingMap'))
@@ -56,16 +57,7 @@ export function ControlTowerPage() {
         ))}
       </Row>
 
-      <Flex gap={8} wrap style={{ marginBottom: 12 }}>
-        <Input.Search allowClear placeholder="Shipment, trip, vehicle or driver" style={{ width: 280 }} onSearch={(search) => setFilters((f) => ({ ...f, search: search || undefined }))} />
-        <Select<TrackingHealth> allowClear placeholder="Tracking" style={{ width: 150 }} value={filters.tracking} onChange={(tracking) => setFilters((f) => ({ ...f, tracking }))}
-          options={(Object.keys(healthLabel) as TrackingHealth[]).map((v) => ({ value: v, label: healthLabel[v] }))} />
-        <Select<RiskStatus> allowClear placeholder="Risk" style={{ width: 160 }} value={filters.risk} onChange={(risk) => setFilters((f) => ({ ...f, risk }))}
-          options={(Object.keys(riskLabel) as RiskStatus[]).map((v) => ({ value: v, label: riskLabel[v] }))} />
-        <Select allowClear placeholder="Exceptions" style={{ width: 150 }} value={filters.hasException} onChange={(hasException) => setFilters((f) => ({ ...f, hasException }))}
-          options={[{ value: true, label: 'With exceptions' }, { value: false, label: 'Without' }]} />
-        <Button onClick={() => setFilters({ activeOnly: true, pageSize: 100 })}>Reset</Button>
-      </Flex>
+      <ControlTowerFilters value={filters} onChange={setFilters} />
 
       <Row gutter={16}>
         <Col xs={24} xl={14}>
@@ -98,22 +90,7 @@ export function ControlTowerPage() {
 
       <Drawer title={chosen ? `${chosen.tripReference} · ${chosen.vehicleReference ?? 'No vehicle'}` : ''} open={!!chosen} onClose={() => setSelected(null)} size={420}
         extra={chosen && <Link to={`/tracking/shipments/${chosen.id}`}><Button type="primary">Open details</Button></Link>}>
-        {chosen && (
-          <Descriptions column={1} size="small" bordered>
-            <Descriptions.Item label="Lane">{chosen.origin ?? '—'} → {chosen.destination ?? '—'}</Descriptions.Item>
-            <Descriptions.Item label="Carrier">{chosen.transporterReference ?? '—'}</Descriptions.Item>
-            <Descriptions.Item label="Driver">{chosen.driverName ?? '—'}{chosen.driverPhone ? ` · ${chosen.driverPhone}` : ''}</Descriptions.Item>
-            <Descriptions.Item label="Stage">{executionLabel(chosen.execution)}</Descriptions.Item>
-            <Descriptions.Item label="Tracking"><HealthTag health={chosen.tracking} /> <Age minutes={chosen.minutesSinceLastLocation} /></Descriptions.Item>
-            <Descriptions.Item label="Delivery risk"><RiskTag risk={chosen.risk} /> <Delay minutes={chosen.delayMinutes} /></Descriptions.Item>
-            <Descriptions.Item label="Planned arrival">{clock(chosen.plannedArrivalAt)}</Descriptions.Item>
-            <Descriptions.Item label="Expected arrival">{clock(chosen.etaAt)}{chosen.etaOverridden ? ' (set by an operator)' : ''}{chosen.etaConfidence != null ? ` · confidence ${Math.round(chosen.etaConfidence * 100)}%` : ''}</Descriptions.Item>
-            <Descriptions.Item label="Progress">{chosen.progressPct == null ? 'Not available' : `${Math.round(chosen.progressPct)}%`} · {km(chosen.remainingKm)} to go</Descriptions.Item>
-            <Descriptions.Item label="Speed">{chosen.speedKph == null ? 'Not available' : `${Math.round(chosen.speedKph)} km/h`}{chosen.moving ? '' : ' (stopped)'}</Descriptions.Item>
-            <Descriptions.Item label="Route">{chosen.onRoute ? 'On route' : <Tag color="red">Off route</Tag>}</Descriptions.Item>
-            <Descriptions.Item label="Exceptions">{chosen.openExceptions}</Descriptions.Item>
-          </Descriptions>
-        )}
+        {chosen && <ShipmentTrackingPanel trip={chosen} />}
       </Drawer>
     </>
   )

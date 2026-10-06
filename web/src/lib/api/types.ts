@@ -3093,3 +3093,38 @@ export interface TrackBatchResult {
   late: number
   rejected: { clientLocationId: string; reason: string }[]
 }
+
+export interface ReplayDto {
+  /** [latitude, longitude, epoch milliseconds, speed km/h (0 when unknown)] in time order. */
+  points: number[][]
+  source: 'Raw' | 'Summary' | 'None'
+  from: string | null
+  to: string | null
+  storedPoints: number
+}
+
+export interface ComplianceRowDto {
+  key: string
+  name: string
+  trips: number
+  expectedMinutes: number
+  actualMinutes: number
+  coveragePct: number | null
+  gaps: number
+  staleTrips: number
+  lostTrips: number
+  startedOnTime: number | null
+  keptActive: number | null
+  stoppedProperly: number | null
+  tripsWithRepeatedGaps: number
+}
+
+export interface TrackingComplianceDto {
+  groupBy: string
+  from: string
+  to: string
+  overall: ComplianceRowDto
+  rows: ComplianceRowDto[]
+  rules: { startToleranceMinutes: number; minCoveragePct: number; repeatedGapCount: number }
+  note: string
+}

@@ -9,7 +9,7 @@ import type { TrackingSettingDto } from '@/lib/api/types'
 
 const TITLES: Record<string, string> = {
   interval: 'How often the phone reports', health: 'When tracking counts as stale or lost', validation: 'What counts as a bad GPS point', geofence: 'Entering and leaving a place',
-  route: 'Route deviation', dwell: 'Standing time', eta: 'Arrival estimate and risk', alerts: 'Alert rules and escalation', retention: 'How long data is kept', links: 'Customer links', milestones: 'Milestones',
+  route: 'Route deviation', dwell: 'Standing time', eta: 'Arrival estimate and risk', alerts: 'Alert rules and escalation', retention: 'How long data is kept', compliance: 'Driver and tracking compliance', links: 'Customer links', milestones: 'Milestones',
 }
 
 /** Each rule set is shown as the JSON the server stores, validated by the server on save. Policy lives here, not in code. */

@@ -139,6 +139,8 @@ export const queryKeys = {
     exceptions: (params: object) => ['tracking', 'exceptions', params] as const,
     exception: (id: string) => ['tracking', 'exception', id] as const,
     geofences: ['tracking', 'geofences'] as const,
+    compliance: (params: object) => ['tracking', 'compliance', params] as const,
+    replay: (id: string, params: object) => ['tracking', 'replay', id, params] as const,
     settings: ['tracking', 'settings'] as const,
     links: (id: string) => ['tracking', 'links', id] as const,
     trips: ['tracking', 'trips'] as const,

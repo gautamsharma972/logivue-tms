@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Alert, App, Button, Card, DatePicker, Descriptions, Flex, Form, Input, Modal, Progress, Select, Skeleton, Space, Table, Tabs, Tag, Timeline, Typography } from 'antd'
+import { Alert, App, Button, Card, DatePicker, Descriptions, Flex, Form, Input, Modal, Select, Skeleton, Space, Table, Tabs, Tag, Timeline, Typography } from 'antd'
 import dayjs from 'dayjs'
 import { lazy, Suspense, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
@@ -9,6 +9,7 @@ import { trackingApi } from '@/lib/api/endpoints'
 import { toApiError } from '@/lib/api/errors'
 import { queryKeys } from '@/lib/api/queryKeys'
 import type { DelayReason, TrackedDetailDto } from '@/lib/api/types'
+import { DwellIndicator, EtaCard, ExceptionPanel, RouteDeviationBanner, RouteProgress, TrackingGapIndicator } from './components'
 import { Age, alertTypeLabel, clock, Delay, executionLabel, HealthTag, km, RiskTag, SeverityTag } from './shared'
 import { useTrackingLive } from './useTrackingLive'
 
@@ -33,7 +34,7 @@ export function ShipmentTrackingPage() {
       <PageHeader
         title={`${s.tripReference} · ${s.vehicleReference ?? 'No vehicle yet'}`}
         description={`${s.origin ?? '—'} → ${s.destination ?? '—'} · ${s.transporterReference ?? 'No carrier'} · ${s.driverName ?? 'No driver'}`}
-        actions={<Space><HealthTag health={s.tracking} /><RiskTag risk={s.risk} />{s.openExceptions > 0 && <Tag color="red">{s.openExceptions} open exception(s)</Tag>}</Space>}
+        actions={<Space><Link to={`/tracking/history?trip=${s.id}`}><Button>Replay this trip</Button></Link><HealthTag health={s.tracking} /><RiskTag risk={s.risk} />{s.openExceptions > 0 && <Tag color="red">{s.openExceptions} open exception(s)</Tag>}</Space>}
       />
       <Tabs
         defaultActiveKey="overview"
@@ -71,8 +72,19 @@ function Overview({ d, canManage, canLinks }: { d: TrackedDetailDto; canManage: 
   const links = useQuery({ queryKey: queryKeys.tracking.links(s.id), queryFn: () => trackingApi.links(s.id), enabled: canLinks })
   const revoke = useMutation({ mutationFn: (linkId: string) => trackingApi.revokeLink(linkId), onSuccess: () => void links.refetch() })
 
+  const route = useQuery({ queryKey: queryKeys.tracking.part(s.id, 'route'), queryFn: () => trackingApi.route(s.id) })
+  const analytics = useQuery({ queryKey: queryKeys.tracking.part(s.id, 'analytics'), queryFn: () => trackingApi.analytics(s.id) })
+  const health = useQuery({ queryKey: queryKeys.tracking.part(s.id, 'health'), queryFn: () => trackingApi.health(s.id) })
+  const eta = useQuery({ queryKey: queryKeys.tracking.part(s.id, 'eta'), queryFn: () => trackingApi.eta(s.id) })
+  const exceptions = useQuery({ queryKey: queryKeys.tracking.part(s.id, 'exceptions'), queryFn: () => trackingApi.shipmentExceptions(s.id) })
+
   return (
     <Flex vertical gap={16}>
+      <TrackingGapIndicator health={health.data} />
+      <RouteDeviationBanner route={route.data} />
+      <DwellIndicator analytics={analytics.data} />
+      <ExceptionPanel exceptions={(exceptions.data ?? []).filter((e) => e.status !== 'Resolved' && e.status !== 'Closed')} />
+      {eta.data && <EtaCard eta={eta.data} />}
       <Card>
         <Descriptions column={{ xs: 1, md: 2, xl: 3 }} size="small">
           <Descriptions.Item label="Shipment">{s.shipmentReference}</Descriptions.Item>
@@ -86,7 +98,7 @@ function Overview({ d, canManage, canLinks }: { d: TrackedDetailDto; canManage: 
           <Descriptions.Item label="Route source">{d.routeSource === 'Osrm' ? 'Road geometry' : 'Straight-line estimate'}</Descriptions.Item>
           <Descriptions.Item label="Delay reason">{d.delayReason ? `${d.delayReason}${d.delayNote ? `: ${d.delayNote}` : ''}` : 'Not given'}</Descriptions.Item>
         </Descriptions>
-        <Progress percent={Math.round(s.progressPct ?? 0)} status={s.risk === 'SeverelyDelayed' || s.tracking === 'Lost' ? 'exception' : 'active'} />
+        <RouteProgress progressPct={s.progressPct} travelledKm={d.travelledKm} remainingKm={s.remainingKm} plannedKm={d.plannedDistanceKm} risk={s.risk} tracking={s.tracking} />
         {d.etaOverrideReason && <Typography.Text type="secondary">Operator ETA: {d.etaOverrideReason}</Typography.Text>}
       </Card>
       {canManage && (

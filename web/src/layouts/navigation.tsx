@@ -1,4 +1,5 @@
 import {
+  HistoryOutlined,
   RadarChartOutlined,
   AimOutlined,
   GlobalOutlined,
@@ -89,6 +90,8 @@ export const navigation: NavGroup[] = [
       { path: '/delivery/pods', label: 'Proofs & review', icon: <FileProtectOutlined />, anyPermission: ['deliveries.read', 'deliveries.manage', 'deliveries.pod.review', 'deliveries.execute'] },
       { path: '/delivery/exceptions', label: 'Delivery exceptions', icon: <ExceptionOutlined />, anyPermission: ['deliveries.read', 'deliveries.manage', 'deliveries.exceptions.manage', 'deliveries.execute'] },
       { path: '/tracking', label: 'Control tower', icon: <RadarChartOutlined />, anyPermission: ['tracking.read', 'tracking.manage'], audience: 'internal' },
+      { path: '/tracking/dashboard', label: 'Tracking overview', icon: <FundOutlined />, anyPermission: ['tracking.read', 'tracking.manage'], audience: 'internal' },
+      { path: '/tracking/history', label: 'Trip replay', icon: <HistoryOutlined />, anyPermission: ['tracking.read', 'tracking.manage'], audience: 'internal' },
       { path: '/tracking/vehicles', label: 'Vehicle tracking', icon: <CarOutlined />, anyPermission: ['tracking.read', 'tracking.manage'], audience: 'internal' },
       { path: '/tracking/exceptions', label: 'Tracking exceptions', icon: <ExceptionOutlined />, anyPermission: ['tracking.read', 'tracking.manage'], audience: 'internal' },
       { path: '/tracking/geofences', label: 'Geofences', icon: <GlobalOutlined />, anyPermission: ['tracking.read', 'tracking.geofences.manage'], audience: 'internal' },

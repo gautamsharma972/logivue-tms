@@ -2,7 +2,7 @@ import { http } from './client'
 import type {
   ListTrackedParams, TrackedSummaryDto, TrackedDetailDto, TimelineEntryDto, TrackEtaDto, TrackRouteDto, TrackLocationDto, CurrentLocationDto, VehicleTrackingDto, TrackAlertDto, TrackExceptionSummaryDto,
   TrackExceptionDto, ControlTowerSummaryDto, GeofenceDto, SaveGeofenceRequest, TrackingHealthDto, JourneyAnalyticsDto, CustomerLinkDto, CreatedLinkDto, CustomerTrackingDto, TrackingSettingDto,
-  MobileTripDto, TrackingSessionDto, QueuedFix, TrackBatchResult, DelayReason, TrackAlertStatus, TrackSeverity, TrackAlertType, TrackExceptionStatus,
+  ReplayDto, TrackingComplianceDto, MobileTripDto, TrackingSessionDto, QueuedFix, TrackBatchResult, DelayReason, TrackAlertStatus, TrackSeverity, TrackAlertType, TrackExceptionStatus,
   AgeingDto,
   BranchDto,
   ContactDto,
@@ -624,6 +624,8 @@ export const trackingApi = {
   timeline: (id: string) => http.get<TimelineEntryDto[]>(`${tr(id)}/timeline`).then((r) => r.data),
   eta: (id: string) => http.get<TrackEtaDto>(`${tr(id)}/eta`).then((r) => r.data),
   route: (id: string) => http.get<TrackRouteDto>(`${tr(id)}/route`).then((r) => r.data),
+  replay: (id: string, params: { from?: string; to?: string; maxPoints?: number }) => http.get<ReplayDto>(`${tr(id)}/replay`, { params }).then((r) => r.data),
+  compliance: (params: { from?: string; to?: string; transporterId?: string; groupBy?: string }) => http.get<TrackingComplianceDto>(`${v1}/tracking/compliance`, { params }).then((r) => r.data),
   locations: (id: string, params: { from?: string; to?: string; maxPoints?: number; includeSuspicious?: boolean; page?: number; pageSize?: number }) =>
     http.get<PagedResult<TrackLocationDto>>(`${tr(id)}/locations`, { params }).then((r) => r.data),
   health: (id: string) => http.get<TrackingHealthDto>(`${tr(id)}/health`).then((r) => r.data),

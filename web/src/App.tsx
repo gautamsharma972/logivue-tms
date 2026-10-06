@@ -49,6 +49,11 @@ const GeofencesPage = lazy(() => import('@/features/tracking/GeofencesPage').the
 const TrackingSettingsPage = lazy(() => import('@/features/tracking/SettingsPage').then((m) => ({ default: m.TrackingSettingsPage })))
 const TrackingReportsPage = lazy(() => import('@/features/tracking/ReportsPage').then((m) => ({ default: m.TrackingReportsPage })))
 const DriverTrackingPage = lazy(() => import('@/features/tracking/DriverTrackingPage').then((m) => ({ default: m.DriverTrackingPage })))
+const DriverTrackingArea = lazy(() => import('@/features/tracking/DriverTrackingPage').then((m) => ({ default: m.DriverTrackingArea })))
+const DriverTripPage = lazy(() => import('@/features/tracking/DriverTripPage').then((m) => ({ default: m.DriverTripPage })))
+const DriverTrackingSyncPage = lazy(() => import('@/features/tracking/DriverTrackingSyncPage').then((m) => ({ default: m.DriverTrackingSyncPage })))
+const TrackingDashboardPage = lazy(() => import('@/features/tracking/DashboardPage').then((m) => ({ default: m.TrackingDashboardPage })))
+const TrackingHistoryPage = lazy(() => import('@/features/tracking/HistoryPage').then((m) => ({ default: m.TrackingHistoryPage })))
 const CustomerTrackingPage = lazy(() => import('@/features/tracking/CustomerTrackingPage').then((m) => ({ default: m.CustomerTrackingPage })))
 const DeliverySettingsPage = lazy(() => import('@/features/deliveries/DeliverySettingsPage').then((m) => ({ default: m.DeliverySettingsPage })))
 const DriverArea = lazy(() => import('@/features/deliveries/DriverArea').then((m) => ({ default: m.DriverArea })))
@@ -157,6 +162,8 @@ export function App() {
             <Route element={<RequireAnyPermission permissions={['tracking.read', 'tracking.manage']} />}>
               <Route index element={<ControlTowerPage />} />
               <Route path="shipments/:id" element={<ShipmentTrackingPage />} />
+              <Route path="dashboard" element={<TrackingDashboardPage />} />
+              <Route path="history" element={<TrackingHistoryPage />} />
               <Route path="vehicles" element={<VehicleTrackingPage />} />
               <Route path="exceptions" element={<TrackingExceptionsPage />} />
               <Route path="reports" element={<TrackingReportsPage />} />
@@ -168,7 +175,11 @@ export function App() {
               <Route path="settings" element={<TrackingSettingsPage />} />
             </Route>
             <Route element={<RequirePermission permission="tracking.execute" />}>
-              <Route path="drive" element={<DriverTrackingPage />} />
+              <Route path="drive" element={<DriverTrackingArea />}>
+                <Route index element={<DriverTrackingPage />} />
+                <Route path="sync" element={<DriverTrackingSyncPage />} />
+                <Route path=":trip" element={<DriverTripPage />} />
+              </Route>
             </Route>
           </Route>
           <Route path="admin">
