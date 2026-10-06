@@ -17,13 +17,13 @@ Status: ✅ done · 🔨 in progress · ⬜ not started · ⏸ deferred
 | 4. Delivery (6) | Per-order delivery confirmation (receiver, packages received/damaged), POD upload with staff verify/reject, ageing worklist and report, shortage/damage events for claims, `PodVerified` for billing (see `docs/shipments.md`). **OCR, e-POD by OTP/driver app and delivery corrections are later.** | ✅ |
 | 5. Billing & audit (7) | Freight calc from contract, bill verification, excess/duplicate detection, accrual; GST, TDS | ⬜ |
 | 6. Claims (8) | Transit damage/shortage claims, approval, insurance, recovery | ⬜ |
-| 7. Tracking (5) | Provider adapter (SIM/LBS vs GPS TBD), geofence, ETA heuristic | ⬜ |
+| 7. Tracking (5) | Driver-phone GPS (browser PWA stand-in for a native app), validated location pipeline, tracking health, milestones, geofences, route progress and deviation, standing time, rule-based ETA and risk, alerts versus exceptions with escalation, control tower with live push, customer link, reports, demo data. See `docs/SHIPMENT_TRACKING_VISIBILITY_INTEGRATION.md`. **Open:** native background tracking, server-side map matching, ETA from learned history, traffic. | ✅ (limits listed) |
 | 8. E-way bill | Via a GSP — **deferred by decision** | ⏸ |
 
 Out of scope for now: modules 9–17 (analytics, alerts, integrations, mobile, dashboards, AI, ISO 27001), except what
 modules 1–8 need minimally (a small notification layer, basic list views).
 
 ## Open decisions
-- Tracking source: SIM/cell-tower consent-based tracking vs. driver-app GPS vs. device GPS (affects phase 7 only).
+- Tracking source: driver-app GPS is built (the first provider); GPS devices, telematics and carrier APIs plug in behind `ITrackingLocationProvider`.
 - Order source: manual entry, file import, or ERP (affects phase 2 inputs).
 - GST/TDS treatment of freight (GTA, RCM) — confirm with a CA before phase 5.

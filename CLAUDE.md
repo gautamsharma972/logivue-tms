@@ -78,6 +78,13 @@ Delivered is not accepted: delivery status and POD status are separate. Quantiti
 never edited (a correction is a new version). Blame is a finding, never a default (`ResponsibleParty.Unknown`). Mobile commands are idempotent by client key. Evidence files are
 only served through authenticated endpoints. OCR reads a digital POD from its text layer and anything else with a local Ollama vision model (`Deliveries:Ocr`); a model's confidence is only believed for a value found in its own transcription. Uploads pass `IFileScanner`. Every delivery step is a published event. Proof ageing, SLA notices and the dashboard are computed lazily on read; "Not applicable" is a null rate, never zero. Claims and freight audit are reached only through `IClaimsIntegration` / `IFreightAuditIntegration` (local stand-in adapters); Transporters learns proof outcomes from Deliveries events. Policy (required evidence, reasons, thresholds, auto-accept) lives in per-tenant settings, never in code. It reads Shipments only through `IShipmentDeliveryFeed`.
 
+## Shipment tracking
+Module `Tms.Modules.Tracking` (`docs/SHIPMENT_TRACKING_VISIBILITY_INTEGRATION.md`, tables `st_*`): trips fed by Shipments (`ITrackingPlanningIntegration`), driver-phone GPS, one pipeline
+(validate → dedupe → store → route → geofence → deviation → dwell → ETA/risk → alerts/exceptions → events). Tracking health (is the phone reporting?), execution status, delivery risk and POD
+status are four separate things; a lost phone is never reported as a parked truck. Suspicious points are stored but never move the vehicle. Alerts are automatic and de-duplicated; an exception needs
+a person and is never auto-resolved. Stale/lost and escalation are evaluated lazily on read (`TrackingHealthMonitor`), not by a cross-tenant worker. The customer link is anonymous: only the token's
+hash is stored, every failure is a 404, and it exposes no price, note or exception. Thresholds are per-tenant settings, never code. Other modules learn of tracking only through shared-kernel events and feeds.
+
 ## Vendor portal (transporter users)
 A user of type `Transporter` carries a `trn` claim (`ICurrentUser.TransporterId`). Any module serving transporter-owned data
 must scope by it and answer another company's ids with **404, not 403**. In Transporters this lives in `TransporterAccess`;
