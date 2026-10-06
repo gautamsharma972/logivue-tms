@@ -81,9 +81,11 @@ Transporters (`TrackingObservation`, subscriber, handler, migration `TrackingObs
 - No server-side map matching: a point is matched to the planned route only. Without a road server (OSRM) the route is a straight-line estimate and the page says so.
 - The ETA is rule-based (remaining distance, recent speed, standing time, planned dwell), not a learned model; there is no live traffic.
 - A GPS device, telematics or carrier-API provider is not built; each is another class behind `ITrackingLocationProvider`.
-- The replay player and the Leaflet tiles use OpenStreetMap's public server: fine for office use, not for heavy traffic.
-- Thumbnails and notifications beyond in-app (email, SMS, WhatsApp) are not built; the notification service is an interface with only the in-app implementation.
+- **No history replay player yet**: the trip's *Live map* draws the trail and the *Location history* tab lists every point (with suspicious ones on request), but there is no play/pause/speed control.
+- Map tiles come from OpenStreetMap's public server: fine for office use, not for heavy traffic.
+- Notifications beyond in-app (email, SMS, WhatsApp) are not built; the notification service is an interface with only the in-app implementation.
+- Geofences are circles on the web screen (the API also accepts polygons); there is no draw-on-map editor.
 
 ## Merge notes
-Add `Tms.Modules.Tracking` to the solution and the API project, call `AddTrackingModule`, `MapTrackingEndpoints`, `InitialiseTrackingAsync` in `Program.cs`; apply migrations `InitialTracking` (st) and `TrackingObservations` (tp/transporters).
+Add `Tms.Modules.Tracking` to the solution and the API project, call `AddTrackingModule`, `MapTrackingEndpoints`, `InitialiseTrackingAsync` in `Program.cs`; apply migrations `InitialTracking` (Tracking context) and `TrackingObservations` (Transporters context).
 `npm i @microsoft/signalr`. Allow the `access_token` query string for `/hubs/tracking` only (done in `TrackingModule`).
