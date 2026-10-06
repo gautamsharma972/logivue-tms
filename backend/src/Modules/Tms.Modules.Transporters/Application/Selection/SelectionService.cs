@@ -53,15 +53,30 @@ internal sealed class SelectionService(
         return new RecommendationResult(ranked.Count == 0 ? null : ranked[0], ranked, candidates);
     }
 
-    /// <summary>The cheapest price each transporter's contracts give for this load.</summary>
+    /// <summary>
+    /// The cheapest price each transporter's contracts give for this load. When no vehicle type is asked for, every active type is priced and the cheapest one counts: a priced
+    /// shipment must still name its vehicle, but a search should not have to.
+    /// </summary>
     private async Task<Dictionary<Guid, RateQuote>> RatesAsync(SelectionRequest request, CancellationToken cancellationToken)
     {
-        var set = await quotes.QuoteAsync(
-            new FreightQuoteRequest(request.Date, request.OriginState, request.OriginCity, request.DestinationState, request.DestinationCity, request.VehicleTypeId, request.Mode,
-                request.WeightKg, request.VolumeCbm, request.DistanceKm), cancellationToken);
-        return set.Quotes.GroupBy(q => q.TransporterId).ToDictionary(
+        var types = request.VehicleTypeId is { } named
+            ? [named]
+            : (await db.VehicleTypes.AsNoTracking().Where(t => t.IsActive).Select(t => (Guid?)t.Id).ToListAsync(cancellationToken)).Append(null).ToList();
+
+        var all = new List<FreightQuoteLine2>();
+        foreach (var type in types)
+        {
+            var set = await quotes.QuoteAsync(
+                new FreightQuoteRequest(request.Date, request.OriginState, request.OriginCity, request.DestinationState, request.DestinationCity, type, request.Mode,
+                    request.WeightKg, request.VolumeCbm, request.DistanceKm), cancellationToken);
+            all.AddRange(set.Quotes.Select(q => new FreightQuoteLine2(q.TransporterId, q.ContractId, q.ContractReference, q.Total)));
+        }
+
+        return all.GroupBy(q => q.TransporterId).ToDictionary(
             g => g.Key, g => g.OrderBy(q => q.Total).Select(q => new RateQuote(q.ContractId, q.ContractReference, q.Total, null)).First());
     }
+
+    private sealed record FreightQuoteLine2(Guid TransporterId, Guid ContractId, string ContractReference, decimal Total);
 
     /// <summary>Expired transporter-level documents bar a transporter; ones expiring soon only warn.</summary>
     private async Task<Dictionary<Guid, IReadOnlyList<DocumentIssue>>> DocumentIssuesAsync(List<Guid> ids, CancellationToken cancellationToken)

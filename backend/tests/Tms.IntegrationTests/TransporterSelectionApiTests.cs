@@ -51,6 +51,20 @@ public class TransporterSelectionApiTests(TmsApiFactory factory)
     }
 
     [Fact]
+    public async Task A_full_truck_search_does_not_need_a_vehicle_type()
+    {
+        using var s = await ShipmentScenario.CreateAsync(factory);
+        await AddLaneAsync(s);
+
+        var anyType = await EvaluateAsync(s, Request(s) with { VehicleTypeId = null });
+
+        anyType.Eligible.ShouldBeTrue(string.Join("; ", anyType.Reasons));
+        anyType.AvailableVehicles.ShouldBe(3); // every vehicle counts when no type is asked for
+        anyType.Rate.ShouldNotBeNull();
+        anyType.Rate!.Total.ShouldBe(s.FlatRate);
+    }
+
+    [Fact]
     public async Task A_required_capability_must_be_held_and_ending_it_removes_eligibility()
     {
         using var s = await ShipmentScenario.CreateAsync(factory);

@@ -67,6 +67,24 @@ describe('SelectionPage', () => {
   })
 })
 
+describe('SelectionPage without a vehicle type', () => {
+  it('searches every vehicle type when none is chosen', async () => {
+    vi.mocked(performanceApi.recommend).mockResolvedValue({ recommended: null, ranked: [], candidates: [] })
+    const user = userEvent.setup()
+    renderWithProviders(<SelectionPage />)
+
+    await user.click(await screen.findByLabelText('From state'))
+    await user.click((await screen.findAllByText('Maharashtra', { selector: '.ant-select-item-option-content' })).at(-1)!)
+    await user.click(screen.getByLabelText('To state'))
+    await user.click((await screen.findAllByText('Gujarat', { selector: '.ant-select-item-option-content' })).at(-1)!)
+    await user.type(screen.getByRole('spinbutton', { name: /Weight/ }), '5000')
+    await user.click(screen.getByRole('button', { name: /Find transporters/ }))
+
+    await waitFor(() => expect(performanceApi.recommend).toHaveBeenCalledWith(expect.objectContaining({ mode: 'Ftl', vehicleTypeId: null, weightKg: 5000 })))
+    expect(screen.queryByText('Choose the vehicle type')).not.toBeInTheDocument()
+  })
+})
+
 describe('CoverageTab', () => {
   it('needs a reason to add a planning rule and shows ended rules with theirs', async () => {
     vi.mocked(performanceApi.planningRules).mockResolvedValue([

@@ -117,8 +117,8 @@ export function SelectionPage() {
           <Flex gap={12} wrap align="flex-start">
             <Form.Item name="mode" label="Service"><Radio.Group optionType="button" options={[{ value: 'Ftl', label: 'Full truck' }, { value: 'Ptl', label: 'Part load' }]} /></Form.Item>
             {mode === 'Ftl' && (
-              <Form.Item name="vehicleTypeId" label="Vehicle type" rules={[{ required: true, message: 'Choose the vehicle type' }]} style={{ minWidth: 240 }}>
-                <Select aria-label="Vehicle type" showSearch optionFilterProp="label" virtual={false} options={(types.data ?? []).filter((t) => t.isActive).map((t) => ({ value: t.id, label: t.name }))} />
+              <Form.Item name="vehicleTypeId" label={<>Vehicle type <Typography.Text type="secondary">(optional)</Typography.Text></>} style={{ minWidth: 240 }}>
+                <Select aria-label="Vehicle type" allowClear placeholder="Any vehicle type" showSearch optionFilterProp="label" virtual={false} options={(types.data ?? []).filter((t) => t.isActive).map((t) => ({ value: t.id, label: t.name }))} />
               </Form.Item>
             )}
             <Form.Item name="weightKg" label="Weight (kg)" rules={[{ required: true, message: 'Enter the weight' }]}><InputNumber min={1} precision={0} controls={false} style={{ width: 140 }} /></Form.Item>
