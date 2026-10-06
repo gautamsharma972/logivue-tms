@@ -44,7 +44,7 @@ public interface IShipmentDeliveryFeed
 }
 
 /// <summary>A delivery was confirmed by the driver (fully or partly). The proof of delivery follows separately.</summary>
-public sealed record DeliveryCompleted(Guid DeliveryId, Guid TenantId, string Number, Guid? ShipmentId, Guid? TransporterId, DateTimeOffset DeliveredAt, bool HasDiscrepancy, bool? OnTime = null, decimal ShortQuantity = 0, decimal DamagedQuantity = 0) : DomainEvent;
+public sealed record DeliveryCompleted(Guid DeliveryId, Guid TenantId, string Number, Guid? ShipmentId, Guid? TransporterId, DateTimeOffset DeliveredAt, bool HasDiscrepancy, bool? OnTime = null, decimal ShortQuantity = 0, decimal DamagedQuantity = 0, Guid? OrderId = null) : DomainEvent;
 
 /// <summary>A proof was sent for checking. Freight audit keeps the invoice on hold until it is accepted.</summary>
 public sealed record PodSubmitted(Guid DeliveryId, Guid PodId, Guid TenantId, string DeliveryNumber, Guid? ShipmentId, Guid? TransporterId, DateTimeOffset SubmittedAt) : DomainEvent;

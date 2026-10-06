@@ -77,6 +77,24 @@ public sealed class OsrmRoutingProvider(HttpClient http, IOptions<RoutingOptions
         return Parse(await response.Content.ReadAsStringAsync(timeout.Token), waypoints.Count - 1);
     }
 
+    public async Task<IReadOnlyList<GeoPoint>?> GetGeometryAsync(IReadOnlyList<GeoPoint> waypoints, CancellationToken cancellationToken)
+    {
+        var coordinates = string.Join(';', waypoints.Select(p => string.Create(CultureInfo.InvariantCulture, $"{p.Longitude:0.######},{p.Latitude:0.######}")));
+        var url = $"{options.Value.OsrmBaseUrl!.TrimEnd('/')}/route/v1/driving/{coordinates}?overview=full&geometries=geojson&steps=false";
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(Math.Max(1, options.Value.OsrmTimeoutSeconds)));
+        using var response = await http.GetAsync(new Uri(url), timeout.Token);
+        response.EnsureSuccessStatusCode();
+        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(timeout.Token));
+        var root = doc.RootElement;
+        if (!root.TryGetProperty("code", out var code) || code.GetString() != "Ok" || !root.TryGetProperty("routes", out var routes) || routes.GetArrayLength() == 0)
+        {
+            throw new InvalidOperationException("OSRM found no route.");
+        }
+
+        return routes[0].GetProperty("geometry").GetProperty("coordinates").EnumerateArray().Select(c => new GeoPoint(c[1].GetDouble(), c[0].GetDouble())).ToList();
+    }
+
     public async Task<DistanceMatrix> GetMatrixAsync(IReadOnlyList<GeoPoint> points, CancellationToken cancellationToken)
     {
         var coordinates = string.Join(';', points.Select(p => string.Create(CultureInfo.InvariantCulture, $"{p.Longitude:0.######},{p.Latitude:0.######}")));
@@ -194,6 +212,30 @@ public sealed class ResilientRoutingProvider(
 
             logger.LogWarning(e, "OSRM routing failed; using an estimate instead.");
             return await estimate.GetRouteAsync(waypoints, cancellationToken);
+        }
+    }
+
+    public async Task<IReadOnlyList<GeoPoint>?> GetGeometryAsync(IReadOnlyList<GeoPoint> waypoints, CancellationToken cancellationToken)
+    {
+        if (waypoints.Count < 2 || string.IsNullOrWhiteSpace(options.Value.OsrmBaseUrl))
+        {
+            return null;
+        }
+
+        try
+        {
+            var osrm = (OsrmRoutingProvider)services.GetService(typeof(OsrmRoutingProvider))!;
+            return await osrm.GetGeometryAsync(waypoints, cancellationToken);
+        }
+        catch (Exception e) when (e is HttpRequestException or TaskCanceledException or InvalidOperationException or JsonException or KeyNotFoundException)
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+
+            logger.LogWarning(e, "OSRM route geometry failed; the straight line between stops will be used.");
+            return null;
         }
     }
 

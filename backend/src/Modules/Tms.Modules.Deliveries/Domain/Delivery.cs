@@ -643,7 +643,7 @@ public sealed class Delivery : AggregateRoot, ITenantScoped
         Status = anyDiscrepancy ? DeliveryStatus.PartiallyDelivered : DeliveryStatus.Delivered;
         _attempts.Add(DeliveryAttempt.Create(TenantId, Id, _attempts.Count + 1, deliveredAt, AttemptResult.Delivered, null, recipient, driverRemarks, null, fix, actor.DeviceReference));
         Log(anyDiscrepancy ? DeliveryEventType.PartiallyDelivered : DeliveryEventType.Delivered, deliveredAt, fix, actor, outcome.ToString());
-        Raise(new DeliveryCompleted(Id, TenantId, Number, ShipmentId, TransporterId, deliveredAt, anyDiscrepancy, OnTime, shortTotal, damagedTotal));
+        Raise(new DeliveryCompleted(Id, TenantId, Number, ShipmentId, TransporterId, deliveredAt, anyDiscrepancy, OnTime, shortTotal, damagedTotal, OrderId));
         if (anyDiscrepancy)
         {
             Raise(new DeliveryPartiallyCompleted(Id, TenantId, Number, ShipmentId, TransporterId, deliveredAt, outcome.ToString()));

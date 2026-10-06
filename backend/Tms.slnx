@@ -13,6 +13,7 @@
     <Project Path="src/Modules/Tms.Modules.Contracts/Tms.Modules.Contracts.csproj" />
     <Project Path="src/Modules/Tms.Modules.Shipments/Tms.Modules.Shipments.csproj" />
     <Project Path="src/Modules/Tms.Modules.Deliveries/Tms.Modules.Deliveries.csproj" />
+    <Project Path="src/Modules/Tms.Modules.Tracking/Tms.Modules.Tracking.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Tms.UnitTests/Tms.UnitTests.csproj" />

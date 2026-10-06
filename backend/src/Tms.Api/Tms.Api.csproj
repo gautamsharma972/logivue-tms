@@ -16,5 +16,6 @@
     <ProjectReference Include="..\Modules\Tms.Modules.Contracts\Tms.Modules.Contracts.csproj" />
     <ProjectReference Include="..\Modules\Tms.Modules.Shipments\Tms.Modules.Shipments.csproj" />
     <ProjectReference Include="..\Modules\Tms.Modules.Deliveries\Tms.Modules.Deliveries.csproj" />
+    <ProjectReference Include="..\Modules\Tms.Modules.Tracking\Tms.Modules.Tracking.csproj" />
   </ItemGroup>
 </Project>

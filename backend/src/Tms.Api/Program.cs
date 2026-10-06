@@ -15,6 +15,8 @@ using Tms.Modules.Contracts;
 using Tms.Modules.Contracts.Infrastructure.Persistence;
 using Tms.Modules.Deliveries;
 using Tms.Modules.Deliveries.Infrastructure.Persistence;
+using Tms.Modules.Tracking;
+using Tms.Modules.Tracking.Infrastructure.Persistence;
 using Tms.Modules.Shipments;
 using Tms.Modules.Shipments.Infrastructure.Persistence;
 using Tms.Modules.Approvals.Infrastructure.Persistence;
@@ -61,6 +63,7 @@ try
     services.AddContractsModule(builder.Configuration);
     services.AddShipmentsModule(builder.Configuration);
     services.AddDeliveriesModule(builder.Configuration);
+    services.AddTrackingModule(builder.Configuration);
 
     // Traces and metrics are always collected in-process (cheap); they are exported only when an OTLP endpoint is configured
     // (OTEL_EXPORTER_OTLP_ENDPOINT, e.g. an OpenTelemetry Collector, Grafana, Azure Monitor, Datadog).
@@ -120,7 +123,8 @@ try
         .AddDbContextCheck<TransportersDbContext>("mysql-transporters", tags: ["ready"])
         .AddDbContextCheck<ContractsDbContext>("mysql-contracts", tags: ["ready"])
         .AddDbContextCheck<ShipmentsDbContext>("mysql-shipments", tags: ["ready"])
-        .AddDbContextCheck<DeliveriesDbContext>("mysql-deliveries", tags: ["ready"]);
+        .AddDbContextCheck<DeliveriesDbContext>("mysql-deliveries", tags: ["ready"])
+        .AddDbContextCheck<TrackingDbContext>("mysql-tracking", tags: ["ready"]);
 
     var app = builder.Build();
 
@@ -149,6 +153,7 @@ try
     app.MapContractsEndpoints();
     app.MapShipmentsEndpoints();
     app.MapDeliveriesEndpoints();
+    app.MapTrackingEndpoints();
 
     if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Testing"))
     {
@@ -170,6 +175,7 @@ try
     await app.Services.InitialiseContractsAsync(app.Configuration);
     await app.Services.InitialiseShipmentsAsync(app.Configuration);
     await app.Services.InitialiseDeliveriesAsync(app.Configuration);
+    await app.Services.InitialiseTrackingAsync(app.Configuration);
 
     // Operator commands run against the configured database and exit instead of serving requests.
     if (args.Length > 0 && args[0] == "tenant:create")

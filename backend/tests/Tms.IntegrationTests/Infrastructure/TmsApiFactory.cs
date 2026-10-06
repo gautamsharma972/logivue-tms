@@ -83,6 +83,7 @@ public sealed class TmsApiFactory : WebApplicationFactory<Program>, IAsyncLifeti
             ["Storage:RootPath"] = StorageRoot,
             ["FieldEncryption:Keys:1"] = "I7SO9wGeyFMUYDhd81VLYuK+M9qY2I6xsmExlE6aGV4=",
             ["Contracts:LifecycleEnabled"] = "false",
+            ["Tracking:HealthCheckMinimumSeconds"] = "0",
             ["Outbox:PollSeconds"] = "1",
             ["Outbox:MinAgeSeconds"] = "1",
             ["Outbox:FirstRetrySeconds"] = "1",
@@ -106,6 +107,24 @@ public sealed class TmsApiFactory : WebApplicationFactory<Program>, IAsyncLifeti
             services.AddSingleton<CapturingEmailSender>();
             services.AddSingleton<IEmailSender>(sp => sp.GetRequiredService<CapturingEmailSender>());
             services.AddSingleton<IFileScanner, MarkerFileScanner>();
+            services.AddSingleton<TestTrackingPlanning>();
+            services.AddSingleton<ITrackingPlanningIntegration>(sp => sp.GetRequiredService<TestTrackingPlanning>());
+            services.AddSingleton<TrackingEventLog>();
+            services.AddScoped<IDomainEventHandler<TrackingStarted>, TrackingEventRecorder<TrackingStarted>>();
+            services.AddScoped<IDomainEventHandler<TrackingStopped>, TrackingEventRecorder<TrackingStopped>>();
+            services.AddScoped<IDomainEventHandler<TrackingStale>, TrackingEventRecorder<TrackingStale>>();
+            services.AddScoped<IDomainEventHandler<TrackingLost>, TrackingEventRecorder<TrackingLost>>();
+            services.AddScoped<IDomainEventHandler<TrackingVehicleArrived>, TrackingEventRecorder<TrackingVehicleArrived>>();
+            services.AddScoped<IDomainEventHandler<TrackingVehicleDeparted>, TrackingEventRecorder<TrackingVehicleDeparted>>();
+            services.AddScoped<IDomainEventHandler<EnteredGeofence>, TrackingEventRecorder<EnteredGeofence>>();
+            services.AddScoped<IDomainEventHandler<ExitedGeofence>, TrackingEventRecorder<ExitedGeofence>>();
+            services.AddScoped<IDomainEventHandler<RouteDeviationDetected>, TrackingEventRecorder<RouteDeviationDetected>>();
+            services.AddScoped<IDomainEventHandler<RouteDeviationResolved>, TrackingEventRecorder<RouteDeviationResolved>>();
+            services.AddScoped<IDomainEventHandler<ExcessiveDwellDetected>, TrackingEventRecorder<ExcessiveDwellDetected>>();
+            services.AddScoped<IDomainEventHandler<ShipmentAtRisk>, TrackingEventRecorder<ShipmentAtRisk>>();
+            services.AddScoped<IDomainEventHandler<ShipmentDelayed>, TrackingEventRecorder<ShipmentDelayed>>();
+            services.AddScoped<IDomainEventHandler<DeliveryTrackingEvent>, TrackingEventRecorder<DeliveryTrackingEvent>>();
+            services.AddScoped<IDomainEventHandler<TrackingPerformanceEvent>, TrackingEventRecorder<TrackingPerformanceEvent>>();
             services.AddSingleton<FlakySubscriberState>();
             services.AddScoped<IDomainEventHandler<ApprovalCompleted>, FlakySubscriber>();
         });

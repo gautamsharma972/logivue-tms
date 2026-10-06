@@ -54,4 +54,7 @@ public interface IRoutingProvider
 
     /// <summary>All pairwise distances, so stop order can be searched without one routing call per candidate order.</summary>
     Task<DistanceMatrix> GetMatrixAsync(IReadOnlyList<GeoPoint> points, CancellationToken cancellationToken);
+
+    /// <summary>The road the route follows as a polyline, when the provider can draw one. Null means it cannot (an estimate has no road to draw).</summary>
+    Task<IReadOnlyList<GeoPoint>?> GetGeometryAsync(IReadOnlyList<GeoPoint> waypoints, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<GeoPoint>?>(null);
 }

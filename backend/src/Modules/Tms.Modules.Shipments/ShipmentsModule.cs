@@ -56,6 +56,7 @@ public static class ShipmentsModule
         services.AddHttpClient<Infrastructure.Routing.OsrmRoutingProvider>();
         services.AddSingleton<Infrastructure.Routing.EstimatedRoutingProvider>();
         services.AddScoped<IRoutingProvider, Infrastructure.Routing.ResilientRoutingProvider>();
+        services.AddScoped<ITrackingPlanningIntegration, Integration.ShipmentTrackingFeed>();
         services.AddScoped<Application.Shipments.ShipmentLoader>();
         services.AddScoped<Application.Tendering.TenderLifecycle>();
         services.AddScoped<Application.Tendering.TenderMapper>();

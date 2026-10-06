@@ -14,7 +14,7 @@ public class ModuleBoundaryTests
     private static readonly Assembly SharedKernel = typeof(Tms.SharedKernel.ServiceCollectionExtensions).Assembly;
     private static readonly Assembly WebBuildingBlocks = typeof(Tms.BuildingBlocks.Web.ServiceCollectionExtensions).Assembly;
 
-    public static TheoryData<Assembly> ModuleAssemblies => new() { typeof(PlatformModule).Assembly, typeof(Tms.Modules.Approvals.ApprovalsModule).Assembly, typeof(Tms.Modules.Transporters.Domain.Transporter).Assembly, typeof(Tms.Modules.Contracts.Domain.Contract).Assembly, typeof(Tms.Modules.Shipments.Domain.Shipment).Assembly, typeof(Tms.Modules.Deliveries.Domain.Delivery).Assembly };
+    public static TheoryData<Assembly> ModuleAssemblies => new() { typeof(PlatformModule).Assembly, typeof(Tms.Modules.Approvals.ApprovalsModule).Assembly, typeof(Tms.Modules.Transporters.Domain.Transporter).Assembly, typeof(Tms.Modules.Contracts.Domain.Contract).Assembly, typeof(Tms.Modules.Shipments.Domain.Shipment).Assembly, typeof(Tms.Modules.Deliveries.Domain.Delivery).Assembly, typeof(Tms.Modules.Tracking.Domain.TrackedShipment).Assembly };
 
     [Fact]
     public void SharedKernel_DependsOnNoModuleAndNoWebCode()
