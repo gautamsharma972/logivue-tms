@@ -165,8 +165,8 @@ internal sealed class TrackingDemoSeeder(
             var fraction = drops == 1 ? 1.0 : i == drops - 1 ? 1.0 : 0.55;
             var (lat, lon) = PointAt(lane, fraction);
             var remainingMinutes = Math.Max(0, Along(fraction) - Along(trip.Progress)) / speed * 60;
-            var dwell = i < drops - 1 ? 25 : 0;
-            var onTimeEta = trip.Story is Story.NotStarted ? now.AddHours(1).AddMinutes(Along(fraction) / speed * 60) : now.AddMinutes(remainingMinutes + (i < drops - 1 ? 0 : 0) + dwell * i);
+            // What the engine will add: the expected standing time at each earlier drop (30 min) and, while loading, what is left of the pickup's hour.
+            var onTimeEta = trip.Story is Story.NotStarted ? now.AddHours(1).AddMinutes(Along(fraction) / speed * 60) : now.AddMinutes(remainingMinutes + 30 * i + (trip.Story == Story.Loading ? 32 : 0));
             var planned = onTimeEta.AddMinutes(-trip.DelayMinutes);
             if (trip.Story is Story.ExcessDwell or Story.Completed)
             {
@@ -215,7 +215,7 @@ internal sealed class TrackingDemoSeeder(
                 Stay(0, 20);
                 Drive(0, 0.97);
                 Drive(0.97, 1.0);
-                Stay(1.0, 50);
+                Stay(1.0, 80);
                 break;
             case Story.UnplannedStop:
                 Stay(0, 20);

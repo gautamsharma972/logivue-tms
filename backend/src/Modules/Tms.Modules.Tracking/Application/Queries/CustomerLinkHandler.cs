@@ -121,7 +121,8 @@ internal sealed class CustomerLinkHandler(TrackingDbContext db, TrackingAccess a
         {
             new("Dispatched", "done", s.StartedAt ?? s.CreatedAt),
             new(firstPickup is null ? "Departed" : $"Departed {firstPickup.City ?? firstPickup.Name}", departed ? "done" : "pending", firstPickup?.DepartedAt),
-            new("In transit", inTransit ? "current" : departed ? "done" : "pending", null),
+            // Only one step is ever "current": the position line takes over when there is a live fix.
+            new("In transit", inTransit && !live ? "current" : departed ? "done" : "pending", null),
         };
         if (inTransit && live)
         {

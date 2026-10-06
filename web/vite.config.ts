@@ -12,7 +12,11 @@ export default defineConfig({
   server: {
     port: 5173,
     // Same-origin in development: no CORS, and the browser never sees the API's port.
-    proxy: { '/api': { target: apiTarget, changeOrigin: true } },
+    proxy: {
+      '/api': { target: apiTarget, changeOrigin: true },
+      // The live tracking hub (SignalR) needs WebSockets passed through.
+      '/hubs': { target: apiTarget, changeOrigin: true, ws: true },
+    },
   },
   test: {
     environment: 'jsdom',
