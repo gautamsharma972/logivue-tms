@@ -13,6 +13,7 @@ public static class TrackingSettingKeys
     public const string Retention = "tracking.retention";
     public const string Links = "tracking.links";
     public const string Milestones = "tracking.milestones";
+    public const string Compliance = "tracking.compliance";
 }
 
 /// <param name="ActiveSeconds">How often a moving vehicle reports. A few minutes is enough for a truck and spares the driver's battery.</param>
@@ -136,6 +137,7 @@ public static class TrackingSettingDefaults
         [TrackingSettingKeys.Alerts] = (typeof(AlertSetting), () => new AlertSetting(AlertSetting.DefaultRules, AlertSetting.DefaultEscalation)),
         [TrackingSettingKeys.Retention] = (typeof(RetentionSetting), () => new RetentionSetting()),
         [TrackingSettingKeys.Links] = (typeof(LinkSetting), () => new LinkSetting()),
+        [TrackingSettingKeys.Compliance] = (typeof(ComplianceSetting), () => new ComplianceSetting()),
         [TrackingSettingKeys.Milestones] = (typeof(MilestoneSetting), () => new MilestoneSetting(MilestoneSetting.DefaultEnabled)),
     };
 

@@ -194,6 +194,7 @@ internal sealed class SettingsHandler(TrackingDbContext db, TrackingAccess acces
         RetentionSetting r when r.RawLocationDays < 1 || r.AggregatedRouteDays < r.RawLocationDays => "Keep the summary at least as long as the raw locations.",
         LinkSetting l when l.DefaultValidityDays < 1 || l.MaxValidityDays < l.DefaultValidityDays => "Link validity must be at least a day, and the maximum no shorter than the default.",
         MilestoneSetting m when m.Enabled?.Any(x => !Enum.TryParse<MilestoneType>(x, true, out _)) == true => "One of the milestones is not known.",
+        ComplianceSetting c when c.StartToleranceMinutes < 0 || c.MinCoveragePct is < 0 or > 100 || c.RepeatedGapCount < 1 => "Tolerance cannot be negative, coverage is a percentage, and a pattern needs at least one gap.",
         _ => null,
     };
 }

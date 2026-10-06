@@ -211,6 +211,10 @@ public sealed class TrackedShipment : AggregateRoot, ITenantScoped
     [AuditIgnore]
     public double TravelledKm { get; private set; }
 
+    /// <summary>The path the vehicle actually took, simplified, as JSON [[lat, lon, epoch seconds], ...]. Written when the trip completes; it outlives the raw GPS points.</summary>
+    [AuditIgnore]
+    public string? ActualRouteJson { get; private set; }
+
     [AuditIgnore]
     public double? RemainingKm { get; private set; }
 
@@ -363,6 +367,8 @@ public sealed class TrackedShipment : AggregateRoot, ITenantScoped
 
         Publish(new TrackingStarted(TenantId, ShipmentId, ShipmentReference, TripReference, VehicleReference, TransporterId, at));
     }
+
+    public void SetActualRoute(string? json) => ActualRouteJson = json;
 
     public void StopTracking(DateTimeOffset at, string reason, bool completed)
     {

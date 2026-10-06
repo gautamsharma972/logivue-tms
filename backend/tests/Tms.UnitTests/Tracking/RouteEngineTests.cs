@@ -407,3 +407,140 @@ public class EtaCalculatorTests
         EtaCalculator.Calculate(Input([done, Stop(2, 60, null)]), Rules).ShouldHaveSingleItem();
     }
 }
+
+public class RouteSimplifierTests
+{
+    private static PathPoint P(double lat, double lon, int seconds) => new(lat, lon, 1_800_000_000 + seconds);
+
+    [Fact]
+    public void A_straight_run_collapses_to_its_two_ends()
+    {
+        var path = Enumerable.Range(0, 200).Select(i => P(19 + i * 0.0005, 73, i * 20)).ToList();
+
+        var result = RouteSimplifier.Simplify(path, 25);
+
+        result.Count.ShouldBe(2);
+        result[0].ShouldBe(path[0]);
+        result[^1].ShouldBe(path[^1]);
+    }
+
+    [Fact]
+    public void A_corner_is_kept_because_it_is_further_from_the_straight_line_than_the_tolerance()
+    {
+        // north for ~5.5 km, then east for ~5.5 km
+        var north = Enumerable.Range(0, 100).Select(i => P(19 + i * 0.0005, 73, i * 20));
+        var east = Enumerable.Range(1, 100).Select(i => P(19.0495, 73 + i * 0.0005, 2000 + i * 20));
+        var path = north.Concat(east).ToList();
+
+        var result = RouteSimplifier.Simplify(path, 25);
+
+        result.Count.ShouldBeInRange(3, 5);
+        result.ShouldContain(p => Math.Abs(p.Latitude - 19.0495) < 0.001 && Math.Abs(p.Longitude - 73) < 0.001);
+    }
+
+    [Fact]
+    public void A_silence_in_tracking_stays_visible_because_the_points_either_side_of_it_are_kept()
+    {
+        var before = Enumerable.Range(0, 50).Select(i => P(19 + i * 0.0005, 73, i * 20));
+        var after = Enumerable.Range(0, 50).Select(i => P(19.05 + i * 0.0005, 73, 5000 + i * 20)); // an hour and more later, on the same line
+        var path = before.Concat(after).ToList();
+
+        var result = RouteSimplifier.Simplify(path, 25);
+
+        result.ShouldContain(path[49]);
+        result.ShouldContain(path[50]);
+    }
+
+    [Fact]
+    public void A_very_winding_path_is_thinned_to_the_cap_and_keeps_both_ends()
+    {
+        var path = Enumerable.Range(0, 5000).Select(i => P(19 + Math.Sin(i / 3.0) * 0.01, 73 + i * 0.0002, i * 10)).ToList();
+
+        var result = RouteSimplifier.Simplify(path, 1, maxPoints: 300);
+
+        result.Count.ShouldBe(300);
+        result[0].ShouldBe(path[0]);
+        result[^1].ShouldBe(path[^1]);
+    }
+
+    [Fact]
+    public void Short_paths_come_back_as_they_are()
+    {
+        RouteSimplifier.Simplify([P(19, 73, 0)], 25).Count.ShouldBe(1);
+        RouteSimplifier.Simplify([P(19, 73, 0), P(19.1, 73, 60)], 25).Count.ShouldBe(2);
+    }
+}
+
+public class ComplianceCalculatorTests
+{
+    private static readonly DateTimeOffset T0 = new(2026, 10, 5, 8, 0, 0, TimeSpan.Zero);
+    private static readonly ComplianceSetting Rules = new(StartToleranceMinutes: 30, MinCoveragePct: 90, RepeatedGapCount: 3);
+    private static readonly HealthSetting Health = new(StaleAfterMinutes: 10, LostAfterMinutes: 30);
+
+    private static TripTracking Trip(int expected, int[] gaps, int startedLateMinutes = 0, bool? proper = true, bool planned = true) =>
+        new("k", "n", planned ? T0 : null, T0.AddMinutes(startedLateMinutes), expected, gaps, proper);
+
+    [Fact]
+    public void Coverage_is_the_time_tracked_over_the_time_the_trip_ran_and_gaps_are_classified_by_length()
+    {
+        var row = ComplianceCalculator.Row("k", "n", [Trip(200, [15, 40]), Trip(300, [])], Rules, Health);
+
+        row.ExpectedMinutes.ShouldBe(500);
+        row.ActualMinutes.ShouldBe(445);
+        row.CoveragePct.ShouldBe(89);
+        row.Gaps.ShouldBe(2);
+        row.LostTrips.ShouldBe(1);  // the 40-minute gap
+        row.StaleTrips.ShouldBe(0); // the first trip is already counted as lost, not both
+    }
+
+    [Fact]
+    public void A_trip_with_only_a_stale_length_gap_is_stale_not_lost()
+    {
+        var row = ComplianceCalculator.Row("k", "n", [Trip(120, [12])], Rules, Health);
+
+        row.StaleTrips.ShouldBe(1);
+        row.LostTrips.ShouldBe(0);
+    }
+
+    [Fact]
+    public void Driver_behaviour_rates_count_only_what_can_be_measured()
+    {
+        var trips = new[]
+        {
+            Trip(100, [], startedLateMinutes: 10),                         // on time, kept active, stopped properly
+            Trip(100, [20, 20, 20], startedLateMinutes: 45),               // late, three gaps (repeated), 40% uncovered
+            Trip(100, [], proper: false),                                  // abandoned
+            Trip(100, [], proper: null, planned: false),                   // still running, no planned start
+        };
+
+        var row = ComplianceCalculator.Row("k", "n", trips, Rules, Health);
+
+        row.StartedOnTime.ShouldBe(66.7);   // 2 of the 3 that had a planned start
+        row.KeptActive.ShouldBe(75);        // 3 of 4 reached 90% coverage
+        row.StoppedProperly.ShouldBe(66.7); // 2 of the 3 that have finished: the running one is not counted
+        row.TripsWithRepeatedGaps.ShouldBe(1);
+    }
+
+    [Fact]
+    public void Nothing_to_measure_is_null_never_zero()
+    {
+        var empty = ComplianceCalculator.Row("k", "n", [], Rules, Health);
+        empty.CoveragePct.ShouldBeNull();
+        empty.StartedOnTime.ShouldBeNull();
+        empty.KeptActive.ShouldBeNull();
+        empty.StoppedProperly.ShouldBeNull();
+
+        var unplanned = ComplianceCalculator.Row("k", "n", [Trip(60, [], proper: null, planned: false)], Rules, Health);
+        unplanned.StartedOnTime.ShouldBeNull(); // no planned start: cannot say whether it started on time
+        unplanned.StoppedProperly.ShouldBeNull(); // still running
+    }
+
+    [Fact]
+    public void A_gap_longer_than_the_trip_cannot_push_coverage_below_zero()
+    {
+        var row = ComplianceCalculator.Row("k", "n", [Trip(30, [500])], Rules, Health);
+
+        row.ActualMinutes.ShouldBe(0);
+        row.CoveragePct.ShouldBe(0);
+    }
+}

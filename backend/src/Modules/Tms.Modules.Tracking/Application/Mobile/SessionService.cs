@@ -21,7 +21,7 @@ public sealed record TrackingSessionDto(
 /// <summary>Starting and stopping tracking for a trip. Tracking exists only for the length of the trip, and a retried start or stop changes nothing.</summary>
 internal sealed class SessionService(
     TrackingDbContext db, TrackingAccess access, TrackedShipmentFactory factory, ITrackingContextLoader loader, IGeofenceService geofences, IDwellDetectionService dwell, ITrackingAlertService alerts,
-    ITrackingSettings settings, ISequenceGenerator sequences, Timeline timeline, PendingEvents pending, ICurrentUser user, TimeProvider clock)
+    ITrackingSettings settings, ISequenceGenerator sequences, RouteHistory history, Timeline timeline, PendingEvents pending, ICurrentUser user, TimeProvider clock)
 {
     public async Task<Result<TrackingSessionDto>> StartAsync(StartTrackingRequest request, CancellationToken cancellationToken)
     {
@@ -161,6 +161,12 @@ internal sealed class SessionService(
         }
 
         session.Stop(now, reason, completed);
+        if (completed)
+        {
+            // Kept after the raw points are purged, so the trip can still be replayed and its route shown.
+            shipment.SetActualRoute(await history.BuildSummaryAsync(shipment.ShipmentId, cancellationToken));
+        }
+
         shipment.StopTracking(now, reason, completed);
         if (completed)
         {

@@ -28,6 +28,7 @@ internal static class TrackingEndpoints
         MapAlertsAndExceptions(api);
         MapLinks(api);
         MapSettings(api);
+        MapCompliance(api);
         MapReports(api);
 
         // The one anonymous endpoint: a customer opening the link they were given. Rate-limited, read-only and indistinguishable on every failure.
@@ -87,6 +88,9 @@ internal static class TrackingEndpoints
 
         g.MapGet("/{id:guid}/route", async (Guid id, ShipmentQueryHandler h, CancellationToken ct) => (await h.RouteAsync(id, ct)).ToHttpResult())
             .WithName("GetShipmentRoute").Produces<RouteDto>();
+
+        g.MapGet("/{id:guid}/replay", async (Guid id, DateTimeOffset? from, DateTimeOffset? to, int? maxPoints, ShipmentQueryHandler h, CancellationToken ct) => (await h.ReplayAsync(id, from, to, maxPoints, ct)).ToHttpResult())
+            .WithName("GetShipmentReplay").Produces<ReplayDto>();
 
         g.MapGet("/{id:guid}/locations", async (Guid id, [AsParameters] LocationsQuery query, ShipmentQueryHandler h, CancellationToken ct) => (await h.LocationsAsync(id, query, ct)).ToHttpResult())
             .WithName("GetShipmentLocations").Produces<PagedResult<LocationDto>>();
@@ -220,6 +224,10 @@ internal static class TrackingEndpoints
         g.MapPut("/{key}", async (string key, JsonElement body, Application.Queries.SettingsHandler h, CancellationToken ct) => (await h.SaveAsync(key, body, ct)).ToHttpResult())
             .WithName("SaveTrackingSetting").Produces<Application.Queries.SettingDto>().ProducesValidationProblem();
     }
+
+    private static void MapCompliance(RouteGroupBuilder api) =>
+        api.MapGet("/tracking/compliance", async ([AsParameters] Application.Queries.ComplianceQuery query, Application.Queries.ComplianceHandler h, CancellationToken ct) => (await h.GetAsync(query, ct)).ToHttpResult())
+            .WithName("TrackingCompliance").Produces<Application.Queries.ComplianceDto>();
 
     private static void MapReports(RouteGroupBuilder api) =>
         api.MapGet("/tracking/reports/{report}", async (string report, [AsParameters] TrackingReportQuery query, ReportsHandler h, CancellationToken ct) =>

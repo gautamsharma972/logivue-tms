@@ -150,6 +150,12 @@ internal sealed class TrackingPositionFeed(TrackingDbContext db) : ITrackingPosi
 
         var points = await db.Locations.AsNoTracking().Where(l => l.ShipmentId == shipmentId && l.Validation == LocationValidation.Valid && !l.IsLate).OrderBy(l => l.CapturedAt)
             .Select(l => new TrackingPoint(l.Latitude, l.Longitude)).Take(100_000).ToListAsync(cancellationToken);
+        if (points.Count == 0)
+        {
+            // The raw points have been purged: the simplified path saved at completion is what remains.
+            points = RouteHistory.Parse(s.ActualRouteJson).Select(p => new TrackingPoint(p[0], p[1])).ToList();
+        }
+
         var max = Math.Clamp(maxPoints, 2, 5000);
         var thinned = points.Count <= max ? points : Enumerable.Range(0, max).Select(i => points[(int)Math.Round(i * (points.Count - 1.0) / (max - 1))]).ToList();
         return new ActualRouteFact(shipmentId, Math.Round(s.TravelledKm, 1), thinned);

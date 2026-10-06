@@ -14,13 +14,13 @@ public sealed record TrackingReportQuery(
     DateOnly? From = null, DateOnly? To = null, Guid? TransporterId = null, string? Vehicle = null, string? Customer = null, string? Lane = null, string? GroupBy = null, string? Format = null, int? LeadHours = null);
 
 /// <summary>The tracking reports, as CSV or Excel. Staff only. Times are shown in Indian time; they are stored in UTC.</summary>
-internal sealed class ReportsHandler(TrackingDbContext db, TrackingAccess access, TimeProvider clock)
+internal sealed class ReportsHandler(TrackingDbContext db, TrackingAccess access, ComplianceHandler compliance, TimeProvider clock)
 {
     private const int Cap = 50_000;
     private const string Csv = "text/csv; charset=utf-8";
     private const string Xlsx = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
-    public static IReadOnlyList<string> Reports { get; } = ["shipments", "vehicles", "deviations", "dwell", "eta-accuracy", "tracking-health", "delays", "exceptions", "planned-vs-actual"];
+    public static IReadOnlyList<string> Reports { get; } = ["shipments", "vehicles", "deviations", "dwell", "eta-accuracy", "tracking-health", "delays", "exceptions", "planned-vs-actual", "compliance"];
 
     public async Task<Result<ReportFile>> RunAsync(string report, TrackingReportQuery query, CancellationToken cancellationToken)
     {
@@ -80,6 +80,11 @@ internal sealed class ReportsHandler(TrackingDbContext db, TrackingAccess access
 
     private async Task<List<Dictionary<string, object?>>> BuildAsync(string report, TrackingReportQuery query, DateTimeOffset since, DateTimeOffset until, CancellationToken ct)
     {
+        if (report == "compliance")
+        {
+            return await compliance.ReportAsync(new ComplianceQuery(DateOnly.FromDateTime(since.DateTime), DateOnly.FromDateTime(until.AddDays(-1).DateTime), query.TransporterId, query.GroupBy), ct);
+        }
+
         var shipments = await Shipments(query, since, until).OrderBy(s => s.ShipmentReference).Take(Cap).ToListAsync(ct);
         var ids = shipments.Select(s => s.Id).ToList();
         var byId = shipments.ToDictionary(s => s.Id);

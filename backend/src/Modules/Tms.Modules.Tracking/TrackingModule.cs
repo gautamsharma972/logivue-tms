@@ -72,6 +72,9 @@ public static class TrackingModule
         services.AddScoped<LocationPipeline>();
         services.AddScoped<SessionService>();
         services.AddScoped<TrackingHealthMonitor>();
+        services.AddScoped<RouteHistory>();
+        services.AddScoped<RetentionService>();
+        services.AddHostedService<RetentionWorker>();
         services.AddScoped<ITrackingLocationProvider, MobileTrackingLocationProvider>();
 
         // Local stand-in for planning, used only until Shipments (or another module) provides the real one: the first registration wins.

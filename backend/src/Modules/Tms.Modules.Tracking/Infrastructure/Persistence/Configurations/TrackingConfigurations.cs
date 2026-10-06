@@ -30,6 +30,7 @@ internal sealed class TrackedShipmentConfiguration : IEntityTypeConfiguration<Tr
         b.Property(s => s.DelayReason).HasConversion<string?>().HasMaxLength(20);
         b.Property(s => s.DelayNote).HasMaxLength(500);
         b.Property(s => s.DwellWhere).HasMaxLength(30);
+        b.Property(s => s.ActualRouteJson).HasColumnType("longtext");
         b.Ignore(s => s.CurrentEtaAt);
         b.Ignore(s => s.IsActive);
         b.HasMany(s => s.Stops).WithOne().HasForeignKey(x => x.TrackedShipmentId).OnDelete(DeleteBehavior.Cascade);

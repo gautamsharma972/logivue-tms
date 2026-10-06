@@ -8,7 +8,7 @@ using Tms.SharedKernel.Results;
 namespace Tms.Modules.Tracking.Application.Queries;
 
 /// <summary>Reads about one trip or a list of trips: where it is, how it is doing, what happened, what is expected. Everything here reads the read model, not the GPS history.</summary>
-internal sealed class ShipmentQueryHandler(TrackingDbContext db, TrackingAccess access, TrackingHealthMonitor monitor, ITrackingSettings settings, TimeProvider clock)
+internal sealed class ShipmentQueryHandler(TrackingDbContext db, TrackingAccess access, TrackingHealthMonitor monitor, ITrackingSettings settings, RouteHistory history, TimeProvider clock)
 {
     private IQueryable<TrackedShipment> Scoped()
     {
@@ -233,6 +233,13 @@ internal sealed class ShipmentQueryHandler(TrackingDbContext db, TrackingAccess 
     }
 
     /// <summary>The trail the vehicle left. For replay a point count can be asked for and the trail is thinned evenly to it; the first and last points are always kept.</summary>
+    /// <summary>Where the vehicle went, in time order, for the replay player: the raw points while they exist, the saved simplified path after they have been purged.</summary>
+    public async Task<Result<ReplayDto>> ReplayAsync(Guid id, DateTimeOffset? from, DateTimeOffset? to, int? maxPoints, CancellationToken cancellationToken)
+    {
+        var found = await FindAsync(id, includeStops: false, cancellationToken);
+        return found.IsFailure ? found.Error : await history.ReplayAsync(found.Value, from, to, maxPoints ?? 1500, cancellationToken);
+    }
+
     public async Task<Result<PagedResult<LocationDto>>> LocationsAsync(Guid id, LocationsQuery query, CancellationToken cancellationToken)
     {
         var found = await FindAsync(id, includeStops: false, cancellationToken);

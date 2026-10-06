@@ -34,7 +34,7 @@ function SettingCard({ setting }: { setting: TrackingSettingDto }) {
     onError: (e) => setError(e instanceof SyntaxError ? 'This is not valid JSON.' : toApiError(e).message),
   })
   return (
-    <Card size="small" title={<>{TITLES[setting.key] ?? setting.key} {setting.isCustomised ? <Tag color="blue">Customised</Tag> : <Tag>Default</Tag>}</>} extra={<Typography.Text type="secondary">{setting.key}</Typography.Text>}>
+    <Card size="small" title={<>{TITLES[setting.key.replace('tracking.', '')] ?? setting.key} {setting.isCustomised ? <Tag color="blue">Customised</Tag> : <Tag>Default</Tag>}</>} extra={<Typography.Text type="secondary">{setting.key}</Typography.Text>}>
       <Input.TextArea rows={Math.min(14, text.split('\n').length + 1)} value={text} onChange={(e) => setText(e.target.value)} style={{ fontFamily: 'monospace' }} />
       {error && <Alert type="error" showIcon message={error} style={{ marginTop: 8 }} />}
       <Button type="primary" style={{ marginTop: 8 }} loading={save.isPending} onClick={() => save.mutate()}>Save</Button>
