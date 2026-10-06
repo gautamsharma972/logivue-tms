@@ -96,7 +96,7 @@ public static partial class OcrReconciler
     private static bool SameDate(string read, string expected) => TryDate(read, out var a) && TryDate(expected, out var b) && a == b;
 
     private static bool TryDate(string value, out DateOnly date) =>
-        DateOnly.TryParseExact(value.Trim(), ["yyyy-MM-dd", "dd/MM/yyyy", "dd-MM-yyyy", "d/M/yyyy", "dd MMM yyyy", "d MMM yyyy"], CultureInfo.InvariantCulture, DateTimeStyles.None, out date);
+        DateOnly.TryParseExact(value.Trim(), ["yyyy-MM-dd", "dd/MM/yyyy", "dd-MM-yyyy", "d/M/yyyy", "d-M-yyyy", "dd.MM.yyyy", "d.M.yyyy", "dd MM yyyy", "d M yyyy", "dd/MM/yy", "d/M/yy", "dd-MM-yy", "d-M-yy", "dd.MM.yy", "dd MMM yyyy", "d MMM yyyy", "dd-MMM-yyyy", "d-MMM-yyyy", "dd/MMM/yyyy", "dd MMMM yyyy", "d MMMM yyyy", "dd-MMM-yy", "d-MMM-yy"], CultureInfo.InvariantCulture, DateTimeStyles.None, out date);
 
     [GeneratedRegex("[^A-Za-z0-9]")]
     private static partial Regex NonAlphanumeric();

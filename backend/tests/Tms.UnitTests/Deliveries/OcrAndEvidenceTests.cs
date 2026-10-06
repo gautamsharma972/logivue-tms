@@ -72,6 +72,13 @@ public class OcrAndEvidenceTests
         var written = day.ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture);
         Run(d, pod, new OcrReading(OcrReconciler.DeliveryDate, written, written, 0.97m)).Single().Status.ShouldBe(OcrFieldStatus.Matched);
         Run(d, pod, new OcrReading(OcrReconciler.DeliveryDate, "01/01/2020", "01/01/2020", 0.97m)).Single().Status.ShouldBe(OcrFieldStatus.Mismatch);
+
+        // the other ways a date is written on a challan
+        foreach (var format in new[] { "dd MM yyyy", "dd.MM.yyyy", "dd/MM/yy", "dd-MMM-yyyy", "d MMMM yyyy", "dd-MMM-yy" })
+        {
+            var text = day.ToString(format, System.Globalization.CultureInfo.InvariantCulture);
+            Run(d, pod, new OcrReading(OcrReconciler.DeliveryDate, text, text, 0.97m)).Single().Status.ShouldBe(OcrFieldStatus.Matched, text);
+        }
     }
 
     [Fact]

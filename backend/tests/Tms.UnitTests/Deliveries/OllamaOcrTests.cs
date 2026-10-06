@@ -23,7 +23,21 @@ public class OllamaOcrTests
         }
     }
 
-    private static OllamaPodOcrService Service(Stub stub) =>
+    private sealed class Loops(int times, string good) : HttpMessageHandler
+    {
+        public List<string> Temperatures { get; } = [];
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var body = await request.Content!.ReadAsStringAsync(cancellationToken);
+            Temperatures.Add(System.Text.RegularExpressions.Regex.Match(body, "\"temperature\":([0-9.]+)").Groups[1].Value);
+            return Temperatures.Count <= times
+                ? new HttpResponseMessage(HttpStatusCode.InternalServerError) { Content = new StringContent("{\"error\":\"prediction aborted, token repeat limit reached\"}") }
+                : new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(good, Encoding.UTF8, "application/json") };
+        }
+    }
+
+    private static OllamaPodOcrService Service(HttpMessageHandler stub) =>
         new(new HttpClient(stub), Options.Create(new OllamaOcrOptions { Enabled = true, Model = "qwen2.5vl:7b" }), NullLogger<OllamaPodOcrService>.Instance);
 
     private static readonly byte[] Png = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3, 4];
@@ -64,6 +78,32 @@ public class OllamaOcrTests
     }
 
     [Fact]
+    public void One_value_filling_two_fields_is_a_guessed_label_and_both_are_held_for_a_person()
+    {
+        var fields = OllamaPodOcrService.Parse(Chat(new
+        {
+            text = "Invoice INV-5512 vehicle GJ05CD7788 customer Surat Retail Hub",
+            invoiceNumber = new { value = "INV-5512", confidence = 1 },
+            deliveryNumber = new { value = "INV-5512", confidence = 1 }, // the invoice number again
+            vehicleNumber = new { value = "GJ05CD7788", confidence = 1 },
+            transporter = new { value = "GJ05CD7788", confidence = 1 }, // a plate is not a carrier
+            customer = new { value = "Surat Retail Hub", confidence = 1 },
+        }));
+
+        fields.Where(f => f.Name is "Invoice Number" or "Delivery Number" or "Vehicle Number" or "Transporter").ShouldAllBe(f => f.Confidence == OllamaPodOcrService.UngroundedCeiling);
+        fields.First(f => f.Name == "Customer").Confidence.ShouldBe(OllamaPodOcrService.GroundedCeiling); // untouched
+    }
+
+    [Fact]
+    public void A_quantity_written_as_a_word_for_nothing_is_zero()
+    {
+        var fields = OllamaPodOcrService.Parse(Chat(new { text = "Short: nil Received 240 bags", shortQuantity = new { value = "nil", confidence = 1 }, deliveredQuantity = new { value = "240 bags", confidence = 1 } }));
+
+        fields.First(f => f.Name == "Short Quantity").Normalized.ShouldBe("0");
+        fields.First(f => f.Name == "Delivered Quantity").Normalized.ShouldBe("240");
+    }
+
+    [Fact]
     public void An_answer_that_is_not_json_yields_nothing_rather_than_a_guess()
     {
         OllamaPodOcrService.Parse(JsonSerializer.Serialize(new { message = new { content = "I think the shipment is SH1" } })).ShouldBeEmpty();
@@ -82,6 +122,37 @@ public class OllamaOcrTests
         stub.Request!.ShouldContain("\"images\"");
         stub.Request!.ShouldContain("qwen2.5vl:7b");
         stub.Request!.ShouldContain("\"temperature\":0");
+    }
+
+    [Fact]
+    public void The_title_of_the_page_is_not_a_delivery_number_and_no_damage_is_not_a_damage_remark()
+    {
+        var fields = OllamaPodOcrService.Parse(Chat(new
+        {
+            text = "DELIVERY CHALLAN Shipment SH10077 No damage noted.",
+            deliveryNumber = new { value = "DELIVERY CHALLAN", confidence = 1 },
+            shipmentNumber = new { value = "SH10077", confidence = 1 },
+            damageRemarks = new { value = "No damage noted.", confidence = 1 },
+        }));
+
+        fields.First(f => f.Name == "Delivery Number").Confidence.ShouldBe(OllamaPodOcrService.UngroundedCeiling); // no digit: not a number
+        fields.First(f => f.Name == "Shipment Number").Confidence.ShouldBe(OllamaPodOcrService.GroundedCeiling);
+        fields.ShouldNotContain(f => f.Name == "Damage Remarks");
+        OllamaPodOcrService.Parse(Chat(new { text = "No. 5 carton broken", damageRemarks = new { value = "No. 5 carton broken", confidence = 1 } })).ShouldContain(f => f.Name == "Damage Remarks"); // a real remark is kept
+    }
+
+    [Fact]
+    public async Task A_model_that_loops_is_asked_again_a_little_warmer_and_gives_up_only_after_three_tries()
+    {
+        var good = Chat(new { text = "Shipment SH10025", shipmentNumber = new { value = "SH10025", confidence = 1 } });
+        var twice = new Loops(2, good);
+        (await Service(twice).ExtractAsync(new OcrDocument("p.png", "image/png", new MemoryStream(Png)), default)).Fields.ShouldHaveSingleItem();
+        twice.Temperatures.ShouldBe(["0.1", "0.3", "0.5"]);
+
+        var always = new Loops(99, good);
+        var failed = await Should.ThrowAsync<InvalidOperationException>(() => Service(always).ExtractAsync(new OcrDocument("p.png", "image/png", new MemoryStream(Png)), default));
+        failed.Message.ShouldContain("repeat");
+        always.Temperatures.Count.ShouldBe(3);
     }
 
     [Fact]

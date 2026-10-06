@@ -88,7 +88,16 @@ A document is read by `CompositePodOcrService`:
 
 **Confidence from a model is not trusted as given.** The model is asked to transcribe the page first; a field counts as *read* only if its value appears in that transcription (capped at 97%, because a model is never as sure as a text layer).
 A value that does not appear in the transcription was inferred and is capped at 40%, below every review threshold. Quantities are reduced to their number ("95 cartons" → 95). The reconciliation with the delivery and the human review stay the real controls.
-Measured on one synthetic challan photograph on an Apple M5 / 16 GB: about 40 s for the first read (the model loading), 20–40 s after; every field was read correctly. That is one document, not an accuracy figure.
+Measured on one synthetic challan photograph on an Apple M5 / 16 GB: about 40 s for the first read (the model loading), 20–40 s after; every field was read correctly. That first check was one document.
+
+**Benchmark on 11 synthetic pages** (`tools/ocr-benchmark`: clean, free text, skewed scan, low-res fax, handwritten form, phone photo, scanned PDF, Hindi/English form, sparse page, stamp over text, all handwritten; 103 fields with known answers):
+every expected field was read correctly (103 of 103), nothing was missed, and 16–72 s per page after the first load. What went wrong along the way, and what each fix was:
+- The model filled a field with a value that belongs to another (invoice number as delivery number, a vehicle plate as transporter), or read the page title ("DELIVERY CHALLAN") as a delivery number, with full confidence. Fixes: per-field definitions in the prompt; a value used for two fields holds both below the review threshold; a code field with no digit is held.
+- It returned the receiver's company instead of the person, and "No damage noted." as a damage remark. Fixed in the prompt and by dropping "no damage" answers.
+- At temperature 0 it sometimes looped ("token repeat limit reached") or ran for minutes on a dense page. Reads now use a small temperature, are retried warmer up to three times, and are capped at 2048 tokens.
+- On a form with handwriting its transcription skipped the handwritten words, so every value was held for review (safe, but useless). The prompt now asks for handwritten and stamped text.
+- Dates written "05 10 2026", "05.10.2026", "05-Oct-26" and similar were compared as different from the system date; they are now parsed.
+These are generated pages. Real challans (crumpled, stamped, faint, mixed scripts) will do worse; run your own before relying on it, and keep the human review for anything a person would not trust.
 
 ## Files
 Uploads (proof evidence and exception attachments) are identified by their bytes (`FileSniffer`), size-limited, and then passed to `IFileScanner` (`Tms.SharedKernel.Files`) before they are stored. The default `NoFileScanner` scans nothing:

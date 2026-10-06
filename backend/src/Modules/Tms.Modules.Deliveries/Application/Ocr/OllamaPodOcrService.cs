@@ -29,7 +29,7 @@ public sealed class OllamaOcrOptions
 /// embedded page image taken out; a PDF with a text layer is sent as text. The model answers in a fixed JSON shape, and each field comes back as the model read it
 /// with the model's own confidence. That confidence is self-reported, not calibrated: the checks against the delivery and the human review are the real controls.
 /// </summary>
-internal sealed class OllamaPodOcrService(HttpClient http, IOptions<OllamaOcrOptions> options, ILogger<OllamaPodOcrService> logger) : IPodOcrService
+internal sealed partial class OllamaPodOcrService(HttpClient http, IOptions<OllamaOcrOptions> options, ILogger<OllamaPodOcrService> logger) : IPodOcrService
 {
     private readonly OllamaOcrOptions _options = options.Value;
 
@@ -70,49 +70,67 @@ internal sealed class OllamaPodOcrService(HttpClient http, IOptions<OllamaOcrOpt
         }
 
         message["content"] = prompt.ToString();
-        var request = new JsonObject
-        {
-            ["model"] = _options.Model,
-            ["stream"] = false,
-            ["messages"] = new JsonArray(message),
-            ["format"] = Schema(),
-            ["options"] = new JsonObject { ["temperature"] = 0, ["num_ctx"] = 8192 },
-        };
 
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(TimeSpan.FromSeconds(_options.TimeoutSeconds));
-        HttpResponseMessage response;
-        try
+        // Greedy decoding (temperature 0) can send a model round in circles on some pages; Ollama then aborts with "token repeat limit reached".
+        // A little randomness breaks the loop, so the read is tried again slightly warmer before it is given up as a failure.
+        string? lastFailure = null;
+        foreach (var temperature in Temperatures)
         {
-            response = await http.PostAsJsonAsync(new Uri(new Uri(_options.BaseUrl.TrimEnd('/') + "/"), "api/chat"), request, timeout.Token);
-        }
-        catch (HttpRequestException ex)
-        {
-            throw new InvalidOperationException($"Ollama is not reachable at {_options.BaseUrl}: {ex.Message}", ex);
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            throw new InvalidOperationException($"Ollama did not answer within {_options.TimeoutSeconds} seconds.");
-        }
-
-        using (response)
-        {
-            if (!response.IsSuccessStatusCode)
+            var request = new JsonObject
             {
-                var detail = await response.Content.ReadAsStringAsync(cancellationToken);
-                throw new InvalidOperationException($"Ollama answered {(int)response.StatusCode}: {detail[..Math.Min(detail.Length, 300)]}");
+                ["model"] = _options.Model,
+                ["stream"] = false,
+                ["messages"] = new JsonArray(message.DeepClone()),
+                ["format"] = Schema(),
+                ["options"] = new JsonObject { ["temperature"] = temperature, ["num_ctx"] = 8192, ["num_predict"] = 2048 }, // bounded: a page that loops must not run for minutes
+            };
+
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(TimeSpan.FromSeconds(_options.TimeoutSeconds));
+            HttpResponseMessage response;
+            try
+            {
+                response = await http.PostAsJsonAsync(new Uri(new Uri(_options.BaseUrl.TrimEnd('/') + "/"), "api/chat"), request, timeout.Token);
+            }
+            catch (HttpRequestException ex)
+            {
+                throw new InvalidOperationException($"Ollama is not reachable at {_options.BaseUrl}: {ex.Message}", ex);
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                throw new InvalidOperationException($"Ollama did not answer within {_options.TimeoutSeconds} seconds.");
             }
 
-            var body = await response.Content.ReadAsStringAsync(cancellationToken);
-            var fields = Parse(body, logger);
-            if (fields.Count == 0)
+            using (response)
             {
-                throw new InvalidOperationException("The model found no readable fields in the document.");
-            }
+                if (!response.IsSuccessStatusCode)
+                {
+                    var detail = await response.Content.ReadAsStringAsync(cancellationToken);
+                    lastFailure = $"Ollama answered {(int)response.StatusCode}: {detail[..Math.Min(detail.Length, 300)]}";
+                    if (detail.Contains("repeat", StringComparison.OrdinalIgnoreCase))
+                    {
+                        logger.LogWarning("The model looped at temperature {Temperature}; trying again", temperature);
+                        continue;
+                    }
 
-            return new PodOcrExtraction(Provider, fields, Math.Round(fields.Average(f => f.Confidence), 4), null);
+                    throw new InvalidOperationException(lastFailure);
+                }
+
+                var body = await response.Content.ReadAsStringAsync(cancellationToken);
+                var fields = Parse(body, logger);
+                if (fields.Count == 0)
+                {
+                    throw new InvalidOperationException("The model found no readable fields in the document.");
+                }
+
+                return new PodOcrExtraction(Provider, fields, Math.Round(fields.Average(f => f.Confidence), 4), null);
+            }
         }
+
+        throw new InvalidOperationException(lastFailure ?? "The model did not answer.");
     }
+
+    private static readonly double[] Temperatures = [0.1, 0.3, 0.5];
 
     /// <summary>Turns Ollama's chat answer into field readings. Anything the model left empty or could not read is dropped, never invented.</summary>
     internal static IReadOnlyList<OcrFieldReading> Parse(string chatResponse, ILogger? logger = null)
@@ -150,6 +168,12 @@ internal sealed class OllamaPodOcrService(HttpClient http, IOptions<OllamaOcrOpt
                 continue;
             }
 
+            // "No damage noted" answers the question; it is not a damage remark.
+            if (name == OcrReconciler.DamageRemarks && NoDamage().IsMatch(raw))
+            {
+                continue;
+            }
+
             var confidence = 0.5m;
             if (field["confidence"] is JsonNode c && decimal.TryParse(c.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed))
             {
@@ -157,6 +181,12 @@ internal sealed class OllamaPodOcrService(HttpClient http, IOptions<OllamaOcrOpt
             }
 
             confidence = Math.Clamp(confidence, 0m, 1m);
+            if (IsCode(name) && !raw.Any(char.IsDigit))
+            {
+                // A shipment, delivery, invoice or vehicle number always has a digit. "DELIVERY CHALLAN" is the title of the page, not a number.
+                confidence = Math.Min(confidence, UngroundedCeiling);
+            }
+
             if (transcript is { Length: > 0 })
             {
                 // A model that says "100% sure" says so about everything, so its word alone is not trusted. A value counts as read only if it also appears in the
@@ -167,7 +197,17 @@ internal sealed class OllamaPodOcrService(HttpClient http, IOptions<OllamaOcrOpt
             readings.Add(new OcrFieldReading(name, raw, Normalise(name, raw), confidence));
         }
 
-        return readings;
+        return HoldDuplicates(readings);
+    }
+
+    /// <summary>
+    /// One value cannot belong to two fields. A model that fills "delivery number" with the invoice number, or "transporter" with the vehicle plate, has guessed a label,
+    /// so every field that shares a value is held below the review threshold and a person decides.
+    /// </summary>
+    private static List<OcrFieldReading> HoldDuplicates(List<OcrFieldReading> readings)
+    {
+        var shared = readings.GroupBy(r => Squash(r.Raw ?? string.Empty)).Where(g => g.Key.Length > 0 && g.Count() > 1).SelectMany(g => g).ToHashSet();
+        return shared.Count == 0 ? readings : [.. readings.Select(r => shared.Contains(r) ? r with { Confidence = Math.Min(r.Confidence, UngroundedCeiling) } : r)];
     }
 
     /// <summary>The most confidence a value can have when it is found in the transcription: a model reading is never as certain as a digital text layer.</summary>
@@ -175,6 +215,11 @@ internal sealed class OllamaPodOcrService(HttpClient http, IOptions<OllamaOcrOpt
 
     /// <summary>The most confidence a value can have when the transcription does not contain it.</summary>
     internal const decimal UngroundedCeiling = 0.4m;
+
+    private static bool IsCode(string name) => name is OcrReconciler.ShipmentNumber or OcrReconciler.DeliveryNumber or OcrReconciler.InvoiceNumber or OcrReconciler.VehicleNumber;
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"^\s*(?:(?:no|nil|none|nothing)\s+(?:damages?|damaged|breakage|loss|issues?|remarks?|shortage)\b.*|(?:nil|none|n/?a|-+))\s*\.?\s*$", System.Text.RegularExpressions.RegexOptions.IgnoreCase)]
+    private static partial System.Text.RegularExpressions.Regex NoDamage();
 
     private static string Squash(string s) => new([.. s.Where(char.IsLetterOrDigit).Select(char.ToLowerInvariant)]);
 
@@ -190,6 +235,11 @@ internal sealed class OllamaPodOcrService(HttpClient http, IOptions<OllamaOcrOpt
     /// <summary>"95 cartons" is 95; "1,095" is 1095. Anything that does not start with a number is kept as written, for a person to read.</summary>
     private static string LeadingNumber(string raw)
     {
+        if (System.Text.RegularExpressions.Regex.IsMatch(raw.Trim(), @"^(nil|none|no|zero|-+|n/?a)\.?$", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+        {
+            return "0";
+        }
+
         var m = System.Text.RegularExpressions.Regex.Match(raw.Trim(), @"^[-+]?\d[\d,]*(\.\d+)?");
         return m.Success ? m.Value.Replace(",", string.Empty, StringComparison.Ordinal) : raw;
     }
@@ -212,11 +262,15 @@ internal sealed class OllamaPodOcrService(HttpClient http, IOptions<OllamaOcrOpt
 
     private const string Prompt = """
         You are reading a signed proof-of-delivery document (a delivery challan or receipt) from India.
-        Transcribe the whole page into "text": every line, in reading order, one per line, exactly as printed or written, including both labels and values. Then read the fields from your transcription.
+        Transcribe the whole page into "text": every line, in reading order, one per line, exactly as printed or written, including both labels and values. Include handwritten, stamped and typed text as well as printed text. Then read the fields from your transcription.
         Copy each value exactly as it appears, including letters, digits and dashes. If a field is not on the document, or you cannot read it, return null for its value. Never guess or infer a value.
         For each field give your confidence from 0 to 1 that you read it exactly right: use a low number for faint, smudged, handwritten or partly hidden text.
         Fields: shipmentNumber, deliveryNumber, invoiceNumber, customer, transporter, vehicleNumber, deliveryDate (as written), recipientName,
         deliveredQuantity (a number only), shortQuantity (a number only), damageRemarks.
+        What the fields mean: recipientName is the person who received or signed for the goods (after "received by", "receiver" or "signed"), never a company. customer is the consignee company.
+        transporter is the carrier company, never a vehicle number or a code. vehicleNumber is a vehicle registration plate. deliveryNumber is the delivery or challan reference of this document;
+        it is null unless the document has one labelled as such, and an invoice number is not a delivery number. A value belongs to exactly one field: never repeat it for another field.
+        damageRemarks is filled only when damage, breakage or loss is reported; it is null when the document says there is none.
         """;
 }
 
