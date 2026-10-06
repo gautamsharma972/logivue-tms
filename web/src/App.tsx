@@ -41,6 +41,15 @@ const ExceptionsPage = lazy(() => import('@/features/deliveries/ExceptionsPage')
 const DeliveryDashboardPage = lazy(() => import('@/features/deliveries/DeliveryDashboardPage').then((m) => ({ default: m.DeliveryDashboardPage })))
 const DeliveryReportsPage = lazy(() => import('@/features/deliveries/DeliveryReportsPage').then((m) => ({ default: m.DeliveryReportsPage })))
 const NotificationsPage = lazy(() => import('@/features/deliveries/NotificationsPage').then((m) => ({ default: m.NotificationsPage })))
+const ControlTowerPage = lazy(() => import('@/features/tracking/ControlTowerPage').then((m) => ({ default: m.ControlTowerPage })))
+const ShipmentTrackingPage = lazy(() => import('@/features/tracking/ShipmentTrackingPage').then((m) => ({ default: m.ShipmentTrackingPage })))
+const VehicleTrackingPage = lazy(() => import('@/features/tracking/VehiclesPage').then((m) => ({ default: m.VehicleTrackingPage })))
+const TrackingExceptionsPage = lazy(() => import('@/features/tracking/ExceptionsPage').then((m) => ({ default: m.TrackingExceptionsPage })))
+const GeofencesPage = lazy(() => import('@/features/tracking/GeofencesPage').then((m) => ({ default: m.GeofencesPage })))
+const TrackingSettingsPage = lazy(() => import('@/features/tracking/SettingsPage').then((m) => ({ default: m.TrackingSettingsPage })))
+const TrackingReportsPage = lazy(() => import('@/features/tracking/ReportsPage').then((m) => ({ default: m.TrackingReportsPage })))
+const DriverTrackingPage = lazy(() => import('@/features/tracking/DriverTrackingPage').then((m) => ({ default: m.DriverTrackingPage })))
+const CustomerTrackingPage = lazy(() => import('@/features/tracking/CustomerTrackingPage').then((m) => ({ default: m.CustomerTrackingPage })))
 const DeliverySettingsPage = lazy(() => import('@/features/deliveries/DeliverySettingsPage').then((m) => ({ default: m.DeliverySettingsPage })))
 const DriverArea = lazy(() => import('@/features/deliveries/DriverArea').then((m) => ({ default: m.DriverArea })))
 const MobileDeliveriesPage = lazy(() => import('@/features/deliveries/MobileDeliveriesPage').then((m) => ({ default: m.MobileDeliveriesPage })))
@@ -74,6 +83,7 @@ export function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
+      <Route path="/track/:token" element={<CustomerTrackingPage />} />
       <Route element={<RequireAuth />}>
         <Route path="/change-password" element={<ChangePasswordPage />} />
         <Route element={<AppLayout />}>
@@ -141,6 +151,24 @@ export function App() {
             <Route path="driver" element={<DriverArea />}>
               <Route index element={<MobileDeliveriesPage />} />
               <Route path=":id" element={<MobileDeliveryPage />} />
+            </Route>
+          </Route>
+          <Route path="tracking">
+            <Route element={<RequireAnyPermission permissions={['tracking.read', 'tracking.manage']} />}>
+              <Route index element={<ControlTowerPage />} />
+              <Route path="shipments/:id" element={<ShipmentTrackingPage />} />
+              <Route path="vehicles" element={<VehicleTrackingPage />} />
+              <Route path="exceptions" element={<TrackingExceptionsPage />} />
+              <Route path="reports" element={<TrackingReportsPage />} />
+            </Route>
+            <Route element={<RequireAnyPermission permissions={['tracking.read', 'tracking.geofences.manage']} />}>
+              <Route path="geofences" element={<GeofencesPage />} />
+            </Route>
+            <Route element={<RequirePermission permission="tracking.configure" />}>
+              <Route path="settings" element={<TrackingSettingsPage />} />
+            </Route>
+            <Route element={<RequirePermission permission="tracking.execute" />}>
+              <Route path="drive" element={<DriverTrackingPage />} />
             </Route>
           </Route>
           <Route path="admin">

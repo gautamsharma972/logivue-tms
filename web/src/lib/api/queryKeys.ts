@@ -1,4 +1,4 @@
-import type { ListDeliveriesParams, ListDeliveryExceptionsParams, ListPodsParams, ListLocationsParams, ListPodParams, ListOrdersParams, ListShipmentsParams, ListContractsParams, ListAuditLogsParams, ListRequestsParams, ListTransportersParams, ListUsersParams } from './types'
+import type { ListTrackedParams, ListDeliveriesParams, ListDeliveryExceptionsParams, ListPodsParams, ListLocationsParams, ListPodParams, ListOrdersParams, ListShipmentsParams, ListContractsParams, ListAuditLogsParams, ListRequestsParams, ListTransportersParams, ListUsersParams } from './types'
 
 /** One place for cache keys so invalidation after a mutation can never drift from the queries. */
 export const queryKeys = {
@@ -126,5 +126,22 @@ export const queryKeys = {
     vehicleTypes: ['shipments', 'vehicle-types'] as const,
     suggestions: ['shipments', 'suggestions'] as const,
     utilization: ['shipments', 'utilization'] as const,
+  },
+  tracking: {
+    all: ['tracking'] as const,
+    summary: (transporterId?: string) => ['tracking', 'summary', transporterId] as const,
+    list: (params: ListTrackedParams) => ['tracking', 'list', params] as const,
+    map: ['tracking', 'map'] as const,
+    detail: (id: string) => ['tracking', 'detail', id] as const,
+    part: (id: string, part: string, extra?: unknown) => ['tracking', 'detail', id, part, extra] as const,
+    vehicles: (params: object) => ['tracking', 'vehicles', params] as const,
+    alerts: (params: object) => ['tracking', 'alerts', params] as const,
+    exceptions: (params: object) => ['tracking', 'exceptions', params] as const,
+    exception: (id: string) => ['tracking', 'exception', id] as const,
+    geofences: ['tracking', 'geofences'] as const,
+    settings: ['tracking', 'settings'] as const,
+    links: (id: string) => ['tracking', 'links', id] as const,
+    trips: ['tracking', 'trips'] as const,
+    customer: (token: string) => ['tracking', 'customer', token] as const,
   },
 }

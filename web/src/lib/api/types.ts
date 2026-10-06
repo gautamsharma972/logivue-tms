@@ -2600,3 +2600,496 @@ export interface ProofPerformanceDto {
   refusals: number
   failures: number
 }
+
+// ---- Shipment tracking & visibility (module 4)
+
+export type TrackingHealth = 'NotStarted' | 'Healthy' | 'Stale' | 'Lost' | 'Completed'
+export type TrackingExecution =
+  | 'Planned' | 'EnRouteToOrigin' | 'ArrivedOrigin' | 'Loading' | 'Departed' | 'InTransit' | 'ApproachingDestination' | 'ArrivedDestination' | 'Delivered' | 'Cancelled' | 'Completed'
+export type RiskStatus = 'Unknown' | 'OnTime' | 'AtRisk' | 'Delayed' | 'SeverelyDelayed'
+export type RiskLevel = 'Low' | 'Medium' | 'High' | 'Critical'
+export type TrackSeverity = 'Informational' | 'Warning' | 'High' | 'Critical'
+export type TrackStopStatus = 'Pending' | 'Approaching' | 'Arrived' | 'Departed' | 'Skipped'
+export type TrackAlertType =
+  | 'TrackingStale' | 'TrackingLost' | 'RouteDeviation' | 'ExcessiveDwell' | 'UnplannedStop' | 'EtaAtRisk' | 'EtaDelayed' | 'DeliverySlaRisk' | 'GeofenceException' | 'GpsAnomaly' | 'VehicleStationary'
+  | 'GpsUnavailable'
+export type TrackAlertStatus = 'Open' | 'Acknowledged' | 'Resolved'
+export type TrackExceptionStatus = 'Open' | 'Acknowledged' | 'InProgress' | 'Escalated' | 'Resolved' | 'Closed'
+export type DelayReason =
+  | 'Unknown' | 'Traffic' | 'VehicleBreakdown' | 'WarehouseDelay' | 'CustomerDelay' | 'LoadingDelay' | 'UnloadingDelay' | 'Weather' | 'RoadClosure' | 'RouteDeviation' | 'Documentation'
+  | 'BorderCheckpost' | 'Accident' | 'Other'
+export type GeofenceType = 'Origin' | 'Destination' | 'Customer' | 'Warehouse' | 'Hub' | 'CrossDock' | 'Depot' | 'Toll' | 'RestrictedArea' | 'HighRiskZone' | 'Custom'
+
+export interface TrackStopDto {
+  id: string
+  sequence: number
+  kind: 'Pickup' | 'Drop'
+  name: string
+  city: string | null
+  latitude: number | null
+  longitude: number | null
+  radiusM: number
+  placeType: GeofenceType
+  reference: string | null
+  customerName: string | null
+  plannedArrival: string | null
+  windowStart: string | null
+  windowEnd: string | null
+  expectedDwellMinutes: number | null
+  status: TrackStopStatus
+  arrivedAt: string | null
+  departedAt: string | null
+  etaAt: string | null
+  etaConfidence: number | null
+  delayMinutes: number
+  risk: RiskStatus
+  alongKm: number | null
+}
+
+export interface TrackedSummaryDto {
+  id: string
+  shipmentId: string
+  shipmentReference: string
+  tripReference: string
+  transporterId: string | null
+  transporterReference: string | null
+  vehicleReference: string | null
+  driverName: string | null
+  driverPhone: string | null
+  customerName: string | null
+  origin: string | null
+  destination: string | null
+  execution: TrackingExecution
+  tracking: TrackingHealth
+  risk: RiskStatus
+  delivery: 'Pending' | 'PartlyDelivered' | 'Delivered'
+  plannedArrivalAt: string | null
+  etaAt: string | null
+  systemEtaAt: string | null
+  etaOverridden: boolean
+  etaConfidence: number | null
+  delayMinutes: number
+  progressPct: number | null
+  remainingKm: number | null
+  latitude: number | null
+  longitude: number | null
+  lastCapturedAt: string | null
+  speedKph: number | null
+  heading: number | null
+  minutesSinceLastLocation: number | null
+  openExceptions: number
+  onRoute: boolean
+  moving: boolean
+  startedAt: string | null
+  completedAt: string | null
+}
+
+export interface TrackedDetailDto {
+  summary: TrackedSummaryDto
+  stops: TrackStopDto[]
+  plannedDistanceKm: number | null
+  plannedDurationMinutes: number | null
+  travelledKm: number
+  offRouteKm: number | null
+  routeSource: string
+  plannedStartAt: string | null
+  etaOverrideAt: string | null
+  etaOverrideReason: string | null
+  delayReason: DelayReason | null
+  delayNote: string | null
+  currentSessionId: string | null
+  sessionStatus: string | null
+  deviceId: string | null
+  batteryPercentage: number | null
+  networkType: string | null
+  locationPermission: string | null
+  version: number
+}
+
+export interface TimelineEntryDto {
+  at: string
+  kind: 'Planned' | 'Estimated' | 'Actual' | string
+  label: string
+  detail: string | null
+  source: string | null
+  type: string | null
+  latitude: number | null
+  longitude: number | null
+  stopId: string | null
+  reason: string | null
+}
+
+export interface EtaStopDto {
+  stopId: string
+  name: string
+  kind: 'Pickup' | 'Drop'
+  plannedAt: string | null
+  etaAt: string | null
+  confidence: number | null
+  delayMinutes: number
+  risk: RiskStatus
+  level: RiskLevel
+  status: TrackStopStatus
+}
+
+export interface EtaHistoryDto {
+  predictedAt: string
+  eta: string
+  remainingKm: number
+  confidence: number
+  riskLevel: RiskLevel
+  delayMinutes: number
+  isFinalDestination: boolean
+  stopId: string | null
+}
+
+export interface TrackEtaDto {
+  plannedAt: string | null
+  systemEtaAt: string | null
+  etaAt: string | null
+  overridden: boolean
+  overrideAt: string | null
+  overrideReason: string | null
+  confidence: number | null
+  risk: RiskStatus
+  level: RiskLevel
+  delayMinutes: number
+  calculationVersion: string
+  stops: EtaStopDto[]
+  history: EtaHistoryDto[]
+}
+
+export interface RouteDeviationDto {
+  id: string
+  detectedAt: string
+  latitude: number
+  longitude: number
+  distanceFromRouteKm: number
+  durationMinutes: number
+  severity: TrackSeverity
+  status: 'Open' | 'Resolved'
+  reason: DelayReason | null
+  reasonNote: string | null
+  resolvedAt: string | null
+}
+
+export interface TrackRouteDto {
+  points: number[][]
+  lengthKm: number
+  source: string
+  plannedDistanceKm: number | null
+  plannedDurationMinutes: number | null
+  travelledKm: number
+  remainingKm: number | null
+  progressPct: number | null
+  stops: TrackStopDto[]
+  deviations: RouteDeviationDto[]
+}
+
+export interface TrackLocationDto {
+  id: string
+  latitude: number
+  longitude: number
+  accuracyMeters: number | null
+  speedKph: number | null
+  heading: number | null
+  capturedAt: string
+  receivedAt: string
+  validation: 'Valid' | 'Suspicious' | 'Rejected'
+  anomalies: string
+  reasons: string | null
+  isLate: boolean
+  deviceId: string
+  source: string
+}
+
+export interface CurrentLocationDto {
+  vehicleReference: string | null
+  tripReference: string | null
+  shipmentReference: string | null
+  latitude: number
+  longitude: number
+  accuracyMeters: number | null
+  speedKph: number | null
+  heading: number | null
+  lastCapturedAt: string
+  lastReceivedAt: string
+  health: TrackingHealth
+  moving: boolean
+  ageMinutes: number
+  batteryPercentage: number | null
+  networkType: string | null
+  driverName: string | null
+  transporterReference: string | null
+}
+
+export interface VehicleTrackingDto {
+  position: CurrentLocationDto
+  shipmentId: string | null
+  shipmentReference: string | null
+  tripReference: string | null
+  execution: TrackingExecution | null
+  risk: RiskStatus | null
+  etaAt: string | null
+  origin: string | null
+  destination: string | null
+  todayKm: number
+  driverPhone: string | null
+}
+
+export interface TrackAlertDto {
+  id: string
+  type: TrackAlertType
+  severity: TrackSeverity
+  status: TrackAlertStatus
+  shipmentId: string
+  shipmentReference: string
+  tripReference: string
+  vehicleReference: string | null
+  message: string
+  raisedAt: string
+  dueAt: string
+  overdue: boolean
+  acknowledgedAt: string | null
+  resolvedAt: string | null
+  resolutionNote: string | null
+  exceptionId: string | null
+}
+
+export interface TrackExceptionSummaryDto {
+  id: string
+  number: string
+  type: TrackAlertType
+  severity: TrackSeverity
+  status: TrackExceptionStatus
+  shipmentId: string
+  shipmentReference: string
+  tripReference: string
+  vehicleReference: string | null
+  transporterId: string | null
+  transporterReference: string | null
+  description: string
+  raisedAt: string
+  dueAt: string
+  overdue: boolean
+  ownerUserId: string | null
+  department: string | null
+  escalationLevel: number
+  escalatedTo: string | null
+  conditionCleared: boolean
+  ageMinutes: number
+}
+
+export interface TrackExceptionDto {
+  summary: TrackExceptionSummaryDto
+  rootCause: string | null
+  delayReason: DelayReason | null
+  actionTaken: string | null
+  resolvedAt: string | null
+  closedAt: string | null
+  escalatedAt: string | null
+  driverName: string | null
+  driverPhone: string | null
+  lastLatitude: number | null
+  lastLongitude: number | null
+  lastCapturedAt: string | null
+  notes: { at: string; text: string; by: string | null }[]
+  version: number
+}
+
+export interface ControlTowerSummaryDto {
+  active: number
+  onTime: number
+  atRisk: number
+  delayed: number
+  trackingStale: number
+  trackingLost: number
+  routeDeviations: number
+  excessDwell: number
+  openExceptions: number
+  completedToday: number
+  notStarted: number
+  openAlerts: number
+  asOf: string
+}
+
+export interface GeofenceDto {
+  id: string
+  code: string
+  name: string
+  type: GeofenceType
+  centerLatitude: number
+  centerLongitude: number
+  radiusMeters: number
+  polygon: number[][] | null
+  status: 'Active' | 'Inactive'
+  effectiveFrom: string | null
+  effectiveTo: string | null
+  version: number
+}
+
+export interface SaveGeofenceRequest {
+  code: string
+  name: string
+  type: GeofenceType
+  centerLatitude: number
+  centerLongitude: number
+  radiusMeters: number
+  polygon: number[][] | null
+  effectiveFrom: string | null
+  effectiveTo: string | null
+  status: 'Active' | 'Inactive' | null
+  version: number | null
+}
+
+export interface TrackingHealthDto {
+  health: TrackingHealth
+  ageMinutes: number | null
+  sessionStatus: string | null
+  deviceId: string | null
+  driverReference: string | null
+  batteryPercentage: number | null
+  networkType: string | null
+  locationPermission: string | null
+  appVersion: string | null
+  lastSeenAt: string | null
+  gaps: { id: string; gapStart: string; gapEnd: string | null; durationMinutes: number; lastKnownLatitude: number; lastKnownLongitude: number; severity: TrackSeverity }[]
+  locationCount: number
+  suspiciousCount: number
+  lateCount: number
+}
+
+export interface JourneyAnalyticsDto {
+  plannedKm: number | null
+  actualKm: number
+  kmVariance: number | null
+  plannedMinutes: number | null
+  actualMinutes: number | null
+  minutesVariance: number | null
+  plannedStops: number
+  stopsReached: number
+  unplannedStops: number
+  totalDwellMinutes: number
+  deviationMinutes: number
+  deviationCount: number
+  dwells: { id: string; place: string | null; kind: 'PlannedStop' | 'UnplannedStop'; startAt: string; endAt: string | null; durationMinutes: number; expectedDurationMinutes: number; excessDurationMinutes: number; status: string }[]
+}
+
+export interface CustomerLinkDto {
+  id: string
+  shipmentId: string
+  shipmentReference: string
+  customerReference: string | null
+  customerName: string | null
+  createdAt: string
+  expiresAt: string
+  status: 'Active' | 'Revoked' | 'Expired'
+  revokedAt: string | null
+  viewCount: number
+  lastViewedAt: string | null
+}
+
+export interface CreatedLinkDto {
+  link: CustomerLinkDto
+  token: string
+  path: string
+}
+
+export interface CustomerTrackingDto {
+  shipmentReference: string
+  origin: string | null
+  destination: string | null
+  statusLabel: string
+  steps: { label: string; state: string; at: string | null }[]
+  latitude: number | null
+  longitude: number | null
+  locationAsOf: string | null
+  locationLabel: string | null
+  etaAt: string | null
+  deliveryWindowStart: string | null
+  deliveryWindowEnd: string | null
+  riskLabel: string
+  delivered: boolean
+  deliveredAt: string | null
+  route: number[][]
+  asOf: string
+}
+
+export interface TrackingSettingDto {
+  key: string
+  value: Record<string, unknown>
+  isCustomised: boolean
+}
+
+export interface ListTrackedParams {
+  search?: string
+  transporterId?: string
+  vehicle?: string
+  driver?: string
+  customer?: string
+  origin?: string
+  destination?: string
+  execution?: TrackingExecution
+  tracking?: TrackingHealth
+  risk?: RiskStatus
+  hasException?: boolean
+  activeOnly?: boolean
+  from?: string
+  to?: string
+  page?: number
+  pageSize?: number
+}
+
+export interface MobileTripDto {
+  shipmentId: string
+  tripReference: string
+  shipmentReference: string
+  vehicleReference: string | null
+  driverName: string | null
+  origin: string | null
+  destination: string | null
+  execution: TrackingExecution
+  risk: RiskStatus
+  etaAt: string | null
+  plannedStartAt: string | null
+  stops: { sequence: number; kind: 'Pickup' | 'Drop'; name: string; city: string | null; plannedArrival: string | null; status: TrackStopStatus; latitude: number | null; longitude: number | null }[]
+  session: TrackingSessionDto | null
+  canStart: boolean
+}
+
+export interface TrackingSessionDto {
+  sessionId: string
+  reference: string
+  tripReference: string
+  status: string
+  startedAt: string
+  stoppedAt: string | null
+  lastLocationAt: string | null
+  locationCount: number
+  intervalSeconds: number
+  stationaryIntervalSeconds: number
+  approachingIntervalSeconds: number
+  approachingKm: number
+  adaptive: boolean
+  staleAfterMinutes: number
+  lostAfterMinutes: number
+}
+
+export interface QueuedFix {
+  clientLocationId: string
+  latitude: number
+  longitude: number
+  accuracyMeters: number | null
+  speedKph: number | null
+  heading: number | null
+  capturedAtUtc: string
+  mockLocation: boolean
+}
+
+export interface TrackBatchResult {
+  accepted: number
+  duplicates: number
+  suspicious: number
+  late: number
+  rejected: { clientLocationId: string; reason: string }[]
+}

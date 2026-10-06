@@ -1,5 +1,8 @@
 import { http } from './client'
 import type {
+  ListTrackedParams, TrackedSummaryDto, TrackedDetailDto, TimelineEntryDto, TrackEtaDto, TrackRouteDto, TrackLocationDto, CurrentLocationDto, VehicleTrackingDto, TrackAlertDto, TrackExceptionSummaryDto,
+  TrackExceptionDto, ControlTowerSummaryDto, GeofenceDto, SaveGeofenceRequest, TrackingHealthDto, JourneyAnalyticsDto, CustomerLinkDto, CreatedLinkDto, CustomerTrackingDto, TrackingSettingDto,
+  MobileTripDto, TrackingSessionDto, QueuedFix, TrackBatchResult, DelayReason, TrackAlertStatus, TrackSeverity, TrackAlertType, TrackExceptionStatus,
   AgeingDto,
   BranchDto,
   ContactDto,
@@ -607,4 +610,76 @@ export const deliveriesApi = {
 
   settings: () => http.get<DeliverySettingDto[]>(`${v1}/delivery-settings`).then((r) => r.data),
   saveSetting: (key: string, value: unknown) => http.put<DeliverySettingDto>(`${v1}/delivery-settings/${key}`, value).then((r) => r.data),
+}
+
+const tr = (id: string) => `${v1}/tracking/shipments/${id}`
+const ex = (id: string) => `${v1}/tracking/exceptions/${id}`
+
+export const trackingApi = {
+  summary: (transporterId?: string) => http.get<ControlTowerSummaryDto>(`${v1}/control-tower/summary`, { params: { transporterId } }).then((r) => r.data),
+  list: (params: ListTrackedParams) => http.get<PagedResult<TrackedSummaryDto>>(`${v1}/tracking/shipments`, { params }).then((r) => r.data),
+  map: () => http.get<TrackedSummaryDto[]>(`${v1}/control-tower/map`).then((r) => r.data),
+  get: (id: string) => http.get<TrackedDetailDto>(tr(id)).then((r) => r.data),
+  current: (id: string) => http.get<CurrentLocationDto | null>(`${tr(id)}/current-location`).then((r) => r.data),
+  timeline: (id: string) => http.get<TimelineEntryDto[]>(`${tr(id)}/timeline`).then((r) => r.data),
+  eta: (id: string) => http.get<TrackEtaDto>(`${tr(id)}/eta`).then((r) => r.data),
+  route: (id: string) => http.get<TrackRouteDto>(`${tr(id)}/route`).then((r) => r.data),
+  locations: (id: string, params: { from?: string; to?: string; maxPoints?: number; includeSuspicious?: boolean; page?: number; pageSize?: number }) =>
+    http.get<PagedResult<TrackLocationDto>>(`${tr(id)}/locations`, { params }).then((r) => r.data),
+  health: (id: string) => http.get<TrackingHealthDto>(`${tr(id)}/health`).then((r) => r.data),
+  analytics: (id: string) => http.get<JourneyAnalyticsDto>(`${tr(id)}/analytics`).then((r) => r.data),
+  shipmentExceptions: (id: string) => http.get<TrackExceptionSummaryDto[]>(`${tr(id)}/exceptions`).then((r) => r.data),
+  overrideEta: (id: string, eta: string, reason: string) => http.post<TrackedDetailDto>(`${tr(id)}/eta/override`, { eta, reason }).then((r) => r.data),
+  clearEtaOverride: (id: string) => http.delete<TrackedDetailDto>(`${tr(id)}/eta/override`).then((r) => r.data),
+  setDelayReason: (id: string, reason: DelayReason, note: string | null) => http.post<TrackedDetailDto>(`${tr(id)}/delay-reason`, { reason, note }).then((r) => r.data),
+  deviationReason: (id: string, reason: DelayReason, note: string | null) => http.post(`${v1}/tracking/deviations/${id}/reason`, { reason, note }),
+  recalculateEta: (tripReference: string) => http.post(`${v1}/tracking/eta/recalculate`, { shipmentId: null, tripReference }),
+
+  vehicles: (params: { search?: string; health?: string; page?: number; pageSize?: number }) => http.get<PagedResult<VehicleTrackingDto>>(`${v1}/control-tower/vehicles`, { params }).then((r) => r.data),
+  vehicleHistory: (vehicle: string, params: { from?: string; to?: string; maxPoints?: number }) =>
+    http.get<TrackLocationDto[]>(`${v1}/tracking/vehicles/${encodeURIComponent(vehicle)}/history`, { params }).then((r) => r.data),
+
+  alerts: (params: { status?: TrackAlertStatus; severity?: TrackSeverity; type?: TrackAlertType; shipmentId?: string; page?: number; pageSize?: number }) =>
+    http.get<PagedResult<TrackAlertDto>>(`${v1}/tracking/alerts`, { params }).then((r) => r.data),
+  acknowledgeAlert: (id: string) => http.post<TrackAlertDto>(`${v1}/tracking/alerts/${id}/acknowledge`).then((r) => r.data),
+  resolveAlert: (id: string, note: string | null) => http.post<TrackAlertDto>(`${v1}/tracking/alerts/${id}/resolve`, { note }).then((r) => r.data),
+
+  exceptions: (params: { status?: TrackExceptionStatus; severity?: TrackSeverity; type?: TrackAlertType; transporterId?: string; openOnly?: boolean; overdue?: boolean; page?: number; pageSize?: number }) =>
+    http.get<PagedResult<TrackExceptionSummaryDto>>(`${v1}/tracking/exceptions`, { params }).then((r) => r.data),
+  exception: (id: string) => http.get<TrackExceptionDto>(ex(id)).then((r) => r.data),
+  acknowledgeException: (id: string) => http.post<TrackExceptionDto>(`${ex(id)}/acknowledge`).then((r) => r.data),
+  assignException: (id: string, body: { ownerUserId: string | null; department: string | null; dueAt: string | null; severity: TrackSeverity | null }) => http.post<TrackExceptionDto>(`${ex(id)}/assign`, body).then((r) => r.data),
+  escalateException: (id: string, reason: string) => http.post<TrackExceptionDto>(`${ex(id)}/escalate`, { reason, level: null }).then((r) => r.data),
+  resolveException: (id: string, body: { rootCause: string; delayReason: DelayReason | null; actionTaken: string | null }) => http.post<TrackExceptionDto>(`${ex(id)}/resolve`, body).then((r) => r.data),
+  closeException: (id: string) => http.post<TrackExceptionDto>(`${ex(id)}/close`).then((r) => r.data),
+  noteException: (id: string, text: string) => http.post<TrackExceptionDto>(`${ex(id)}/notes`, { text }).then((r) => r.data),
+
+  geofences: () => http.get<GeofenceDto[]>(`${v1}/tracking/geofences`).then((r) => r.data),
+  createGeofence: (body: SaveGeofenceRequest) => http.post<GeofenceDto>(`${v1}/tracking/geofences`, body).then((r) => r.data),
+  updateGeofence: (id: string, body: SaveGeofenceRequest) => http.put<GeofenceDto>(`${v1}/tracking/geofences/${id}`, body).then((r) => r.data),
+  deleteGeofence: (id: string) => http.delete(`${v1}/tracking/geofences/${id}`),
+
+  links: (shipmentId: string) => http.get<CustomerLinkDto[]>(`${tr(shipmentId)}/links`).then((r) => r.data),
+  createLink: (body: { shipmentId: string; customerReference: string | null; customerName: string | null; validDays: number | null }) => http.post<CreatedLinkDto>(`${v1}/tracking/links`, body).then((r) => r.data),
+  revokeLink: (id: string) => http.post<CustomerLinkDto>(`${v1}/tracking/links/${id}/revoke`).then((r) => r.data),
+
+  settings: () => http.get<TrackingSettingDto[]>(`${v1}/tracking/settings`).then((r) => r.data),
+  saveSetting: (key: string, value: unknown) => http.put<TrackingSettingDto>(`${v1}/tracking/settings/${key}`, value).then((r) => r.data),
+  downloadReport: (report: string, format: 'csv' | 'xlsx', params: { from?: string; to?: string; transporterId?: string; vehicle?: string; customer?: string; groupBy?: string }) =>
+    downloadFile(`${v1}/tracking/reports/${report}`, `${report}.${format}`, { ...params, format }),
+
+  // the driver's phone
+  trips: () => http.get<MobileTripDto[]>(`${v1}/mobile/tracking/trips`).then((r) => r.data),
+  start: (tripReference: string, deviceId: string, clientKey: string) =>
+    http.post<TrackingSessionDto>(`${v1}/mobile/tracking/start`, { tripReference, deviceId, clientKey }).then((r) => r.data),
+  stop: (tripReference: string, deviceId: string, completed: boolean, clientKey: string) =>
+    http.post<TrackingSessionDto>(`${v1}/mobile/tracking/stop`, { tripReference, deviceId, completed, clientKey }).then((r) => r.data),
+  sendBatch: (body: { tripReference: string; deviceId: string; locations: QueuedFix[]; batteryPercentage?: number | null; networkType?: string | null; locationPermission?: string | null; sentAtUtc: string }) =>
+    http.post<TrackBatchResult>(`${v1}/mobile/tracking/location/batch`, body).then((r) => r.data),
+
+  /** The customer's page: anonymous, so it goes around the signed-in client. */
+  customerView: (token: string) => fetch(`${import.meta.env.VITE_API_URL ?? ''}${v1}/public/tracking/${encodeURIComponent(token)}`, { headers: { Accept: 'application/json' } }).then(async (r) => {
+    if (!r.ok) throw new Error(r.status === 404 ? 'not-found' : 'unavailable')
+    return (await r.json()) as CustomerTrackingDto
+  }),
 }
