@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Tms.BuildingBlocks.Web.Http;
 using Tms.Modules.Deliveries.Infrastructure.Persistence;
+using Tms.Modules.Tracking;
 using Tms.SharedKernel.Contracts;
 
 namespace Tms.Api;
@@ -41,7 +42,18 @@ internal static class DevEndpoints
             .RequireAuthorization()
             .WithTags("Dev")
             .WithName("DevAgeDelivery");
+
+        // Runs the tracking demo day (trips in every condition) for the caller's tenant, through the real pipeline. Carriers come from the caller (the seed script).
+        app.MapPost("/api/v1/dev/tracking/seed-demo", async (SeedTrackingRequest body, ITrackingDemoSeeder seeder, CancellationToken ct) =>
+                Results.Ok(await seeder.SeedAsync(new DemoSeedRequest([.. (body.Carriers ?? []).Select(c => new DemoCarrier(c.Id, c.Name))]), ct)))
+            .RequireAuthorization()
+            .WithTags("Dev")
+            .WithName("DevSeedTrackingDemo");
     }
 
     internal sealed record AgeRequest(double Hours);
+
+    internal sealed record SeedTrackingCarrier(Guid Id, string Name);
+
+    internal sealed record SeedTrackingRequest(List<SeedTrackingCarrier>? Carriers);
 }

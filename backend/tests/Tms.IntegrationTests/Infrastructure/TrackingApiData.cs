@@ -14,18 +14,23 @@ using Tms.SharedKernel.Messaging;
 
 namespace Tms.IntegrationTests.Infrastructure;
 
-/// <summary>Stands in for planning: tests say what a trip looks like and Tracking reads it through the same contract it uses for Shipments.</summary>
-public sealed class TestTrackingPlanning : ITrackingPlanningIntegration
+/// <summary>
+/// Stands in for planning: tests say what a trip looks like and Tracking reads it through the same contract it uses for Shipments. A trip the test did not describe is looked up in
+/// Shipments for real, so a dispatched shipment still becomes a tracked trip.
+/// </summary>
+internal sealed class TestTrackingPlanning(IServiceProvider services) : ITrackingPlanningIntegration
 {
-    private readonly ConcurrentDictionary<string, PlannedTrackingContext> _byTrip = new();
+    private static readonly ConcurrentDictionary<string, PlannedTrackingContext> ByTrip = new();
 
-    public void Add(PlannedTrackingContext plan) => _byTrip[plan.TripReference] = plan;
+    public static void Add(PlannedTrackingContext plan) => ByTrip[plan.TripReference] = plan;
 
     public Task<PlannedTrackingContext?> GetPlannedTrackingContextAsync(string tripReference, CancellationToken cancellationToken) =>
-        Task.FromResult(_byTrip.GetValueOrDefault(tripReference));
+        ByTrip.TryGetValue(tripReference, out var plan) ? Task.FromResult<PlannedTrackingContext?>(plan) : Real().GetPlannedTrackingContextAsync(tripReference, cancellationToken);
 
     public Task<PlannedTrackingContext?> GetPlannedTrackingContextAsync(Guid shipmentId, CancellationToken cancellationToken) =>
-        Task.FromResult(_byTrip.Values.FirstOrDefault(p => p.ShipmentId == shipmentId));
+        ByTrip.Values.FirstOrDefault(p => p.ShipmentId == shipmentId) is { } plan ? Task.FromResult<PlannedTrackingContext?>(plan) : Real().GetPlannedTrackingContextAsync(shipmentId, cancellationToken);
+
+    private Tms.Modules.Shipments.Integration.ShipmentTrackingFeed Real() => ActivatorUtilities.CreateInstance<Tms.Modules.Shipments.Integration.ShipmentTrackingFeed>(services);
 }
 
 public sealed class TrackingEventLog
@@ -81,7 +86,7 @@ internal sealed class TrackingScenario : IDisposable
             Factory = factory, Admin = admin, Transporter = transporter, TripReference = trip, ShipmentId = Guid.NewGuid(),
             Driver = await VendorForAsync(factory, admin, transporter.Id), Rival = await VendorForAsync(factory, admin, rival.Id),
         };
-        factory.Services.GetRequiredService<TestTrackingPlanning>().Add(scenario.Plan(plannedArrivalIn ?? TimeSpan.FromHours(4), withRoute, stops));
+        TestTrackingPlanning.Add(scenario.Plan(plannedArrivalIn ?? TimeSpan.FromHours(4), withRoute, stops));
         return scenario;
     }
 

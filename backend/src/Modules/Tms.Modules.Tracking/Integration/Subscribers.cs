@@ -124,3 +124,34 @@ internal sealed class TrackingClaimsEvidence(TrackingDbContext db) : ITrackingCl
             shipment.Stops.Where(s => s.ArrivedAt is not null).OrderBy(s => s.ArrivedAt).Select(s => $"{s.ArrivedAt:u}: arrived at {s.Name}").ToList(), path);
     }
 }
+
+/// <summary>The read side other modules use: position, estimate and the road actually driven, from the read models and a thinned trail.</summary>
+internal sealed class TrackingPositionFeed(TrackingDbContext db) : ITrackingPositionFeed
+{
+    public async Task<VehiclePositionFact?> GetVehiclePositionAsync(string vehicleReference, CancellationToken cancellationToken)
+    {
+        var p = await db.Positions.AsNoTracking().FirstOrDefaultAsync(x => x.VehicleReference == vehicleReference, cancellationToken);
+        return p is null ? null : new VehiclePositionFact(p.VehicleReference, p.TripReference, p.Latitude, p.Longitude, p.SpeedKph, p.LastCapturedAt, p.Health.ToString());
+    }
+
+    public async Task<ShipmentEtaFact?> GetShipmentEtaAsync(Guid shipmentId, CancellationToken cancellationToken)
+    {
+        var s = await db.Shipments.AsNoTracking().FirstOrDefaultAsync(x => x.ShipmentId == shipmentId, cancellationToken);
+        return s is null ? null : new ShipmentEtaFact(s.ShipmentId, s.TripReference, s.PlannedArrivalAt, s.CurrentEtaAt, s.DelayMinutes, s.Risk.ToString(), s.EtaConfidence, s.ProgressPct, Math.Round(s.TravelledKm, 1));
+    }
+
+    public async Task<ActualRouteFact?> GetActualRouteAsync(Guid shipmentId, int maxPoints, CancellationToken cancellationToken)
+    {
+        var s = await db.Shipments.AsNoTracking().FirstOrDefaultAsync(x => x.ShipmentId == shipmentId, cancellationToken);
+        if (s is null)
+        {
+            return null;
+        }
+
+        var points = await db.Locations.AsNoTracking().Where(l => l.ShipmentId == shipmentId && l.Validation == LocationValidation.Valid && !l.IsLate).OrderBy(l => l.CapturedAt)
+            .Select(l => new TrackingPoint(l.Latitude, l.Longitude)).Take(100_000).ToListAsync(cancellationToken);
+        var max = Math.Clamp(maxPoints, 2, 5000);
+        var thinned = points.Count <= max ? points : Enumerable.Range(0, max).Select(i => points[(int)Math.Round(i * (points.Count - 1.0) / (max - 1))]).ToList();
+        return new ActualRouteFact(shipmentId, Math.Round(s.TravelledKm, 1), thinned);
+    }
+}

@@ -57,6 +57,7 @@ public static class TransportersModule
         services.AddScoped<Application.MasterData.DocumentPolicyProvider>();
         services.AddScoped<Integration.TransporterNotifier>();
         services.AddScoped<Integration.ProofPerformanceRecorder>();
+        services.AddScoped<IDomainEventHandler<TrackingPerformanceEvent>, TrackingObservationSubscriber>();
         services.AddScoped<IDomainEventHandler<DeliveryCompleted>, DeliveryCompletedPerformanceSubscriber>();
         services.AddScoped<IDomainEventHandler<PodAccepted>, PodAcceptedPerformanceSubscriber>();
         services.AddScoped<IDomainEventHandler<PodRejected>, PodRejectedPerformanceSubscriber>();

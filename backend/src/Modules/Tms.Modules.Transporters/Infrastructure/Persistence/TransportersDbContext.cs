@@ -60,6 +60,8 @@ public sealed class TransportersDbContext(DbContextOptions<TransportersDbContext
 
     public DbSet<ProofPerformance> ProofPerformances => Set<ProofPerformance>();
 
+    public DbSet<TrackingObservation> TrackingObservations => Set<TrackingObservation>();
+
     public DbSet<MasterItem> MasterItems => Set<MasterItem>();
 
     public DbSet<DocumentRule> DocumentRules => Set<DocumentRule>();

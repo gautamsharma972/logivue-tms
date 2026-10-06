@@ -15,7 +15,7 @@ import { DeliveryStatusTag, ExceptionStatusTag, ProofStatusTag, SeverityTag, exc
 
 const eventLabel: Record<DeliveryEventType, string> = {
   Created: 'Planned', Assigned: 'Assigned to a vehicle', Started: 'Left for the customer', Arrived: 'Arrived', AttemptFailed: 'Attempt failed', Delivered: 'Delivered', PartiallyDelivered: 'Delivered with a discrepancy',
-  Failed: 'Could not be delivered', Refused: 'Refused by the customer', Rescheduled: 'Rescheduled', Cancelled: 'Cancelled', Closed: 'Closed', OtpIssued: 'Delivery code sent', OtpVerified: 'Delivery code confirmed',
+  Failed: 'Could not be delivered', Refused: 'Refused by the customer', Rescheduled: 'Rescheduled', Cancelled: 'Cancelled', Closed: 'Closed', OtpIssued: 'Delivery code sent', OtpVerified: 'Delivery code confirmed', SiteReached: 'Vehicle reached the site (seen by tracking)',
 }
 
 type Dialog = 'cancel' | 'close' | 'reschedule' | null

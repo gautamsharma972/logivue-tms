@@ -1,4 +1,5 @@
 using System.Net;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Tms.IntegrationTests.Infrastructure;
 using Tms.Modules.Tracking.Application;
@@ -82,6 +83,17 @@ public class TrackingEngineApiTests(TmsApiFactory factory)
         performance.ShouldContain(e => e.Kind == "PickupDelay");
         performance.ShouldContain(e => e.Kind == "DeliveryDelay");
 
+        // The carrier's record keeps what tracking saw, apart from its performance scorecard.
+        var seen = await EventuallyAsync(
+            async () => await (await s.Admin.GetAsync($"/api/v1/transporters/{s.Transporter.Id}/tracking-performance")).ReadAsync<Tms.Modules.Transporters.Application.Performance.TrackingPerformanceDto>(),
+            d => d.AverageDeliveryDelayMinutes is not null);
+        seen.Trips.ShouldBeGreaterThanOrEqualTo(1);
+        seen.AverageDeliveryDelayMinutes.ShouldNotBeNull();
+        seen.AveragePickupDelayMinutes.ShouldNotBeNull();
+        seen.TrackingLostIncidents.ShouldBe(0);
+        seen.TrackingLostMinutes.ShouldBeNull(); // nothing was lost, so there is nothing to total: not zero minutes of anything
+        (await s.Rival.GetAsync($"/api/v1/transporters/{s.Transporter.Id}/tracking-performance")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+
         var report = await s.Admin.GetAsync($"/api/v1/tracking/reports/eta-accuracy?format=csv&leadHours=2&from={DateTime.UtcNow.AddDays(-2):yyyy-MM-dd}&to={DateTime.UtcNow.AddDays(1):yyyy-MM-dd}");
         report.StatusCode.ShouldBe(HttpStatusCode.OK);
         var csv = await report.Content.ReadAsStringAsync();
@@ -104,6 +116,31 @@ public class TrackingEngineApiTests(TmsApiFactory factory)
         (await s.TimelineAsync()).ShouldContain(e => e.Type == ShipmentEventTypes.EnteredGeofence && e.Label.Contains("Ghat restricted zone"));
         (await s.AlertsAsync()).ShouldContain(a => a.Type == AlertType.GeofenceException);
         (await EventuallyAsync(() => Task.FromResult(Log.Of<EnteredGeofence>(s.TripReference).ToList()), l => l.Count > 0)).ShouldContain(e => e.GeofenceCode == code);
+    }
+
+    [Fact]
+    public async Task Planning_can_read_the_position_the_estimate_and_the_road_actually_driven_through_the_shared_feed()
+    {
+        using var s = await TrackingScenario.CreateAsync(factory, TimeSpan.FromMinutes(200));
+        await s.StartAsync();
+        await s.SendAsync(s.Fix(0.1, 180), s.Fix(0.2, 120), s.Fix(0.3, 60), s.Fix(0.4, 5));
+        using var scope = factory.Services.CreateScope();
+        var tenant = (await scope.ServiceProvider.GetRequiredService<Tms.Modules.Platform.Infrastructure.Persistence.PlatformDbContext>().Tenants.FirstAsync(t => t.Code == TmsApiFactory.DemoTenant)).Id;
+        scope.ServiceProvider.GetRequiredService<Tms.SharedKernel.Security.IAmbientUserContext>().RunAs(tenant, null, "test");
+        var feed = scope.ServiceProvider.GetRequiredService<ITrackingPositionFeed>();
+
+        var position = await feed.GetVehiclePositionAsync(s.VehicleReference, default);
+        position.ShouldNotBeNull();
+        position.TripReference.ShouldBe(s.TripReference);
+        position.Health.ShouldBe("Healthy");
+        var eta = await feed.GetShipmentEtaAsync(s.ShipmentId, default);
+        eta.ShouldNotBeNull();
+        eta.Eta.ShouldNotBeNull();
+        eta.TravelledKm.ShouldBeGreaterThan(20);
+        var route = await feed.GetActualRouteAsync(s.ShipmentId, 3, default);
+        route.ShouldNotBeNull();
+        route.Path.Count.ShouldBe(3); // thinned to what was asked, first and last kept
+        (await feed.GetVehiclePositionAsync("NO-SUCH-VEHICLE", default)).ShouldBeNull();
     }
 
     // ---- tracking health

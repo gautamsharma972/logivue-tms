@@ -2056,7 +2056,7 @@ export type OcrStatus = 'Queued' | 'Processing' | 'Completed' | 'Failed'
 export type OcrFieldStatus = 'NotChecked' | 'Matched' | 'Mismatch' | 'LowConfidence'
 export type DiscrepancyType = 'Shortage' | 'Damage' | 'Rejection'
 export type DeliveryEventType =
-  | 'Created' | 'Assigned' | 'Started' | 'Arrived' | 'AttemptFailed' | 'Delivered' | 'PartiallyDelivered' | 'Failed' | 'Refused' | 'Rescheduled' | 'Cancelled' | 'Closed' | 'OtpIssued' | 'OtpVerified'
+  | 'Created' | 'Assigned' | 'Started' | 'Arrived' | 'AttemptFailed' | 'Delivered' | 'PartiallyDelivered' | 'Failed' | 'Refused' | 'Rescheduled' | 'Cancelled' | 'Closed' | 'OtpIssued' | 'OtpVerified' | 'SiteReached'
 export type DeliveryExceptionType =
   | 'Shortage' | 'Damage' | 'CustomerRefusal' | 'DeliveryFailed' | 'LateDelivery' | 'AddressIssue' | 'PodMissing' | 'PodRejected' | 'QuantityMismatch' | 'GpsException'
   | 'SignatureMissing' | 'OcrValidationFailed' | 'DuplicatePod' | 'PartialDelivery'

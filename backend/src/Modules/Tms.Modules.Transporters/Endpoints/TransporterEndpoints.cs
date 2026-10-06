@@ -68,6 +68,9 @@ internal static class TransporterEndpoints
         api.MapPut("/lanes/{laneId:guid}", async (Guid laneId, SaveLaneRequest body, LaneHandler h, CancellationToken ct) => (await h.UpdateAsync(laneId, body, ct)).ToHttpResult())
             .WithName("UpdateTransporterLane").Produces<LaneDto>().ProducesValidationProblem();
 
+        group.MapGet("/{id:guid}/tracking-performance", async (Guid id, [FromQuery] DateOnly? from, [FromQuery] DateOnly? to, TrackingPerformanceHandler h, CancellationToken ct) => (await h.HandleAsync(id, from, to, ct)).ToHttpResult())
+            .WithName("TransporterTrackingPerformance").Produces<TrackingPerformanceDto>();
+
         group.MapGet("/{id:guid}/proof-performance", async (Guid id, [FromQuery] DateOnly? from, [FromQuery] DateOnly? to, ProofPerformanceHandler h, CancellationToken ct) => (await h.HandleAsync(id, from, to, ct)).ToHttpResult())
             .WithName("TransporterProofPerformance").Produces<ProofPerformanceDto>();
 

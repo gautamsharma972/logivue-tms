@@ -34,6 +34,9 @@ public enum DeliveryEventType
     Closed = 12,
     OtpIssued = 13,
     OtpVerified = 14,
+
+    /// <summary>Tracking saw the vehicle reach the customer's site. A note, never a change of state.</summary>
+    SiteReached = 15,
 }
 
 public enum AttemptResult
@@ -449,6 +452,22 @@ public sealed class Delivery : AggregateRoot, ITenantScoped
         Status = DeliveryStatus.EnRoute;
         Log(DeliveryEventType.Started, now, fix, actor, null);
         return Result.Success();
+    }
+
+    /// <summary>
+    /// Tracking saw the vehicle reach the site. It is noted on the timeline, and if the driver has not recorded an arrival it becomes the arrival time, but it never moves the delivery
+    /// on: the driver still starts, arrives and completes it. A delivery already finished is left alone.
+    /// </summary>
+    public void NoteSiteArrival(DateTimeOffset at, GeoFix fix)
+    {
+        if (Status is not (DeliveryStatus.Assigned or DeliveryStatus.EnRoute or DeliveryStatus.Attempted or DeliveryStatus.Arrived)
+            || _events.Any(e => e.EventType == DeliveryEventType.SiteReached && Math.Abs((e.EventAt - at).TotalMinutes) < 1))
+        {
+            return;
+        }
+
+        ActualArrivalAt ??= at;
+        Log(DeliveryEventType.SiteReached, at, fix, new Actor(null, "tracking"), "Seen by tracking");
     }
 
     public Result Arrive(GeoFix fix, Actor actor, DateTimeOffset now)

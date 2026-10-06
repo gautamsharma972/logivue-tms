@@ -110,3 +110,22 @@ public sealed record ShipmentAtRisk(Guid TenantId, Guid ShipmentId, string Shipm
 
 public sealed record ShipmentDelayed(Guid TenantId, Guid ShipmentId, string ShipmentReference, string TripReference, string? VehicleReference, Guid? TransporterId, DateTimeOffset At, DateTimeOffset Eta, int DelayMinutes)
     : TrackingEvent(TenantId, ShipmentId, ShipmentReference, TripReference, VehicleReference, TransporterId, At);
+
+// ---- What planning may read back from Tracking: where a vehicle is, when a trip will arrive, and the road it actually took.
+
+public sealed record VehiclePositionFact(string VehicleReference, string? TripReference, double Latitude, double Longitude, double? SpeedKph, DateTimeOffset CapturedAt, string Health);
+
+public sealed record ShipmentEtaFact(
+    Guid ShipmentId, string TripReference, DateTimeOffset? PlannedArrival, DateTimeOffset? Eta, int DelayMinutes, string Risk, double? Confidence, double? ProgressPct, double TravelledKm);
+
+public sealed record ActualRouteFact(Guid ShipmentId, double TravelledKm, IReadOnlyList<TrackingPoint> Path);
+
+/// <summary>Implemented by Tracking. Planning (and anything else) reads current position, estimated arrival and the route actually driven from here, never from the raw GPS tables.</summary>
+public interface ITrackingPositionFeed
+{
+    Task<VehiclePositionFact?> GetVehiclePositionAsync(string vehicleReference, CancellationToken cancellationToken);
+
+    Task<ShipmentEtaFact?> GetShipmentEtaAsync(Guid shipmentId, CancellationToken cancellationToken);
+
+    Task<ActualRouteFact?> GetActualRouteAsync(Guid shipmentId, int maxPoints, CancellationToken cancellationToken);
+}

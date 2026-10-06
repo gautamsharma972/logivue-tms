@@ -58,6 +58,7 @@ public static class TrackingModule
         services.AddScoped<ITrackingTransporterIntegration, OutboxTrackingTransporterIntegration>();
         services.AddScoped<ITrackingDeliveryIntegration, OutboxTrackingDeliveryIntegration>();
         services.AddScoped<ITrackingClaimsIntegration, TrackingClaimsEvidence>();
+        services.AddScoped<ITrackingPositionFeed, TrackingPositionFeed>();
         services.AddScoped<ITrackingNotificationService, InAppTrackingNotificationService>();
         services.TryAddSingleton<ITrackingLiveNotifier, SignalRTrackingLiveNotifier>();
         services.AddScoped<ITrackingAlertService, TrackingAlertService>();
@@ -137,7 +138,12 @@ public static class TrackingModule
 /// <summary>Builds believable trips for a demonstration through the same pipeline real locations use. Development and test only: the host maps it behind a dev-only endpoint.</summary>
 public interface ITrackingDemoSeeder
 {
-    Task<DemoSeedResult> SeedAsync(CancellationToken cancellationToken);
+    Task<DemoSeedResult> SeedAsync(DemoSeedRequest request, CancellationToken cancellationToken);
 }
+
+/// <summary>The carriers the demo trips are given to (the seeder knows no carriers of its own).</summary>
+public sealed record DemoCarrier(Guid TransporterId, string Name);
+
+public sealed record DemoSeedRequest(IReadOnlyList<DemoCarrier> Carriers);
 
 public sealed record DemoSeedResult(int Shipments, int Locations, int Alerts, int Exceptions, string Message);

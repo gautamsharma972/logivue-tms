@@ -325,6 +325,23 @@ internal sealed class DocumentRuleConfiguration : IEntityTypeConfiguration<Docum
     }
 }
 
+internal sealed class TrackingObservationConfiguration : IEntityTypeConfiguration<TrackingObservation>
+{
+    public void Configure(EntityTypeBuilder<TrackingObservation> builder)
+    {
+        builder.ToTable("tracking_observations");
+        builder.HasKey(o => o.Id);
+        builder.Property(o => o.Id).ValueGeneratedNever();
+        builder.Property(o => o.ShipmentReference).HasMaxLength(40).IsRequired();
+        builder.Property(o => o.TripReference).HasMaxLength(40).IsRequired();
+        builder.Property(o => o.Kind).HasMaxLength(30).IsRequired();
+        builder.Property(o => o.Value).HasPrecision(12, 2);
+        builder.Property(o => o.Detail).HasMaxLength(300);
+        builder.HasIndex(o => new { o.TenantId, o.SourceEventId }).IsUnique(); // an event delivered twice cannot add a second row
+        builder.HasIndex(o => new { o.TenantId, o.TransporterId, o.At });
+    }
+}
+
 internal sealed class ProofPerformanceConfiguration : IEntityTypeConfiguration<ProofPerformance>
 {
     public void Configure(EntityTypeBuilder<ProofPerformance> builder)

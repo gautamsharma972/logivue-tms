@@ -107,8 +107,7 @@ public sealed class TmsApiFactory : WebApplicationFactory<Program>, IAsyncLifeti
             services.AddSingleton<CapturingEmailSender>();
             services.AddSingleton<IEmailSender>(sp => sp.GetRequiredService<CapturingEmailSender>());
             services.AddSingleton<IFileScanner, MarkerFileScanner>();
-            services.AddSingleton<TestTrackingPlanning>();
-            services.AddSingleton<ITrackingPlanningIntegration>(sp => sp.GetRequiredService<TestTrackingPlanning>());
+            services.AddScoped<ITrackingPlanningIntegration, TestTrackingPlanning>();
             services.AddSingleton<TrackingEventLog>();
             services.AddScoped<IDomainEventHandler<TrackingStarted>, TrackingEventRecorder<TrackingStarted>>();
             services.AddScoped<IDomainEventHandler<TrackingStopped>, TrackingEventRecorder<TrackingStopped>>();
