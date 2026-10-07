@@ -16,5 +16,5 @@ web/.env.local
 .DS_Store
 .idea/
 *.log
-storage/
+/backend/src/Tms.Api/storage/
 .env

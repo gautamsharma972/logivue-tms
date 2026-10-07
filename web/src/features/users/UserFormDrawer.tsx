@@ -37,7 +37,7 @@ export function UserFormDrawer({ open, user, onClose }: Props) {
   const companies = useQuery({
     queryKey: queryKeys.transporters.lookup(companySearch),
     queryFn: () => transportersApi.lookup(companySearch || undefined),
-    enabled: open && type === 'Transporter' && !editing,
+    enabled: open && type !== undefined && type !== 'Internal' && !editing,
   })
 
   const roles = useQuery({ queryKey: queryKeys.roles.all, queryFn: rolesApi.list, enabled: open && can('roles.read') })
@@ -56,7 +56,7 @@ export function UserFormDrawer({ open, user, onClose }: Props) {
     mutationFn: (values: FormValues) =>
       user
         ? usersApi.update(user.id, { fullName: values.fullName, isActive: values.isActive, roleIds: values.roleIds, version: user.version })
-        : usersApi.create({ email: values.email, fullName: values.fullName, password: values.password ?? '', type: values.type, roleIds: values.roleIds, transporterId: values.type === 'Transporter' ? values.transporterId : null, requirePasswordChange: values.requirePasswordChange ?? false }),
+        : usersApi.create({ email: values.email, fullName: values.fullName, password: values.password ?? '', type: values.type, roleIds: values.roleIds, transporterId: values.type !== 'Internal' ? values.transporterId : null, requirePasswordChange: values.requirePasswordChange ?? false }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: queryKeys.users.all })
       void message.success(editing ? 'User updated' : 'User created')
@@ -136,7 +136,7 @@ export function UserFormDrawer({ open, user, onClose }: Props) {
           />
         </Form.Item>
 
-        {type === 'Transporter' && !editing && (
+        {type !== undefined && type !== 'Internal' && !editing && (
           <Form.Item label="Transporter company" name="transporterId" rules={[{ required: true, message: 'Choose the transporter this user belongs to' }]} extra="This user will only ever see and manage this company’s data.">
             <Select
               showSearch

@@ -87,9 +87,9 @@ internal sealed class CreateUserHandler(PlatformDbContext db, ICurrentUser curre
             return conflict;
         }
 
-        if (request.Type == UserType.Transporter != (request.TransporterId is not null))
+        if (request.Type != UserType.Internal != (request.TransporterId is not null))
         {
-            return Error.Validation("users.transporter_link", "Transporter users must be linked to a transporter; other users must not be.");
+            return Error.Validation("users.transporter_link", "Transporter and driver users must be linked to a transporter; staff users must not be.");
         }
 
         if (request.TransporterId is { } transporterId && !await transporters.ExistsAsync(transporterId, cancellationToken))

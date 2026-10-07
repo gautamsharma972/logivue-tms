@@ -30,7 +30,7 @@ public sealed class User : AggregateRoot, ITenantScoped
 
     public Guid TenantId { get; private set; }
 
-    /// <summary>For <see cref="UserType.Transporter"/> users: the transporter company they belong to (owned by the Transporters module).</summary>
+    /// <summary>For <see cref="UserType.Transporter"/> and <see cref="UserType.Driver"/> users: the transporter company they belong to (owned by the Transporters module).</summary>
     public Guid? TransporterId { get; private set; }
 
     public string Email { get; private set; } = null!;
@@ -62,9 +62,9 @@ public sealed class User : AggregateRoot, ITenantScoped
 
     public static User Create(Guid tenantId, string email, string fullName, string passwordHash, UserType type, IEnumerable<Role> roles, Guid? transporterId = null, bool mustChangePassword = false)
     {
-        if ((type == UserType.Transporter) != (transporterId is not null))
+        if ((type != UserType.Internal) != (transporterId is not null))
         {
-            throw new ArgumentException("Transporter users must be linked to a transporter, and only they may be.", nameof(transporterId));
+            throw new ArgumentException("Transporter and driver users must be linked to a transporter, and only they may be.", nameof(transporterId));
         }
 
         ArgumentException.ThrowIfNullOrWhiteSpace(email);

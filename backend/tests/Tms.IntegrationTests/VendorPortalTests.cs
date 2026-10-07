@@ -25,7 +25,7 @@ public class VendorPortalTests(TmsApiFactory factory)
     }
 
     [Fact]
-    public async Task Transporter_users_must_be_linked_to_an_existing_transporter_and_others_must_not_be()
+    public async Task Transporter_and_driver_users_must_be_linked_to_an_existing_transporter_and_staff_must_not_be()
     {
         using var admin = await factory.AdminAsync();
         var transporter = await CreateAsync(admin);
@@ -36,6 +36,8 @@ public class VendorPortalTests(TmsApiFactory factory)
         unlinked.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         (await unlinked.ProblemCodeAsync()).ShouldBe("users.transporter_link");
         (await Create(UserType.Internal, transporter.Id)).StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        (await Create(UserType.Driver, null)).StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        (await Create(UserType.Driver, transporter.Id)).StatusCode.ShouldBe(HttpStatusCode.Created);
         var unknown = await Create(UserType.Transporter, Guid.NewGuid());
         (await unknown.ProblemCodeAsync()).ShouldBe("users.transporter_unknown");
 
