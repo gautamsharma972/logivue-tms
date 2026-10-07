@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Tms.SharedKernel.Domain;
 using Tms.SharedKernel.Results;
 
@@ -24,6 +25,7 @@ public sealed record Location(string State, string? City = null, string? Pincode
 /// <summary>One end of a lane as written in a rate card.</summary>
 public sealed record Place
 {
+    [JsonConstructor]
     private Place(PlaceKind kind, string? state, string? city, string? zoneCode) =>
         (Kind, State, City, ZoneCode) = (kind, state, city, zoneCode);
 
@@ -53,6 +55,7 @@ public sealed record Place
         _ => Error.Validation("contracts.place_invalid", $"A {kind} place needs {kind switch { PlaceKind.City => "a state and a city", PlaceKind.State => "a state", PlaceKind.Zone => "a zone code", _ => "no details" }}."),
     };
 
+    [JsonIgnore]
     public int Specificity => (int)Kind;
 
     /// <param name="zones">Resolves a zone code to its definition (null if the zone does not exist).</param>

@@ -20,6 +20,9 @@ internal sealed class ContractAccess(ICurrentUser user)
     /// <summary>Keeping a rating against a shipment: a commercial duty, so managers and designated raters.</summary>
     public bool CanRate => !IsVendor && (Has(ContractPermissions.Rate) || Has(ContractPermissions.Manage));
 
+    /// <summary>Someone asked to decide a contract needs to see that contract, whether or not they can browse the rest.</summary>
+    public bool CanDecide => !IsVendor && (CanRead || Has(ContractPermissions.Approve));
+
     public bool CanOverride => !IsVendor && Has(ContractPermissions.Override);
 
     public bool CanVerify => !IsVendor && (Has(ContractPermissions.Verify) || Has(ContractPermissions.Approve));

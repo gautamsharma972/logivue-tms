@@ -29,7 +29,7 @@ internal sealed class ContractConfiguration : IEntityTypeConfiguration<Contract>
         builder.Property(c => c.PrimaryContact).HasMaxLength(200);
         builder.Property(c => c.RenewalNoticeDays).HasDefaultValue(60);
         builder.Property(c => c.CalculationVersion).HasMaxLength(10).IsRequired().HasDefaultValue("1.0");
-        builder.Property(c => c.RevisionKind).HasConversion<string>().HasMaxLength(12).HasDefaultValue(RevisionKind.Original);
+        builder.Property(c => c.RevisionKind).HasConversion<string>().HasMaxLength(12).HasDefaultValue(RevisionKind.Original).HasSentinel(RevisionKind.Original);
         builder.Property(c => c.Services).HasJsonValue().HasDefaultValueSql("(JSON_ARRAY())");
         builder.Property(c => c.Suspensions).HasJsonValue().HasDefaultValueSql("(JSON_ARRAY())");
 
@@ -138,7 +138,7 @@ internal sealed class ContractDocumentConfiguration : IEntityTypeConfiguration<C
         builder.Property(d => d.ContentType).HasMaxLength(100).IsRequired();
         builder.Property(d => d.Number).HasMaxLength(60);
         builder.Property(d => d.DocumentVersion).HasDefaultValue(1);
-        builder.Property(d => d.Status).HasConversion<string>().HasMaxLength(10).HasDefaultValue(DocumentStatus.Pending);
+        builder.Property(d => d.Status).HasConversion<string>().HasMaxLength(10).HasDefaultValue(DocumentStatus.Pending).HasSentinel(DocumentStatus.Pending);
         builder.HasIndex(d => new { d.TenantId, d.ContractId });
         builder.HasIndex(d => new { d.TenantId, d.ExpiryDate });
     }

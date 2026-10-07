@@ -133,7 +133,7 @@ internal sealed class RenewContractHandler(ContractsDbContext db, ContractLoader
 }
 
 /// <summary>Approves or rejects a contract's pending approval from the contract's own screen. The approval policy still decides who is allowed to.</summary>
-internal sealed class DecideContractHandler(ContractsDbContext db, ContractLoader loader, IApprovalGateway approvals)
+internal sealed class DecideContractHandler(ContractsDbContext db, ContractLoader loader, ContractAccess access, IApprovalGateway approvals)
 {
     public Task<Result<ContractDto>> ApproveAsync(Guid id, DecisionBody body, CancellationToken cancellationToken) => DecideAsync(id, true, body.Comment, cancellationToken);
 
@@ -141,13 +141,17 @@ internal sealed class DecideContractHandler(ContractsDbContext db, ContractLoade
 
     private async Task<Result<ContractDto>> DecideAsync(Guid id, bool approve, string? comment, CancellationToken cancellationToken)
     {
-        var found = await loader.FindAsync(id, write: false, withRates: false, cancellationToken);
-        if (found.IsFailure)
+        if (!access.CanDecide)
         {
-            return found.Error;
+            return ContractAccess.Forbidden;
         }
 
-        var contract = found.Value;
+        var contract = await db.Contracts.FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
+        if (contract is null)
+        {
+            return ContractAccess.NotFound;
+        }
+
         if (contract.Status != ContractStatus.PendingApproval || contract.ApprovalRequestId is not { } requestId)
         {
             return Error.Conflict("contracts.not_pending", "This contract is not waiting for a decision.");
