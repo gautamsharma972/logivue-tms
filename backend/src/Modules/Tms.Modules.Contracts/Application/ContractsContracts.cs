@@ -13,7 +13,8 @@ public sealed record RateInputDto(
     Guid? VehicleTypeId,
     decimal? MinDistanceKm,
     decimal? MaxDistanceKm,
-    Pricing Pricing);
+    Pricing Pricing,
+    RateExtras? Extras = null);
 
 public sealed record RateCardDto(
     Guid Id,
@@ -25,7 +26,10 @@ public sealed record RateCardDto(
     string? VehicleTypeName,
     decimal? MinDistanceKm,
     decimal? MaxDistanceKm,
-    Pricing Pricing);
+    Pricing Pricing,
+    RateExtras? Extras = null,
+    int Version = 1,
+    bool InForce = false);
 
 public sealed record ContractSummaryDto(
     Guid Id,
@@ -41,7 +45,14 @@ public sealed record ContractSummaryDto(
     DateOnly EffectiveTo,
     int? DaysUntilExpiry,
     int RateCount,
-    decimal? EstimatedAnnualSpend);
+    decimal? EstimatedAnnualSpend,
+    IReadOnlyList<ContractType>? Services = null,
+    string Currency = "INR",
+    RevisionKind RevisionKind = RevisionKind.Original,
+    string? RenewalState = null,
+    int? ActiveRates = null,
+    int? ExpiringRates = null,
+    int? CommittedVehicles = null);
 
 public sealed record ContractDto(
     ContractSummaryDto Summary,
@@ -57,7 +68,16 @@ public sealed record ContractDto(
     DateTimeOffset? ActivatedAt,
     DateTimeOffset CreatedAt,
     long Version,
-    IReadOnlyList<string> MissingForSubmission);
+    IReadOnlyList<string> MissingForSubmission,
+    ContractExtras? Extras = null,
+    IReadOnlyList<Suspension>? Suspensions = null,
+    string CalculationVersion = "1.0",
+    int DphRuleCount = 0,
+    int AccessorialCount = 0,
+    int CapacityCount = 0,
+    int SlaCount = 0,
+    int ValidationErrors = 0,
+    int ValidationWarnings = 0);
 
 /// <param name="TransporterId">Fixed at creation.</param>
 /// <param name="Type">Fixed at creation.</param>
@@ -73,13 +93,21 @@ public sealed record SaveContractRequest(
     Guid? OwnerUserId,
     ContractTerms Terms,
     FuelClause? Fuel,
-    long? Version);
+    long? Version,
+    ContractExtras? Extras = null);
 
 public sealed record SaveRatesRequest(IReadOnlyList<RateInputDto> Rates, long Version);
 
 public sealed record TerminateRequest(string Reason);
 
-public sealed record ReviseRequest(DateOnly EffectiveFrom, DateOnly EffectiveTo);
+public sealed record ReviseRequest(DateOnly EffectiveFrom, DateOnly EffectiveTo, RevisionKind? Kind = null);
+
+public sealed record ContractReasonRequest(string Reason);
+
+public sealed record DecisionBody(string? Comment);
+
+/// <param name="UpliftPercent">Moves every rate by this much in the renewal draft (negative to reduce); omitted to carry the rates over unchanged.</param>
+public sealed record RenewRequest(DateOnly? EffectiveFrom, DateOnly? EffectiveTo, decimal? UpliftPercent);
 
 public sealed record ListContractsQuery(string? Search, ContractStatus? Status, ContractType? Type, Guid? TransporterId, int Page = 1, int PageSize = 25);
 
@@ -89,9 +117,9 @@ public sealed record ZoneDto(Guid Id, string Code, string Name, IReadOnlyList<Zo
 
 public sealed record SaveZoneRequest(string Code, string Name, IReadOnlyList<ZoneMember> Members, long? Version);
 
-public sealed record DieselPriceDto(Guid Id, string Region, DateOnly EffectiveFrom, decimal PricePerLitre);
+public sealed record DieselPriceDto(Guid Id, string Region, DateOnly EffectiveFrom, decimal PricePerLitre, string? Source = null);
 
-public sealed record AddDieselPriceRequest(string Region, DateOnly EffectiveFrom, decimal PricePerLitre);
+public sealed record AddDieselPriceRequest(string Region, DateOnly EffectiveFrom, decimal PricePerLitre, string? Source = null);
 
 public sealed record ListDieselPricesQuery(string? Region);
 
@@ -124,7 +152,10 @@ public sealed record QuoteDto(
 
 public sealed record QuoteResultDto(DateOnly Date, IReadOnlyList<QuoteDto> Quotes, string? Message);
 
-public sealed record ContractDocumentDto(Guid Id, Guid ContractId, ContractDocumentKind Kind, string Title, string FileName, string ContentType, long SizeBytes, DateTimeOffset UploadedAt);
+public sealed record ContractDocumentDto(
+    Guid Id, Guid ContractId, ContractDocumentKind Kind, string Title, string FileName, string ContentType, long SizeBytes, DateTimeOffset UploadedAt,
+    string? Number = null, int DocumentVersion = 1, DateOnly? IssueDate = null, DateOnly? EffectiveDate = null, DateOnly? ExpiryDate = null, DocumentStatus Status = DocumentStatus.Pending,
+    Guid? UploadedBy = null, Guid? VerifiedBy = null, DateTimeOffset? VerifiedAt = null);
 
 internal sealed class SaveContractRequestValidator : AbstractValidator<SaveContractRequest>
 {

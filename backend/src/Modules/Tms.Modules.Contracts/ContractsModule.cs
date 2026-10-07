@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Tms.BuildingBlocks.Web;
 using Tms.Modules.Contracts.Application;
 using Tms.Modules.Contracts.Application.Lifecycle;
@@ -44,8 +45,19 @@ public static class ContractsModule
         services.AddScoped<ContractAccess>();
         services.AddScoped<NumberSequence>();
         services.AddScoped<Application.Contracts.ContractLoader>();
+        services.AddScoped<ContractRateChecker>();
         services.AddScoped<IDomainEventHandler<ApprovalCompleted>, ContractApprovalSubscriber>();
         services.AddScoped<IFreightQuoteService, Application.Contracts.FreightQuoteService>();
+        services.AddScoped<Application.Rating.RatingCandidateLoader>();
+        services.AddScoped<Application.Rating.RatingService>();
+        services.AddScoped<FreightRatingIntegration>();
+        services.AddScoped<IFreightPlanningIntegration>(sp => sp.GetRequiredService<FreightRatingIntegration>());
+        services.AddScoped<IContractualBaselineService>(sp => sp.GetRequiredService<FreightRatingIntegration>());
+        services.AddScoped<IFreightTransporterIntegration, TransporterCoverageIntegration>();
+        services.AddScoped<ITransporterDirectoryLookup, DirectoryLookup>();
+        services.AddScoped<IContractedCapacityProvider, ContractedCapacityProvider>();
+        // Delivery and tracking will supply what happened on a shipment; until one does, a stand-in says there are no actuals.
+        services.TryAddScoped<IFreightActualsProvider, NoFreightActuals>();
         services.AddHandlers(typeof(ContractsModule).Assembly, "Tms.Modules.Contracts.Application");
         services.AddValidatorsFrom<ContractsDbContext>();
         return services;

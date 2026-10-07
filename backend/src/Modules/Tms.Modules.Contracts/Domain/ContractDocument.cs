@@ -10,6 +10,20 @@ public enum ContractDocumentKind
     Amendment = 3,
     Correspondence = 4,
     Other = 5,
+    MasterAgreement = 6,
+    RateAnnexure = 7,
+    ServiceLevelAgreement = 8,
+    DphAnnexure = 9,
+    RenewalLetter = 10,
+    Insurance = 11,
+    CommercialAnnexure = 12,
+    SupportingDocument = 13,
+}
+
+public enum DocumentStatus
+{
+    Pending = 1,
+    Verified = 2,
 }
 
 /// <summary>A file in the contract's repository: the signed agreement, annexures, amendments.</summary>
@@ -34,6 +48,52 @@ public sealed class ContractDocument : AggregateRoot, ITenantScoped
     public string ContentType { get; private set; } = null!;
 
     public long SizeBytes { get; private set; }
+
+    /// <summary>The document's own reference (an agreement or annexure number). A new file with the same kind and number is the next version, never a replacement.</summary>
+    public string? Number { get; private set; }
+
+    public int DocumentVersion { get; private set; } = 1;
+
+    public DateOnly? IssueDate { get; private set; }
+
+    public DateOnly? EffectiveDate { get; private set; }
+
+    public DateOnly? ExpiryDate { get; private set; }
+
+    public DocumentStatus Status { get; private set; } = DocumentStatus.Pending;
+
+    public Guid? VerifiedBy { get; private set; }
+
+    public DateTimeOffset? VerifiedAt { get; private set; }
+
+    /// <summary>Records the descriptive details. Called by the upload before the document is saved.</summary>
+    public Result Describe(string? number, int version, DateOnly? issue, DateOnly? effective, DateOnly? expiry)
+    {
+        if (number?.Trim().Length > 60 || version < 1 || (issue is { } i && effective is { } e && e < i) || (effective is { } from && expiry is { } to && to < from))
+        {
+            return Error.Validation("contract_documents.details_invalid", "The number can be 60 characters, and the effective date cannot be before the issue date or after the expiry.");
+        }
+
+        Number = string.IsNullOrWhiteSpace(number) ? null : number.Trim();
+        DocumentVersion = version;
+        IssueDate = issue;
+        EffectiveDate = effective;
+        ExpiryDate = expiry;
+        return Result.Success();
+    }
+
+    public Result Verify(Guid? userId, DateTimeOffset now)
+    {
+        if (Status == DocumentStatus.Verified)
+        {
+            return Error.Conflict("contract_documents.already_verified", "This document has already been verified.");
+        }
+
+        Status = DocumentStatus.Verified;
+        VerifiedBy = userId;
+        VerifiedAt = now;
+        return Result.Success();
+    }
 
     public static Result<ContractDocument> Create(
         Guid tenantId, Guid contractId, ContractDocumentKind kind, string title, string fileKey, string fileName, string contentType, long sizeBytes)

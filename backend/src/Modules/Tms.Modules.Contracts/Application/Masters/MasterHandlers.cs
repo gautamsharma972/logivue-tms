@@ -115,7 +115,7 @@ internal sealed class AddDieselPriceHandler(ContractsDbContext db, ContractAcces
             return ContractAccess.Forbidden;
         }
 
-        var created = DieselPrice.Create(currentUser.TenantId!.Value, request.Region, request.EffectiveFrom, request.PricePerLitre);
+        var created = DieselPrice.Create(currentUser.TenantId!.Value, request.Region, request.EffectiveFrom, request.PricePerLitre, request.Source);
         if (created.IsFailure)
         {
             return created.Error;

@@ -326,3 +326,21 @@ public sealed record SlabRatePricing(ContractType Service, SlabDimension Dimensi
 
     private string Label(Slab slab) => slab.To is { } to ? $"{slab.From:0.##}–{to:0.##} {BaseUnitName()}" : $"above {slab.From:0.##} {BaseUnitName()}";
 }
+
+public static class PricingScaler
+{
+    /// <summary>The same pricing with every rupee amount in it multiplied by <paramref name="factor"/> (a renewal uplift), rounded to paise. Quantities and bands are untouched.</summary>
+    public static Pricing Scale(this Pricing pricing, decimal factor)
+    {
+        decimal R(decimal x) => Math.Round(x * factor, 2, MidpointRounding.AwayFromZero);
+        return pricing switch
+        {
+            FlatTripPricing f => f with { AmountPerTrip = R(f.AmountPerTrip) },
+            PerKmPricing p => p with { RatePerKm = R(p.RatePerKm), MinCharge = R(p.MinCharge) },
+            WeightSlabPricing w => w with { Slabs = w.Slabs.Select(s => s with { RatePerKg = Math.Round(s.RatePerKg * factor, 4, MidpointRounding.AwayFromZero) }).ToList(), MinCharge = R(w.MinCharge) },
+            SlabRatePricing s => s with { Slabs = s.Slabs.Select(x => x with { Rate = x.Type == SlabRateType.Fixed ? R(x.Rate) : Math.Round(x.Rate * factor, 4, MidpointRounding.AwayFromZero) }).ToList() },
+            DedicatedPricing d => d with { MonthlyRental = R(d.MonthlyRental), ExtraKmRate = R(d.ExtraKmRate), ExtraHourRate = R(d.ExtraHourRate) },
+            _ => pricing,
+        };
+    }
+}

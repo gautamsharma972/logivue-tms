@@ -17,12 +17,21 @@ public sealed class UploadContractDocumentForm
     public string? Title { get; init; }
 
     public IFormFile? File { get; init; }
+
+    /// <summary>The document's own number. Uploading another file with the same kind and number makes the next version; the earlier file is kept.</summary>
+    public string? Number { get; init; }
+
+    public DateOnly? IssueDate { get; init; }
+
+    public DateOnly? EffectiveDate { get; init; }
+
+    public DateOnly? ExpiryDate { get; init; }
 }
 
 internal sealed record DownloadedContractFile(Stream Content, string FileName, string ContentType);
 
 /// <summary>The contract's document repository: signed agreement, annexures, amendments.</summary>
-internal sealed class DocumentHandler(ContractsDbContext db, ContractAccess access, ICurrentUser currentUser, IFileStore files)
+internal sealed class DocumentHandler(ContractsDbContext db, ContractAccess access, ICurrentUser currentUser, IFileStore files, TimeProvider clock)
 {
     public async Task<Result<IReadOnlyList<ContractDocumentDto>>> ListAsync(Guid contractId, CancellationToken cancellationToken)
     {
@@ -72,7 +81,16 @@ internal sealed class DocumentHandler(ContractsDbContext db, ContractAccess acce
 
         upload.Position = 0;
         var tenantId = currentUser.TenantId!.Value;
-        var key = $"{tenantId}/contracts/{contractId}/{Guid.CreateVersion7()}{extension}";
+        var number = string.IsNullOrWhiteSpace(form.Number) ? null : form.Number.Trim();
+        var version = 1;
+        if (number is not null)
+        {
+            var kind = form.Kind;
+            version = (await db.Documents.AsNoTracking().Where(d => d.ContractId == contractId && d.Kind == kind && d.Number == number).MaxAsync(d => (int?)d.DocumentVersion, cancellationToken) ?? 0) + 1;
+        }
+
+        var documentId = Guid.CreateVersion7();
+        var key = $"{tenantId}/contracts/{contractId}/{version}/{documentId}{extension}";
         var fileName = Path.GetFileName(file.FileName);
 
         var created = ContractDocument.Create(tenantId, contractId, form.Kind, form.Title ?? string.Empty, key,
@@ -80,6 +98,12 @@ internal sealed class DocumentHandler(ContractsDbContext db, ContractAccess acce
         if (created.IsFailure)
         {
             return created.Error;
+        }
+
+        var described = created.Value.Describe(number, version, form.IssueDate, form.EffectiveDate, form.ExpiryDate);
+        if (described.IsFailure)
+        {
+            return described.Error;
         }
 
         await files.SaveAsync(key, upload, cancellationToken);
@@ -116,6 +140,29 @@ internal sealed class DocumentHandler(ContractsDbContext db, ContractAccess acce
             : new DownloadedContractFile(stream, document.FileName, document.ContentType);
     }
 
+    public async Task<Result<ContractDocumentDto>> VerifyAsync(Guid contractId, Guid documentId, CancellationToken cancellationToken)
+    {
+        if (!access.CanVerify)
+        {
+            return ContractAccess.Forbidden;
+        }
+
+        var document = await db.Documents.FirstOrDefaultAsync(d => d.Id == documentId && d.ContractId == contractId, cancellationToken);
+        if (document is null)
+        {
+            return Error.NotFound("contract_documents.not_found", "Document not found.");
+        }
+
+        var verified = document.Verify(currentUser.UserId, clock.GetUtcNow());
+        if (verified.IsFailure)
+        {
+            return verified.Error;
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
+        return document.ToDto();
+    }
+
     public async Task<Result> DeleteAsync(Guid documentId, CancellationToken cancellationToken)
     {
         if (!access.CanManage)
@@ -127,6 +174,11 @@ internal sealed class DocumentHandler(ContractsDbContext db, ContractAccess acce
         if (document is null)
         {
             return Error.NotFound("contract_documents.not_found", "Document not found.");
+        }
+
+        if (document.Status == DocumentStatus.Verified)
+        {
+            return Error.Conflict("contract_documents.verified", "A verified contract document cannot be deleted. Upload a new version instead.");
         }
 
         db.Documents.Remove(document);

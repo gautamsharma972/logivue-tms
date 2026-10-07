@@ -19,6 +19,7 @@ internal static class ContractEndpoints
         MapContracts(api);
         MapMasters(api);
         MapDocuments(api);
+        FreightEndpoints.Map(app);
 
         api.MapPost("/freight/quote", async (QuoteRequest body, QuoteHandler handler, CancellationToken ct) => (await handler.HandleAsync(body, ct)).ToHttpResult())
             .WithValidation<QuoteRequest>().WithName("QuoteFreight").Produces<QuoteResultDto>().ProducesValidationProblem();

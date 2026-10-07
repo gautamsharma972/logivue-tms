@@ -119,7 +119,10 @@ public sealed class DieselPrice : AggregateRoot, ITenantScoped
 
     public decimal PricePerLitre { get; private set; }
 
-    public static Result<DieselPrice> Create(Guid tenantId, string region, DateOnly effectiveFrom, decimal pricePerLitre)
+    /// <summary>Where the price came from (a company's pump-price circular, an oil marketing company, an index provider).</summary>
+    public string? Source { get; private set; }
+
+    public static Result<DieselPrice> Create(Guid tenantId, string region, DateOnly effectiveFrom, decimal pricePerLitre, string? source = null)
     {
         if (string.IsNullOrWhiteSpace(region) || region.Length > 64)
         {
@@ -131,7 +134,7 @@ public sealed class DieselPrice : AggregateRoot, ITenantScoped
             return Error.Validation("diesel.price_invalid", "Enter a realistic price per litre.");
         }
 
-        return new DieselPrice { TenantId = tenantId, Region = Text.Normalise(region), EffectiveFrom = effectiveFrom, PricePerLitre = Math.Round(pricePerLitre, 2) };
+        return new DieselPrice { TenantId = tenantId, Region = Text.Normalise(region), EffectiveFrom = effectiveFrom, PricePerLitre = Math.Round(pricePerLitre, 2), Source = string.IsNullOrWhiteSpace(source) ? null : source.Trim() };
     }
 
     /// <summary>The price in force on <paramref name="date"/>: the latest entry that started on or before it.</summary>

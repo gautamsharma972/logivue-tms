@@ -244,6 +244,13 @@ public sealed class Contract : AggregateRoot, ITenantScoped
         return Result.Success();
     }
 
+    /// <summary>Tells other modules that a DPH adjustment was fixed for a period (the diesel price used and the percentage it gave).</summary>
+    public void AnnounceDphRevision(string ruleCode, DateOnly periodStart, decimal referencePrice, decimal adjustmentPercent) =>
+        Raise(new DphRevisionApplied(TenantId, Id, Reference, ruleCode, periodStart, referencePrice, adjustmentPercent));
+
+    /// <summary>Tells other modules that this contract is inside its renewal notice period and nobody has started the next term.</summary>
+    public void AnnounceRenewalDue(DateOnly today) => Raise(new ContractRenewalDue(TenantId, Id, Reference, EffectiveTo, EffectiveTo.DayNumber - today.DayNumber));
+
     public ContractExtras ToExtras() => new(Currency, BusinessUnit, PrimaryContact, RenewalNoticeDays, AutoRenewal, EffectiveServices);
 
     private Result SetHeader(

@@ -21,6 +21,9 @@ public sealed class ContractLifecycleOptions
 
     /// <summary>Reminders go out when a contract has this many days (or fewer) left, once each.</summary>
     public int[] ReminderDays { get; init; } = [60, 30, 15, 7];
+
+    /// <summary>The bands the expiry watchlist groups things into (contracts, rates, DPH versions, documents, commitments).</summary>
+    public int[] ExpiryBands { get; init; } = [90, 60, 30, 15, 7];
 }
 
 /// <summary>
@@ -67,6 +70,7 @@ internal sealed class ContractLifecycleService(
     {
         await ExpireAsync(today, cancellationToken);
         await RemindAsync(today, cancellationToken);
+        await RenewalsAsync(today, cancellationToken);
     }
 
     private async Task ExpireAsync(DateOnly today, CancellationToken cancellationToken)
@@ -166,5 +170,59 @@ internal sealed class ContractLifecycleService(
         }
 
         await db.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// When a contract enters its renewal notice period without a next term under way, other modules are told (once), and if the contract is set to renew automatically a
+    /// renewal <em>draft</em> is prepared. Nothing is activated: the draft goes through approval like any other.
+    /// </summary>
+    private async Task RenewalsAsync(DateOnly today, CancellationToken cancellationToken)
+    {
+        List<Guid> tenants;
+        await using (var scope = scopes.CreateAsyncScope())
+        {
+            var horizon = today.AddDays(365);
+            tenants = await scope.ServiceProvider.GetRequiredService<ContractsDbContext>().Contracts.IgnoreQueryFilters()
+                .Where(c => c.Status == ContractStatus.Active && c.EffectiveTo >= today && c.EffectiveTo <= horizon).Select(c => c.TenantId).Distinct().ToListAsync(cancellationToken);
+        }
+
+        foreach (var tenantId in tenants)
+        {
+            await using var scope = scopes.CreateAsyncScope();
+            scope.ServiceProvider.GetRequiredService<IAmbientUserContext>().RunAs(tenantId, null, "contract-lifecycle");
+            var db = scope.ServiceProvider.GetRequiredService<ContractsDbContext>();
+            var candidates = (await db.Contracts.Where(c => c.Status == ContractStatus.Active && c.EffectiveTo >= today && c.EffectiveTo <= today.AddDays(365)).ToListAsync(cancellationToken))
+                .Where(c => c.EffectiveTo.DayNumber - today.DayNumber <= c.RenewalNoticeDays).ToList();
+            if (candidates.Count == 0)
+            {
+                continue;
+            }
+
+            var ids = candidates.Select(c => c.Id).ToList();
+            var underWay = (await db.Contracts.AsNoTracking().Where(c => c.RevisionOfId != null && ids.Contains(c.RevisionOfId.Value) && c.Status != ContractStatus.Cancelled).Select(c => c.RevisionOfId!.Value).ToListAsync(cancellationToken)).ToHashSet();
+            var announced = (await db.ExpiryAlerts.AsNoTracking().Where(a => ids.Contains(a.ContractId) && a.DaysBefore == -1).Select(a => a.ContractId).ToListAsync(cancellationToken)).ToHashSet();
+            foreach (var contract in candidates.Where(c => !underWay.Contains(c.Id) && !announced.Contains(c.Id)))
+            {
+                contract.AnnounceRenewalDue(today);
+                db.ExpiryAlerts.Add(new ExpiryAlert { ContractId = contract.Id, DaysBefore = -1, TenantId = tenantId, SentAt = clock.GetUtcNow() });
+                if (contract.AutoRenewal)
+                {
+                    foreach (var navigation in new[] { "RateCards", "DphRules", "Accessorials", "Capacities", "Slas" })
+                    {
+                        await db.Entry(contract).Collection(navigation).LoadAsync(cancellationToken);
+                    }
+
+                    var from = contract.EffectiveTo.AddDays(1);
+                    var renewal = contract.CreateRevision(from, from.AddDays(Math.Max(contract.EffectiveTo.DayNumber - contract.EffectiveFrom.DayNumber, 30)), contract.OwnerUserId, RevisionKind.Renewal);
+                    if (renewal.IsSuccess)
+                    {
+                        db.Contracts.Add(renewal.Value);
+                        logger.LogInformation("Prepared a renewal draft of {Reference}", contract.Reference);
+                    }
+                }
+            }
+
+            await db.SaveChangesAsync(cancellationToken);
+        }
     }
 }

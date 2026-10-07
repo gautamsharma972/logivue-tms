@@ -25,6 +25,12 @@ public sealed record ApprovalSubmission(Guid RequestId, ApprovalStatus Status);
 public interface IApprovalGateway
 {
     Task<Result<ApprovalSubmission>> SubmitAsync(SubmitApproval request, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Decides the current step of a request as the signed-in user, so a document module can offer "approve" and "reject" beside its own screens. The approval policy still decides
+    /// who may: a user who is not an approver of the current step is refused.
+    /// </summary>
+    Task<Result<ApprovalStatus>> DecideAsync(Guid requestId, bool approve, string? comment, CancellationToken cancellationToken = default);
 }
 
 /// <summary>

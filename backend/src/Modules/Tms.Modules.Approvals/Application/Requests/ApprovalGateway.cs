@@ -8,9 +8,17 @@ using Tms.SharedKernel.Security;
 namespace Tms.Modules.Approvals.Application.Requests;
 
 /// <summary>Entry point for other modules: starts an approval for one of their documents.</summary>
-internal sealed class ApprovalGateway(ApprovalsDbContext db, ICurrentUser currentUser, DocumentTypeCatalog documentTypes, TimeProvider clock)
+internal sealed class ApprovalGateway(ApprovalsDbContext db, ICurrentUser currentUser, DocumentTypeCatalog documentTypes, DecideRequestHandler decisions, TimeProvider clock)
     : IApprovalGateway
 {
+    public async Task<Result<ApprovalStatus>> DecideAsync(Guid requestId, bool approve, string? comment, CancellationToken cancellationToken = default)
+    {
+        var decided = approve
+            ? await decisions.ApproveAsync(requestId, new DecisionRequest(comment), cancellationToken)
+            : await decisions.RejectAsync(requestId, new DecisionRequest(comment), cancellationToken);
+        return decided.IsFailure ? decided.Error : decided.Value.Status;
+    }
+
     public async Task<Result<ApprovalSubmission>> SubmitAsync(SubmitApproval request, CancellationToken cancellationToken = default)
     {
         if (currentUser is not { UserId: { } requester, TenantId: { } tenant })

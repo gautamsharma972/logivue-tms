@@ -17,6 +17,13 @@ internal sealed class ContractAccess(ICurrentUser user)
 
     public bool CanManage => !IsVendor && Has(ContractPermissions.Manage);
 
+    /// <summary>Keeping a rating against a shipment: a commercial duty, so managers and designated raters.</summary>
+    public bool CanRate => !IsVendor && (Has(ContractPermissions.Rate) || Has(ContractPermissions.Manage));
+
+    public bool CanOverride => !IsVendor && Has(ContractPermissions.Override);
+
+    public bool CanVerify => !IsVendor && (Has(ContractPermissions.Verify) || Has(ContractPermissions.Approve));
+
     public static readonly Error Forbidden = Error.Forbidden("contracts.forbidden", "You are not allowed to do that.");
 
     public static readonly Error NotFound = Error.NotFound("contracts.not_found", "Contract not found.");

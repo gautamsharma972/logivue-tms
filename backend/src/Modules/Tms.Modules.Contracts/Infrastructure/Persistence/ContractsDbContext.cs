@@ -23,6 +23,28 @@ public sealed class ContractsDbContext(DbContextOptions<ContractsDbContext> opti
 
     public DbSet<ExpiryAlert> ExpiryAlerts => Set<ExpiryAlert>();
 
+    public DbSet<DphRule> DphRules => Set<DphRule>();
+
+    public DbSet<DphPeriodSnapshot> DphSnapshots => Set<DphPeriodSnapshot>();
+
+    public DbSet<AccessorialType> AccessorialTypes => Set<AccessorialType>();
+
+    public DbSet<ContractAccessorial> ContractAccessorials => Set<ContractAccessorial>();
+
+    public DbSet<ContractCapacity> Capacities => Set<ContractCapacity>();
+
+    public DbSet<ContractSla> Slas => Set<ContractSla>();
+
+    public DbSet<FreightRating> Ratings => Set<FreightRating>();
+
+    public DbSet<RatingComponent> RatingComponents => Set<RatingComponent>();
+
+    public DbSet<RatingExclusion> RatingExclusions => Set<RatingExclusion>();
+
+    public DbSet<RateImportBatch> ImportBatches => Set<RateImportBatch>();
+
+    public DbSet<RateImportRow> ImportRows => Set<RateImportRow>();
+
     public DbSet<SequenceCounter> Sequences => Set<SequenceCounter>();
 
     protected override void ConfigureModel(ModelBuilder modelBuilder)
