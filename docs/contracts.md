@@ -49,3 +49,6 @@ Contracts are staff-only: vendor-portal users get 403 on every contracts endpoin
   usability step for large matrices (limit: 5,000 rates per contract).
 - Detention is stored as terms but only *validated* once bill audit (module 7) exists.
 - Distance must be supplied by the caller; route/distance lookup arrives with planning.
+
+## Module 5 extension
+Rating engine, DPH rules, accessorials, capacity/SLA, import, simulation, dashboards: see `FREIGHT_CONTRACT_MANAGEMENT_INTEGRATION.md`.

@@ -63,6 +63,13 @@ All freight prices come from `Tms.Modules.Contracts` (`docs/contracts.md`): pure
 Approved contracts are immutable (revise instead); "in force" is judged by dates and approval history so past shipments
 stay priceable. Money shown next to an invoice must use `formatInrExact` (paise), not `formatInr`.
 
+## Freight rating (Module 5)
+Details in `docs/FREIGHT_CONTRACT_MANAGEMENT_INTEGRATION.md` (extends `Tms.Modules.Contracts`, tables stay `contracts_*`). `RatingEngine` is pure:
+eligibility → lane specificity → exclusions (each with a code) → best per contract; conflicts are `FREIGHT_RATE_CONFLICT`, never a silent pick.
+Pipeline: base → DPH → discount → accessorials → rounding; every result carries lines, reasons, exclusions and a trace. A kept rating stores the
+contract/rate/DPH versions and a DPH period snapshot so later changes never alter it. Imports land in a draft revision, never straight to active.
+Other modules rate only through `IFreightRatingService`; audit reads `IContractualBaselineService`.
+
 ## Transporter performance and selection
 Details in `docs/transporter-management.md`. Transporters learns about loads only from Shipments events and
 `IShipmentOperationsFeed`; Shipments planning asks `ITransporterPlanningPolicy`. KPIs: carrier-attributed delays only,
