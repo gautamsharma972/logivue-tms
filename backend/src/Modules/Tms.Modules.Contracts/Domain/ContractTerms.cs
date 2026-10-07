@@ -11,7 +11,9 @@ public sealed record ContractTerms(
     decimal UnloadingCharge,
     decimal MultiDropChargePerPoint,
     decimal MinChargePerConsignment,
-    string? Notes)
+    string? Notes,
+    RoundingRule? Rounding = null,
+    decimal? DiscountPercent = null)
 {
     public static ContractTerms Default { get; } = new(250m, 24m, 0m, 0m, 0m, 0m, 0m, null);
 
@@ -33,6 +35,16 @@ public sealed record ContractTerms(
         if (LoadingCharge < 0 || UnloadingCharge < 0 || MultiDropChargePerPoint < 0 || MinChargePerConsignment < 0)
         {
             return Fail("loadingCharge", "Charges cannot be negative.");
+        }
+
+        if (DiscountPercent is < 0 or > 100)
+        {
+            return Fail("discountPercent", "A discount is between 0 and 100%.");
+        }
+
+        if (Rounding?.Validate() is { IsFailure: true } rounding)
+        {
+            return rounding.Error;
         }
 
         return Notes?.Length > 2000 ? Fail("notes", "Notes can be at most 2000 characters.") : Result.Success();

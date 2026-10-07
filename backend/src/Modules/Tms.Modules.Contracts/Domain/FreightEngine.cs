@@ -12,7 +12,8 @@ public sealed record FreightQuery(
     decimal? WeightKg,
     decimal? VolumeCbm,
     decimal? DistanceKm,
-    int Drops = 1);
+    int Drops = 1,
+    decimal? Packages = null);
 
 public sealed record QuoteLine(string Code, string Description, decimal Amount);
 
@@ -55,7 +56,7 @@ public static class RateSelector
                 }
 
                 // Ties are broken by id so the choice is stable between runs, not left to enumeration order.
-                if (score > bestScore || (score == bestScore && best is not null && card.Id.CompareTo(best.Id) > 0))
+                if (score > bestScore || (score == bestScore && best is not null && (card.Priority < best.Priority || (card.Priority == best.Priority && card.Id.CompareTo(best.Id) > 0))))
                 {
                     (best, bestScore) = (card, score);
                 }
@@ -79,15 +80,17 @@ public static class FreightCalculator
 {
     public static decimal Round(decimal amount) => Math.Round(amount, 2, MidpointRounding.AwayFromZero);
 
-    public static Result<FreightQuote> Calculate(Contract contract, RateCard card, FreightQuery query, decimal? dieselPricePerLitre)
+    /// <summary>The base freight of one rate card for a shipment, before fuel, discount and extras: the amount, how it was reached, and the weight it was charged on.</summary>
+    public sealed record BaseFreightResult(decimal Amount, string Basis, decimal? ChargeableWeightKg, IReadOnlyList<string> Notes);
+
+    public static Result<BaseFreightResult> BaseFreight(ContractTerms terms, Pricing pricing, FreightQuery query)
     {
-        var terms = contract.Terms;
         var notes = new List<string>();
         decimal? chargeable = null;
         decimal baseAmount;
         string basis;
 
-        switch (card.Pricing)
+        switch (pricing)
         {
             case FlatTripPricing flat:
                 baseAmount = flat.AmountPerTrip;
@@ -139,9 +142,65 @@ public static class FreightCalculator
 
                 break;
 
+            case SlabRatePricing slab:
+            {
+                var quantity = slab.Dimension switch
+                {
+                    SlabDimension.Weight => query.WeightKg,
+                    SlabDimension.Distance => query.DistanceKm,
+                    SlabDimension.Volume => query.VolumeCbm,
+                    _ => query.Packages is { } p ? p : null,
+                };
+                if (quantity is not > 0)
+                {
+                    return Error.Validation($"quote.{slab.Dimension.ToString().ToLowerInvariant()}_required", $"The {slab.Dimension.ToString().ToLowerInvariant()} is needed to price this rate.");
+                }
+
+                var charged = quantity.Value;
+                if (slab.Dimension == SlabDimension.Weight)
+                {
+                    var volumetricKg = (query.VolumeCbm ?? 0m) * terms.VolumetricKgPerCbm;
+                    charged = new[] { charged, volumetricKg, slab.MinChargeable }.Max();
+                    chargeable = charged;
+                    if (volumetricKg > quantity.Value)
+                    {
+                        notes.Add($"Volumetric weight {volumetricKg:0.##} kg ({query.VolumeCbm:0.##} CBM × {terms.VolumetricKgPerCbm:0.##}) is higher than actual {quantity:0.##} kg");
+                    }
+                }
+                else if (slab.MinChargeable > charged)
+                {
+                    charged = slab.MinChargeable;
+                }
+
+                (baseAmount, basis) = slab.Price(charged);
+                if (slab.Service == ContractType.Ptl && baseAmount < terms.MinChargePerConsignment)
+                {
+                    baseAmount = terms.MinChargePerConsignment;
+                    basis += $" (minimum charge ₹{terms.MinChargePerConsignment:0.##})";
+                }
+
+                break;
+            }
+
             default:
                 return Error.Validation("quote.dedicated_monthly", "Dedicated-vehicle contracts are billed monthly, not per shipment.");
         }
+
+        return new BaseFreightResult(baseAmount, basis, chargeable, notes);
+    }
+
+    public static Result<FreightQuote> Calculate(Contract contract, RateCard card, FreightQuery query, decimal? dieselPricePerLitre)
+    {
+        var terms = contract.Terms;
+        var calculated = BaseFreight(terms, card.Pricing, query);
+        if (calculated.IsFailure)
+        {
+            return calculated.Error;
+        }
+
+        var (baseAmount, basis, chargeable, baseNotes) = calculated.Value;
+        var notes = baseNotes.ToList();
+        (baseAmount, basis) = ApplyCardLimits(card, baseAmount, basis);
 
         var lines = new List<QuoteLine> { new("FREIGHT", basis, Round(baseAmount)) };
 
@@ -218,6 +277,24 @@ public static class FreightCalculator
         }
 
         return new FreightQuote(contract.Id, contract.Reference, contract.TransporterId, contract.Type, card.Id, $"{card.Origin} → {card.Destination}", null, lines, notes);
+    }
+
+    /// <summary>The rate's own floor and (only when the contract sets one) ceiling on the base freight.</summary>
+    public static (decimal Amount, string Basis) ApplyCardLimits(RateCard card, decimal amount, string basis)
+    {
+        if (card.MinimumCharge is { } min && amount < min)
+        {
+            amount = min;
+            basis += $" (minimum charge ₹{min:0.##})";
+        }
+
+        if (card.MaximumCharge is { } max && amount > max)
+        {
+            amount = max;
+            basis += $" (capped at ₹{max:0.##})";
+        }
+
+        return (amount, basis);
     }
 
     private static (decimal Amount, string Basis) PriceBySlab(WeightSlabPricing pricing, decimal chargeableKg)
