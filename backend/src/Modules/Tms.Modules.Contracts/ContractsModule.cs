@@ -55,6 +55,7 @@ public static class ContractsModule
         services.AddScoped<IContractualBaselineService>(sp => sp.GetRequiredService<FreightRatingIntegration>());
         services.AddScoped<IFreightTransporterIntegration, TransporterCoverageIntegration>();
         services.AddScoped<ITransporterDirectoryLookup, DirectoryLookup>();
+        services.AddScoped<IContractsDemoSeeder, ContractsDemoSeeder>();
         services.AddScoped<IContractedCapacityProvider, ContractedCapacityProvider>();
         // Delivery and tracking will supply what happened on a shipment; until one does, a stand-in says there are no actuals.
         services.TryAddScoped<IFreightActualsProvider, NoFreightActuals>();
@@ -80,4 +81,17 @@ public static class ContractsModule
         await using var scope = services.CreateAsyncScope();
         await scope.ServiceProvider.GetRequiredService<ContractsDbContext>().Database.MigrateAsync(cancellationToken);
     }
+}
+
+/// <summary>A carrier the demo contracts are put with (the seeder knows no carriers of its own).</summary>
+public sealed record ContractsDemoCarrier(Guid Id, string Name);
+
+public sealed record ContractsDemoRequest(IReadOnlyList<ContractsDemoCarrier> Carriers);
+
+public sealed record ContractsDemoResult(int Contracts, int Rates, int DphRules, int Ratings, int Documents, string Message);
+
+/// <summary>Builds a believable commercial book (contracts in every state, thousands of rate cells, DPH history and kept ratings) for a demonstration. Development and test only.</summary>
+public interface IContractsDemoSeeder
+{
+    Task<ContractsDemoResult> SeedAsync(ContractsDemoRequest request, CancellationToken cancellationToken);
 }

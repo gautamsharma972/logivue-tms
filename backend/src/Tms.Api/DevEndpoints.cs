@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Tms.BuildingBlocks.Web.Http;
 using Tms.Modules.Deliveries.Infrastructure.Persistence;
+using Tms.Modules.Contracts;
 using Tms.Modules.Tracking;
 using Tms.SharedKernel.Contracts;
 
@@ -49,6 +50,13 @@ internal static class DevEndpoints
             .RequireAuthorization()
             .WithTags("Dev")
             .WithName("DevSeedTrackingDemo");
+
+        // Puts a believable freight-contract book (contracts in every state, rates, DPH history, kept ratings) into the caller's tenant. Carriers come from the caller.
+        app.MapPost("/api/v1/dev/contracts/seed-demo", async (SeedTrackingRequest body, IContractsDemoSeeder seeder, CancellationToken ct) =>
+                Results.Ok(await seeder.SeedAsync(new ContractsDemoRequest([.. (body.Carriers ?? []).Select(c => new ContractsDemoCarrier(c.Id, c.Name))]), ct)))
+            .RequireAuthorization()
+            .WithTags("Dev")
+            .WithName("DevSeedContractsDemo");
     }
 
     internal sealed record AgeRequest(double Hours);
