@@ -1,5 +1,8 @@
 import { http } from './client'
 import type {
+  RatingRequest, RatingResultDto, RatingSummaryDto, RatingDetailDto, ReproduceDto, WhatIfRow, CompareRow, RateRowDto, ListRatesParams, RateValidationDto, DphRuleSpec, DphOverviewDto, DphCalculationDto,
+  PriceIndexDto, AccessorialTypeDto, AccessorialSpec, CapacitySpec, CapacityDto, SlaSpec, ImportBatchDto, ImportApplyResult, ContractDashboardDto, ExpiryItemDto, RateCoverageDto,
+  ValidationOverviewDto, RateUsageDto, ImpactDto, AccessorialCalc,
   ListTrackedParams, TrackedSummaryDto, TrackedDetailDto, TimelineEntryDto, TrackEtaDto, TrackRouteDto, TrackLocationDto, CurrentLocationDto, VehicleTrackingDto, TrackAlertDto, TrackExceptionSummaryDto,
   TrackExceptionDto, ControlTowerSummaryDto, GeofenceDto, SaveGeofenceRequest, TrackingHealthDto, JourneyAnalyticsDto, CustomerLinkDto, CreatedLinkDto, CustomerTrackingDto, TrackingSettingDto,
   ReplayDto, TrackingComplianceDto, MobileTripDto, TrackingSessionDto, QueuedFix, TrackBatchResult, DelayReason, TrackAlertStatus, TrackSeverity, TrackAlertType, TrackExceptionStatus,
@@ -684,4 +687,88 @@ export const trackingApi = {
     if (!r.ok) throw new Error(r.status === 404 ? 'not-found' : 'unavailable')
     return (await r.json()) as CustomerTrackingDto
   }),
+}
+
+const fc = (id: string) => `${v1}/contracts/${id}`
+
+export const freightApi = {
+  // lifecycle
+  suspend: (id: string, reason: string) => http.post<ContractDto>(`${fc(id)}/suspend`, { reason }).then((r) => r.data),
+  resume: (id: string) => http.post<ContractDto>(`${fc(id)}/resume`).then((r) => r.data),
+  cancel: (id: string, reason: string) => http.post<ContractDto>(`${fc(id)}/cancel`, { reason }).then((r) => r.data),
+  renew: (id: string, body: { effectiveFrom?: string | null; effectiveTo?: string | null; upliftPercent?: number | null }) => http.post<ContractDto>(`${fc(id)}/renew`, body).then((r) => r.data),
+  approve: (id: string, comment: string | null) => http.post<ContractDto>(`${fc(id)}/approve`, { comment }).then((r) => r.data),
+  reject: (id: string, comment: string) => http.post<ContractDto>(`${fc(id)}/reject`, { comment }).then((r) => r.data),
+  impact: (id: string, months?: number) => http.get<ImpactDto>(`${fc(id)}/renewal-impact`, { params: { months } }).then((r) => r.data),
+  versions: (number: string) => http.get<PagedResult<ContractSummaryDto>>(`${v1}/contracts`, { params: { search: number, pageSize: 50 } }).then((r) => r.data.items.filter((x) => x.number === number).sort((a, b) => b.revision - a.revision)),
+
+  // terms
+  dphRules: (id: string) => http.get<DphRuleSpec[]>(`${fc(id)}/dph-rules`).then((r) => r.data),
+  saveDphRules: (id: string, rules: DphRuleSpec[], version: number) => http.put<ContractDto>(`${fc(id)}/dph-rules`, { rules, version }).then((r) => r.data),
+  charges: (id: string) => http.get<AccessorialSpec[]>(`${fc(id)}/accessorials`).then((r) => r.data),
+  saveCharges: (id: string, charges: AccessorialSpec[], version: number) => http.put<ContractDto>(`${fc(id)}/accessorials`, { charges, version }).then((r) => r.data),
+  capacity: (id: string) => http.get<CapacityDto[]>(`${fc(id)}/capacity`).then((r) => r.data),
+  saveCapacity: (id: string, commitments: CapacitySpec[], version: number) => http.put<ContractDto>(`${fc(id)}/capacity`, { commitments, version }).then((r) => r.data),
+  sla: (id: string) => http.get<SlaSpec[]>(`${fc(id)}/sla`).then((r) => r.data),
+  saveSla: (id: string, levels: SlaSpec[], version: number) => http.put<ContractDto>(`${fc(id)}/sla`, { levels, version }).then((r) => r.data),
+  verifyDocument: (id: string, documentId: string) => http.post<ContractDocumentDto>(`${fc(id)}/documents/${documentId}/verify`).then((r) => r.data),
+
+  // rates
+  rates: (params: ListRatesParams) => http.get<PagedResult<RateRowDto>>(`${v1}/freight-rates`, { params }).then((r) => r.data),
+  rateHistory: (id: string) => http.get<RateRowDto[]>(`${v1}/freight-rates/${id}/history`).then((r) => r.data),
+  rateVersion: (id: string, rate: RateInputDto, effectiveFrom?: string, effectiveTo?: string) =>
+    http.post<ContractDto>(`${v1}/freight-rates/${id}/create-version`, { rate, effectiveFrom, effectiveTo }).then((r) => r.data),
+  validateRates: (body: { contractId?: string | null; rows: RateInputDto[] }) => http.post<RateValidationDto>(`${v1}/freight-rates/validate`, body).then((r) => r.data),
+  exportRates: (params: { contractId?: string; transporterId?: string; inForceOnly?: boolean; format: 'csv' | 'xlsx' }) =>
+    downloadFile(`${v1}/freight-rates/export`, `freight-rates.${params.format}`, { contractId: params.contractId, transporterId: params.transporterId, inForceOnly: params.inForceOnly === undefined ? undefined : String(params.inForceOnly), format: params.format }),
+  template: (format: 'csv' | 'xlsx') => downloadFile(`${v1}/freight-rates/import/template`, `freight-rate-template.${format}`, { format }),
+
+  // bulk import
+  imports: () => http.get<ImportBatchDto[]>(`${v1}/freight-rates/import`).then((r) => r.data),
+  upload: (file: File, mode: 'Append' | 'Replace') => {
+    const form = new FormData()
+    form.set('mode', mode)
+    form.set('file', file)
+    return http.post<ImportBatchDto>(`${v1}/freight-rates/import`, form).then((r) => r.data)
+  },
+  import: (id: string) => http.get<ImportBatchDto>(`${v1}/freight-rates/import/${id}`).then((r) => r.data),
+  correctRow: (id: string, row: number, values: Record<string, string | null>) => http.post<ImportBatchDto>(`${v1}/freight-rates/import/${id}/rows/${row}`, { values }).then((r) => r.data),
+  applyImport: (id: string, body: { skipInvalidRows: boolean }) => http.post<ImportApplyResult>(`${v1}/freight-rates/import/${id}/apply`, body).then((r) => r.data),
+  discardImport: (id: string) => http.delete<ImportBatchDto>(`${v1}/freight-rates/import/${id}`).then((r) => r.data),
+
+  // rating
+  calculate: (body: RatingRequest) => http.post<RatingResultDto>(`${v1}/freight-rating/calculate`, body).then((r) => r.data),
+  qualify: (body: RatingRequest) => http.post<RatingResultDto>(`${v1}/freight-rating/qualify`, body).then((r) => r.data),
+  simulate: (body: RatingRequest) => http.post<RatingResultDto>(`${v1}/freight-rating/simulate`, body).then((r) => r.data),
+  whatIf: (base: RatingRequest, variations: { label: string; weightKg?: number; volumeCbm?: number; distanceKm?: number; vehicleTypeId?: string; stopCount?: number }[]) =>
+    http.post<{ base: WhatIfRow; variations: WhatIfRow[] }>(`${v1}/freight-rating/what-if`, { base, variations }).then((r) => r.data),
+  compare: (request: RatingRequest, transporterIds: string[]) => http.post<CompareRow[]>(`${v1}/freight-rating/compare`, { request, transporterIds }).then((r) => r.data),
+  ratings: (params: { shipmentReference?: string; transporterId?: string; contractId?: string; qualified?: boolean; committed?: boolean; from?: string; to?: string; page?: number; pageSize?: number }) =>
+    http.get<PagedResult<RatingSummaryDto>>(`${v1}/freight-rating/history`, { params }).then((r) => r.data),
+  rating: (id: string) => http.get<RatingDetailDto>(`${v1}/freight-rating/${id}`).then((r) => r.data),
+  reproduce: (id: string) => http.get<ReproduceDto>(`${v1}/freight-rating/${id}/reproduce`).then((r) => r.data),
+  override: (id: string, body: { amount: number; reason: string; approvedBy: string | null }) => http.post<RatingDetailDto>(`${v1}/freight-rating/${id}/override`, body).then((r) => r.data),
+  clearOverride: (id: string) => http.delete<RatingDetailDto>(`${v1}/freight-rating/${id}/override`).then((r) => r.data),
+
+  // DPH and fuel
+  dph: (params: { contractId?: string; inForceOnly?: boolean }) => http.get<DphOverviewDto[]>(`${v1}/dph/rules`, { params }).then((r) => r.data),
+  calculateDph: (ruleId: string, body: { date?: string | null; baseFreight: number; distanceKm?: number | null; record?: boolean; overridePrice?: number | null }) =>
+    http.post<DphCalculationDto>(`${v1}/dph/rules/${ruleId}/calculate`, body).then((r) => r.data),
+  priceIndex: (region?: string) => http.get<PriceIndexDto[]>(`${v1}/dph/price-index`, { params: { region } }).then((r) => r.data),
+  addPrice: (body: { region: string; referenceDate: string; price: number; source: string | null }) => http.post<DieselPriceDto>(`${v1}/dph/price-index`, body).then((r) => r.data),
+
+  // extra charges
+  accessorials: () => http.get<AccessorialTypeDto[]>(`${v1}/accessorials`).then((r) => r.data),
+  createAccessorial: (body: { code: string; name: string; description: string | null; calc: AccessorialCalc; unit: string; isActive: boolean }) => http.post<AccessorialTypeDto>(`${v1}/accessorials`, body).then((r) => r.data),
+  updateAccessorial: (id: string, body: { code: string; name: string; description: string | null; calc: AccessorialCalc; unit: string; isActive: boolean }) => http.put<AccessorialTypeDto>(`${v1}/accessorials/${id}`, body).then((r) => r.data),
+
+  // dashboards and reports
+  dashboard: () => http.get<ContractDashboardDto>(`${v1}/freight-contract-dashboard/summary`).then((r) => r.data),
+  expiry: (withinDays?: number) => http.get<{ bands: number[]; items: ExpiryItemDto[] }>(`${v1}/freight-contract-dashboard/expiry`, { params: { withinDays } }).then((r) => r.data),
+  coverage: () => http.get<RateCoverageDto>(`${v1}/freight-contract-dashboard/rate-coverage`).then((r) => r.data),
+  validation: () => http.get<ValidationOverviewDto>(`${v1}/freight-contract-dashboard/validation`).then((r) => r.data),
+  usage: (months?: number) => http.get<RateUsageDto[]>(`${v1}/freight-contract-dashboard/rate-usage`, { params: { months } }).then((r) => r.data),
+  reports: () => http.get<{ reports: string[] }>(`${v1}/freight-contract-reports`).then((r) => r.data.reports),
+  downloadReport: (report: string, format: 'csv' | 'xlsx', params: { from?: string; to?: string; transporterId?: string }) =>
+    downloadFile(`${v1}/freight-contract-reports/${report}`, `${report}.${format}`, { ...params, format }),
 }

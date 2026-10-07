@@ -24,6 +24,14 @@ const VehicleTypesPage = lazy(() => import('@/features/transporters/VehicleTypes
 const CompliancePage = lazy(() => import('@/features/transporters/CompliancePage').then((m) => ({ default: m.CompliancePage })))
 const ContractsPage = lazy(() => import('@/features/contracts/ContractsPage').then((m) => ({ default: m.ContractsPage })))
 const ContractDetailPage = lazy(() => import('@/features/contracts/ContractDetailPage').then((m) => ({ default: m.ContractDetailPage })))
+const ContractDashboardPage = lazy(() => import('@/features/contracts/ContractDashboardPage').then((m) => ({ default: m.ContractDashboardPage })))
+const RateManagementPage = lazy(() => import('@/features/contracts/RateManagementPage').then((m) => ({ default: m.RateManagementPage })))
+const RateImportPage = lazy(() => import('@/features/contracts/RateImportPage').then((m) => ({ default: m.RateImportPage })))
+const DphManagementPage = lazy(() => import('@/features/contracts/DphManagementPage').then((m) => ({ default: m.DphManagementPage })))
+const AccessorialManagementPage = lazy(() => import('@/features/contracts/AccessorialManagementPage').then((m) => ({ default: m.AccessorialManagementPage })))
+const RateSimulatorPage = lazy(() => import('@/features/contracts/RateSimulatorPage').then((m) => ({ default: m.RateSimulatorPage })))
+const RatingHistoryPage = lazy(() => import('@/features/contracts/RatingHistoryPage').then((m) => ({ default: m.RatingHistoryPage })))
+const ContractRenewalPage = lazy(() => import('@/features/contracts/ContractRenewalPage').then((m) => ({ default: m.ContractRenewalPage })))
 const RateFinderPage = lazy(() => import('@/features/contracts/RateFinderPage').then((m) => ({ default: m.RateFinderPage })))
 const OrdersPage = lazy(() => import('@/features/shipments/OrdersPage').then((m) => ({ default: m.OrdersPage })))
 const LocationsPage = lazy(() => import('@/features/shipments/LocationsPage').then((m) => ({ default: m.LocationsPage })))
@@ -120,6 +128,14 @@ export function App() {
           </Route>
           <Route element={<RequireAnyPermission permissions={['contracts.read', 'contracts.manage']} />}>
             <Route path="contracts" element={<ContractsPage />} />
+            <Route path="contracts/dashboard" element={<ContractDashboardPage />} />
+            <Route path="contracts/rates" element={<RateManagementPage />} />
+            <Route path="contracts/rates/import" element={<RateImportPage />} />
+            <Route path="contracts/dph" element={<DphManagementPage />} />
+            <Route path="contracts/accessorials" element={<AccessorialManagementPage />} />
+            <Route path="contracts/simulator" element={<RateSimulatorPage />} />
+            <Route path="contracts/ratings" element={<RatingHistoryPage />} />
+            <Route path="contracts/renewals" element={<ContractRenewalPage />} />
             <Route path="contracts/:id" element={<ContractDetailPage />} />
             <Route path="rate-finder" element={<RateFinderPage />} />
             <Route path="rate-masters" element={<RateMastersPage />} />

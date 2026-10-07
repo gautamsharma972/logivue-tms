@@ -10,6 +10,8 @@ const statusColor: Record<ContractStatus, string> = {
   Terminated: 'volcano',
   Superseded: 'purple',
   Expired: 'default',
+  Suspended: 'orange',
+  Cancelled: 'default',
 }
 
 const statusLabel: Record<ContractStatus, string> = {
@@ -20,6 +22,8 @@ const statusLabel: Record<ContractStatus, string> = {
   Terminated: 'Terminated',
   Superseded: 'Superseded',
   Expired: 'Expired',
+  Suspended: 'Suspended',
+  Cancelled: 'Cancelled',
 }
 
 export function ContractStatusTag({ status }: { status: ContractStatus }) {
@@ -46,6 +50,10 @@ export function describePricing(p: Pricing): string {
     }
     case 'dedicated':
       return `${formatInr(p.monthlyRental)}/month · ${p.includedKmPerMonth} km incl.`
+    case 'slabRate': {
+      if (p.slabs.length === 1) return p.slabs[0]!.type === 'Fixed' ? `${formatInr(p.slabs[0]!.rate)} fixed` : `₹${p.slabs[0]!.rate}/${p.unit.toLowerCase()}`
+      return `${p.slabs.length} ${p.dimension.toLowerCase()} slabs · ${p.method === 'BaseExcess' ? 'base + excess' : p.method.toLowerCase()}`
+    }
   }
 }
 

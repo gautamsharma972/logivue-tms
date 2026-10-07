@@ -21,6 +21,8 @@ const statuses: { value: ContractStatus; label: string }[] = [
   { value: 'Terminated', label: 'Terminated' },
   { value: 'Superseded', label: 'Superseded' },
   { value: 'Expired', label: 'Expired' },
+  { value: 'Suspended', label: 'Suspended' },
+  { value: 'Cancelled', label: 'Cancelled' },
 ]
 
 export function ContractsPage() {
@@ -52,6 +54,7 @@ export function ContractsPage() {
       ),
     },
     { title: 'Transporter', dataIndex: 'transporterName', responsive: ['md'] },
+    { title: 'Services', key: 'services', responsive: ['lg'], render: (_, c) => (c.services ?? [c.type]).map((x) => <Tag key={x} variant="filled">{x.toUpperCase()}</Tag>) },
     {
       title: 'Validity',
       key: 'validity',
@@ -67,7 +70,9 @@ export function ContractsPage() {
         </>
       ),
     },
-    { title: 'Rates', dataIndex: 'rateCount', width: 80, align: 'right' },
+    { title: 'Rates', dataIndex: 'rateCount', width: 80, align: 'right', render: (n: number, c) => (c.expiringRates ? <span>{n} <Tag color="gold" style={{ marginInlineStart: 4 }}>{c.expiringRates} expiring</Tag></span> : n) },
+    { title: 'Capacity', dataIndex: 'committedVehicles', responsive: ['xl'], width: 100, align: 'right', render: (n: number | null | undefined) => (n ? `${n} vehicles` : '—') },
+    { title: 'Renewal', dataIndex: 'renewalState', responsive: ['xl'], render: (v: string | null | undefined) => (v ? <Tag color={v === 'RenewalDue' ? 'red' : v === 'RenewalInProgress' ? 'blue' : v === 'Renewed' ? 'green' : 'gold'}>{v.replace(/([A-Z])/g, ' $1').trim()}</Tag> : '—') },
     { title: 'Est. annual spend', dataIndex: 'estimatedAnnualSpend', responsive: ['xl'], align: 'right', render: formatInr },
     { title: 'Status', dataIndex: 'status', render: (s: ContractStatus) => <ContractStatusTag status={s} /> },
   ]

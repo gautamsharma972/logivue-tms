@@ -503,12 +503,14 @@ export interface UploadDocumentInput {
 // ---- Contracts ----
 
 export type ContractType = 'Ftl' | 'Ptl' | 'Dedicated'
-export type ContractStatus = 'Draft' | 'PendingApproval' | 'Active' | 'Rejected' | 'Terminated' | 'Superseded' | 'Expired'
+export type ContractStatus = 'Draft' | 'PendingApproval' | 'Active' | 'Rejected' | 'Terminated' | 'Superseded' | 'Expired' | 'Suspended' | 'Cancelled'
 export type PlaceKind = 'Any' | 'State' | 'Zone' | 'City'
 export type SlabMode = 'Whole' | 'Incremental'
 export type FuelStepUnit = 'Percent' | 'Rupees'
 export type FuelDirection = 'Both' | 'EscalationOnly'
-export type ContractDocumentKind = 'SignedContract' | 'Annexure' | 'Amendment' | 'Correspondence' | 'Other'
+export type ContractDocumentKind =
+  | 'SignedContract' | 'Annexure' | 'Amendment' | 'Correspondence' | 'Other' | 'MasterAgreement' | 'RateAnnexure' | 'ServiceLevelAgreement' | 'DphAnnexure' | 'RenewalLetter' | 'Insurance'
+  | 'CommercialAnnexure' | 'SupportingDocument'
 
 export interface PlaceDto {
   kind: PlaceKind
@@ -529,6 +531,36 @@ export type Pricing =
   | { kind: 'perKm'; ratePerKm: number; minKm: number; minCharge: number }
   | { kind: 'weightSlabs'; mode: SlabMode; slabs: WeightSlab[]; minCharge: number; minChargeableKg: number }
   | { kind: 'dedicated'; monthlyRental: number; includedKmPerMonth: number; extraKmRate: number; includedHoursPerMonth: number; extraHourRate: number }
+  | { kind: 'slabRate'; service: ContractType; dimension: SlabDimension; unit: RateUnit; method: SlabMethod; slabs: Slab[]; minChargeable: number }
+
+export type SlabDimension = 'Weight' | 'Distance' | 'Volume' | 'Packages'
+export type SlabMethod = 'Flat' | 'Progressive' | 'BaseExcess'
+export type SlabRateType = 'PerUnit' | 'Fixed'
+export type RateUnit = 'Kg' | 'Ton' | 'Km' | 'Cbm' | 'Box' | 'Trip'
+
+export interface Slab {
+  from: number
+  to: number | null
+  rate: number
+  type: SlabRateType
+}
+
+/** What a rate adds to its lane and pricing. Every field is optional on the wire. */
+export interface RateExtras {
+  code?: string | null
+  priority?: number
+  minimumCharge?: number | null
+  maximumCharge?: number | null
+  minWeightKg?: number | null
+  maxWeightKg?: number | null
+  minVolumeCbm?: number | null
+  maxVolumeCbm?: number | null
+  validFrom?: string | null
+  validTo?: string | null
+  requiredCapabilities?: string[] | null
+  dphRuleCode?: string | null
+  notes?: string | null
+}
 
 export interface RateInputDto {
   origin: PlaceDto
@@ -538,12 +570,15 @@ export interface RateInputDto {
   minDistanceKm: number | null
   maxDistanceKm: number | null
   pricing: Pricing
+  extras?: RateExtras | null
 }
 
 export interface RateCardDto extends RateInputDto {
   id: string
   lane: string
   vehicleTypeName: string | null
+  version?: number
+  inForce?: boolean
 }
 
 export interface ContractTerms {
@@ -583,6 +618,13 @@ export interface ContractSummaryDto {
   daysUntilExpiry: number | null
   rateCount: number
   estimatedAnnualSpend: number | null
+  services?: ContractType[]
+  currency?: string
+  revisionKind?: 'Original' | 'Amendment' | 'Renewal'
+  renewalState?: string | null
+  activeRates?: number | null
+  expiringRates?: number | null
+  committedVehicles?: number | null
 }
 
 export interface ContractDto {
@@ -600,9 +642,28 @@ export interface ContractDto {
   createdAt: string
   version: number
   missingForSubmission: string[]
+  extras?: ContractExtras
+  suspensions?: { from: string; to: string | null; reason: string }[]
+  calculationVersion?: string
+  dphRuleCount?: number
+  accessorialCount?: number
+  capacityCount?: number
+  slaCount?: number
+  validationErrors?: number
+  validationWarnings?: number
+}
+
+export interface ContractExtras {
+  currency: string
+  businessUnit: string | null
+  primaryContact: string | null
+  renewalNoticeDays: number
+  autoRenewal: boolean
+  services: ContractType[] | null
 }
 
 export interface SaveContractRequest {
+  extras?: ContractExtras | null
   transporterId: string
   type: ContractType
   title: string
@@ -643,6 +704,7 @@ export interface DieselPriceDto {
   region: string
   effectiveFrom: string
   pricePerLitre: number
+  source?: string | null
 }
 
 export interface QuoteRequest {
@@ -693,6 +755,13 @@ export interface ContractDocumentDto {
   contentType: string
   sizeBytes: number
   uploadedAt: string
+  number?: string | null
+  documentVersion?: number
+  issueDate?: string | null
+  effectiveDate?: string | null
+  expiryDate?: string | null
+  status?: 'Pending' | 'Verified'
+  verifiedAt?: string | null
 }
 
 // ---- Shipments (orders, planning, tendering, dispatch)
@@ -3127,4 +3196,435 @@ export interface TrackingComplianceDto {
   rows: ComplianceRowDto[]
   rules: { startToleranceMinutes: number; minCoveragePct: number; repeatedGapCount: number }
   note: string
+}
+
+
+// ---- Freight contract management: rating, DPH, charges, import, analytics
+
+export interface RatingRequest {
+  shipmentDate?: string | null
+  origin: { state: string; city?: string | null }
+  destination: { state: string; city?: string | null }
+  service: ContractType
+  transporterId?: string | null
+  vehicleTypeId?: string | null
+  weightKg?: number | null
+  volumeCbm?: number | null
+  distanceKm?: number | null
+  stopCount?: number
+  requiredCapabilities?: string[] | null
+  accessorialInputs?: Record<string, number> | null
+  shipmentReference?: string | null
+  commit?: boolean
+  contractId?: string | null
+  preview?: boolean
+}
+
+export interface RatingLineDto {
+  sequence: number
+  type: string
+  description: string
+  quantity: number | null
+  unit: string | null
+  rate: number | null
+  amount: number
+  reference: string | null
+}
+
+export interface RatingOptionDto {
+  contractId: string
+  contractReference: string
+  contractRevision: number
+  transporterId: string
+  transporterName: string
+  rate: { id: string; code: string; version: number; lane: string; priority: number; service: string }
+  dphRule: string | null
+  dphVersion: number | null
+  baseFreight: number
+  dphAdjustment: number
+  accessorialAmount: number
+  discountAmount: number
+  totalFreight: number
+  currency: string
+  transitSlaMinutes: number | null
+  contractValidFrom: string
+  contractValidTo: string
+  lines: RatingLineDto[]
+  reasons: string[]
+  notes: string[]
+  chargeableWeightKg: number | null
+}
+
+export interface RatingResultDto {
+  qualified: boolean
+  errorCode: string | null
+  message: string | null
+  advice: string[]
+  ratingId: string | null
+  ratingReference: string | null
+  committed: boolean
+  calculationVersion: string
+  shipmentDate: string
+  selected: RatingOptionDto | null
+  options: RatingOptionDto[]
+  exclusions: { contractReference: string; rateReference: string | null; reasonCode: string; reason: string }[]
+  trace: { stage: string; text: string; ok: boolean }[]
+}
+
+export interface RatingSummaryDto {
+  id: string
+  reference: string
+  shipmentReference: string | null
+  committed: boolean
+  qualified: boolean
+  errorCode: string | null
+  lane: string
+  service: ContractType
+  shipmentDate: string
+  transporterId: string | null
+  transporterName: string | null
+  contractReference: string | null
+  contractRevision: number | null
+  rateCode: string | null
+  rateVersion: number | null
+  totalFreight: number
+  overrideAmount: number | null
+  currency: string
+  calculationVersion: string
+  calculatedAt: string
+}
+
+export interface RatingDetailDto {
+  summary: RatingSummaryDto
+  result: RatingResultDto
+  request: RatingRequest | null
+  overrideAmount: number | null
+  overrideReason: string | null
+  overrideApprovedBy: string | null
+  overriddenAt: string | null
+  dphRule: string | null
+  dphVersion: number | null
+}
+
+export interface ReproduceDto {
+  matches: boolean
+  recalculated: boolean
+  storedCalculationVersion: string
+  engineVersion: string
+  storedTotal: number
+  recalculatedTotal: number | null
+  differences: string[]
+  message: string
+}
+
+export interface WhatIfRow {
+  label: string
+  qualified: boolean
+  totalFreight: number | null
+  differenceFromBase: number | null
+  message: string | null
+  selected: RatingOptionDto | null
+}
+
+export interface CompareRow {
+  transporterId: string
+  transporterName: string
+  qualified: boolean
+  message: string | null
+  option: RatingOptionDto | null
+}
+
+export interface RateRowDto {
+  id: string
+  contractId: string
+  contractNumber: string
+  contractRevision: number
+  contractStatus: ContractStatus
+  transporterId: string
+  transporterName: string
+  code: string
+  version: number
+  service: string
+  lane: string
+  origin: PlaceDto
+  destination: PlaceDto
+  vehicleTypeId: string | null
+  vehicleTypeName: string | null
+  minWeightKg: number | null
+  maxWeightKg: number | null
+  minDistanceKm: number | null
+  maxDistanceKm: number | null
+  minVolumeCbm: number | null
+  maxVolumeCbm: number | null
+  pricingKind: string
+  rateSummary: string
+  minimumCharge: number | null
+  maximumCharge: number | null
+  dphRuleCode: string | null
+  priority: number
+  validFrom: string
+  validTo: string
+  inForce: boolean
+  expiring: boolean
+}
+
+export interface ListRatesParams {
+  search?: string
+  transporterId?: string
+  contractId?: string
+  service?: ContractType
+  status?: ContractStatus
+  vehicleTypeId?: string
+  origin?: string
+  destination?: string
+  inForceOnly?: boolean
+  expiringWithinDays?: number
+  sortBy?: string
+  descending?: boolean
+  page?: number
+  pageSize?: number
+}
+
+export interface RateIssueDto {
+  severity: 'Error' | 'Warning'
+  row: number | null
+  field: string
+  code: string
+  message: string
+}
+
+export interface RateValidationDto {
+  outcome: 'Valid' | 'Warning' | 'Invalid'
+  errors: number
+  warnings: number
+  issues: RateIssueDto[]
+}
+
+export type DphFormula = 'PercentageVariation' | 'FixedAdjustment' | 'PerKmAdjustment' | 'Indexed' | 'ThresholdSteps'
+export type DphDirection = 'Both' | 'EscalationOnly' | 'DeEscalationOnly'
+export type DphFrequency = 'Shipment' | 'Weekly' | 'Fortnightly' | 'Monthly' | 'Quarterly'
+
+export interface DphRuleSpec {
+  code: string
+  name: string
+  formula: DphFormula
+  region: string
+  baseDieselPrice: number
+  baseDate: string
+  fuelComponentPercent: number
+  thresholdPercent: number
+  stepPercent: number
+  fixedAmountPerStep: number
+  perKmPerStep: number
+  impactPercentPerStep: number
+  capPercent: number | null
+  onExcessOnly: boolean
+  direction: DphDirection
+  frequency: DphFrequency
+  adjustmentDecimals: number
+  effectiveFrom: string | null
+  effectiveTo: string | null
+  isDefault: boolean
+}
+
+export interface DphOverviewDto {
+  rule: { id: string; contractId: string; contractNumber: string; contractRevision: number; code: string; version: number; spec: DphRuleSpec; effectiveFrom: string; effectiveTo: string; inForce: boolean }
+  currentPrice: number | null
+  variationPercent: number | null
+  adjustmentPercent: number | null
+  priceDate: string | null
+  revisionDue: boolean
+}
+
+export interface DphCalculationDto {
+  ruleId: string
+  ruleCode: string
+  ruleVersion: number
+  referenceDate: string
+  dieselPrice: number | null
+  baseDieselPrice: number
+  variationPercent: number
+  adjustmentPercent: number
+  amount: number
+  applied: boolean
+  explanation: string
+  recorded: boolean
+}
+
+export interface PriceIndexDto {
+  id: string
+  region: string
+  referenceDate: string
+  price: number
+  currency: string
+  unit: string
+  source: string | null
+}
+
+export type AccessorialCalc = 'Fixed' | 'PerUnit' | 'Tiered' | 'PercentOfFreight' | 'Reimbursed'
+
+export interface AccessorialTypeDto {
+  id: string
+  code: string
+  name: string
+  description: string | null
+  calc: AccessorialCalc
+  unit: string
+  isActive: boolean
+}
+
+export interface AccessorialSpec {
+  code: string
+  name: string
+  calc: AccessorialCalc
+  unit: string
+  rate: number
+  minimumCharge: number | null
+  maximumCharge: number | null
+  includedQuantity: number
+  tiers: { from: number; to: number | null; rate: number }[] | null
+  trigger: { services: ContractType[] | null; minWeightKg: number | null; maxWeightKg: number | null; requiredCapabilities: string[] | null; minStops: number | null } | null
+  validFrom: string | null
+  validTo: string | null
+  autoApply: boolean
+}
+
+export interface CapacitySpec {
+  vehicleTypeId: string | null
+  committedVehicleCount: number
+  committedCapacityKg: number | null
+  minimumMonthlyTrips: number | null
+  minimumMonthlyTonnage: number | null
+  targetBusinessSharePct: number | null
+  validFrom: string | null
+  validTo: string | null
+}
+
+export interface CapacityDto {
+  id: string
+  spec: CapacitySpec
+  vehicleTypeName: string | null
+}
+
+export interface SlaSpec {
+  service: ContractType
+  origin: PlaceDto | null
+  destination: PlaceDto | null
+  pickupSlaMinutes: number | null
+  transitSlaMinutes: number | null
+  deliverySlaMinutes: number | null
+  tenderLeadTimeMinutes: number | null
+  operatingDays: string[] | null
+  cutoffTime: string | null
+}
+
+export interface ImportRowDto {
+  rowNumber: number
+  values: Record<string, string | null>
+  status: 'Valid' | 'Warning' | 'Error'
+  issues: RateIssueDto[]
+}
+
+export interface ImportBatchDto {
+  id: string
+  reference: string
+  fileName: string
+  mode: 'Append' | 'Replace'
+  status: 'Previewed' | 'Applied' | 'Discarded'
+  contractNumber: string | null
+  contractId: string | null
+  appliedContractId: string | null
+  rowCount: number
+  errorRows: number
+  warningRows: number
+  createdAt: string
+  appliedAt: string | null
+  rows: ImportRowDto[] | null
+}
+
+export interface ImportApplyResult {
+  contract: ContractDto
+  batch: ImportBatchDto
+  imported: number
+  skipped: number
+}
+
+export interface ContractDashboardDto {
+  totalContracts: number
+  active: number
+  draft: number
+  pendingApproval: number
+  expiringSoon: number
+  expired: number
+  suspended: number
+  activeRates: number
+  ratesExpiring: number
+  dphRules: number
+  dphRevisionsDue: number
+  uncoveredLanes: number
+  validationErrors: number
+  failedRatings30Days: number
+  asOf: string
+}
+
+export interface ExpiryItemDto {
+  kind: string
+  reference: string
+  title: string
+  contractId: string
+  contractNumber: string
+  expiresOn: string
+  daysLeft: number
+  band: string
+}
+
+export interface RateCoverageDto {
+  requiredLanes: number
+  coveredLanes: number
+  uncoveredLanes: number
+  fallbackCovered: number
+  activeContracts: number
+  activeRates: number
+  ratesExpiring: number
+  duplicateRates: number
+  overlappingRates: number
+  loadsWithoutRate: number
+  uncovered: { lane: string; service: string; state: string; requests: number; failed: number; reason: string | null }[]
+}
+
+export interface ValidationOverviewDto {
+  contractsChecked: number
+  errors: number
+  warnings: number
+  contracts: { contractId: string; reference: string; status: ContractStatus; errors: number; warnings: number; issues: RateIssueDto[] }[]
+}
+
+export interface RateUsageDto {
+  contractId: string
+  contractNumber: string
+  contractRevision: number
+  rateCode: string
+  rateVersion: number
+  lane: string
+  shipments: number
+  totalFreight: number
+  averageFreight: number
+}
+
+export interface ImpactDto {
+  currentContractId: string
+  currentReference: string
+  proposedContractId: string
+  proposedReference: string
+  shipmentsConsidered: number
+  months: number
+  currentSpend: number
+  proposedSpend: number
+  variance: number
+  variancePercent: number
+  annualisedVariance: number
+  ratesChanged: number
+  ratesNotRated: number
+  rows: { rateCode: string; lane: string; currentRate: number; proposedRate: number; changePercent: number; shipments: number; currentFreight: number; proposedFreight: number; impact: number }[]
+  basis: string
 }
