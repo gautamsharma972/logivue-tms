@@ -641,6 +641,10 @@ namespace Tms.Modules.Contracts.Infrastructure.Persistence.Migrations
                 })
                 .Annotation("MySql:CharSet", "utf8mb4");
 
+            // Existing rate cards have no code yet: give each a unique one before the unique index is built.
+            migrationBuilder.Sql(
+                "UPDATE contracts_rate_cards SET code = CONCAT('RATE-', UPPER(SUBSTRING(REPLACE(CAST(id AS CHAR), '-', ''), 21, 12))) WHERE code = '';");
+
             migrationBuilder.CreateIndex(
                 name: "ix_rate_cards_contract_id_code",
                 schema: "contracts",
