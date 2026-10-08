@@ -172,7 +172,10 @@ public class DeliveryExecutionApiTests(TmsApiFactory factory)
             var message = mail.Sent.Single(m => m.To == email);
             var code = System.Text.RegularExpressions.Regex.Match(message.TextBody, @"\b\d{6}\b").Value;
             code.Length.ShouldBe(6);
-            (await (await s.Vendor.GetAsync($"/api/v1/deliveries/{arrived.Summary.Id}")).Content.ReadAsStringAsync()).ShouldNotContain(code);
+            // As a whole value, not as a substring: ids and coordinates in the same body can contain any six digits by chance.
+            var body = await (await s.Vendor.GetAsync($"/api/v1/deliveries/{arrived.Summary.Id}")).Content.ReadAsStringAsync();
+            System.Text.RegularExpressions.Regex.IsMatch(body, $@"[:\[,]\s*""?{code}""?\s*[,}}\]]").ShouldBeFalse("the code must never be returned");
+            body.ShouldNotContain($"\"{code}\"");
 
             var wrong = await s.Vendor.PostJsonAsync($"/api/v1/deliveries/{arrived.Summary.Id}/otp/verify", new VerifyOtpRequest(code == "000000" ? "111111" : "000000", Here()));
             wrong.StatusCode.ShouldBe(HttpStatusCode.BadRequest);

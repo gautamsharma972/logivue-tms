@@ -44,6 +44,7 @@ public static class TransportersModule
         services.AddScoped<ITransporterDirectory>(sp => sp.GetRequiredService<TransporterDirectory>());
         services.AddScoped<IVehicleTypeDirectory>(sp => sp.GetRequiredService<TransporterDirectory>());
         services.AddScoped<IFleetDirectory, FleetDirectory>();
+        services.AddScoped<ITransporterReportingProvider, Integration.TransportersReportingProvider>();
         services.AddScoped<IDomainEventHandler<ApprovalCompleted>, TransporterApprovalSubscriber>();
         services.AddScoped<Application.Settings.ITransporterSettings, Application.Settings.TransporterSettings>();
         services.AddScoped<Application.Performance.PerformanceAccess>();

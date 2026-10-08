@@ -84,6 +84,7 @@ public static class DeliveriesModule
         services.TryAddScoped<IClaimsIntegration, LocalClaimsIntegration>();
         services.TryAddScoped<IFreightAuditIntegration, LocalFreightAuditIntegration>();
         services.AddScoped<IDeliveryReliabilityFeed, DeliveryReliabilityFeed>();
+        services.AddScoped<IPodReportingProvider, Integration.DeliveriesReportingProvider>();
         services.AddScoped<IDomainEventHandler<ShipmentDispatched>, ShipmentDispatchedSubscriber>();
         services.AddScoped<IDomainEventHandler<DeliveryTrackingEvent>, DeliveryTrackingSiteSubscriber>();
         services.AddScoped<IDomainEventHandler<DeliveryCompleted>, DeliveryCompletedSubscriber>();

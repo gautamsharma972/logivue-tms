@@ -43,6 +43,7 @@ public static class ShipmentsModule
         services.AddScoped<Application.Locations.PlannableFactory>();
         services.AddScoped<MilkRunPlanner>();
         services.AddScoped<IShipmentOperationsFeed, Integration.ShipmentOperationsFeed>();
+        services.AddScoped<IPlanningReportingProvider, Integration.ShipmentsReportingProvider>();
         services.AddScoped<IShipmentDeliveryFeed, Integration.ShipmentDeliveryFeed>();
         services.AddSingleton<Application.PlanningRuns.IPlanningJobQueue, Application.PlanningRuns.PlanningJobQueue>();
         if (configuration.GetValue("Planning:WorkerEnabled", true))

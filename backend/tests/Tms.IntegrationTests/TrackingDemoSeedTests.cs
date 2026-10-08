@@ -20,6 +20,25 @@ public class TrackingDemoSeedTests(TmsApiFactory factory)
         var carrier = await ContractApiData.ActiveTransporterAsync(admin);
         var body = new SeedBody([new Carrier(carrier.Id, carrier.LegalName)]);
 
+        // The seed adds named places (PUN-HUB and others). Other tests share the tenant and place their stops at the same spots, where a Hub's longer
+        // dwell allowance would replace a Customer's, so the places this test adds are removed when it ends.
+        async Task<HashSet<Guid>> GeofenceIds() => (await (await admin.GetAsync("/api/v1/tracking/geofences")).ReadAsync<List<GeofenceDto>>()).Select(g => g.Id).ToHashSet();
+        var existing = await GeofenceIds();
+        try
+        {
+            await RunAsync(admin, body);
+        }
+        finally
+        {
+            foreach (var id in (await GeofenceIds()).Except(existing))
+            {
+                await admin.DeleteAsync($"/api/v1/tracking/geofences/{id}");
+            }
+        }
+    }
+
+    private static async Task RunAsync(HttpClient admin, SeedBody body)
+    {
         var first = await admin.PostJsonAsync("/api/v1/dev/tracking/seed-demo", body);
         first.StatusCode.ShouldBe(HttpStatusCode.OK, await first.Content.ReadAsStringAsync());
 

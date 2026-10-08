@@ -267,4 +267,48 @@ public class FreightBulkApiTests(TmsApiFactory factory)
         index.ShouldHaveSingleItem().Price.ShouldBe(99m);
         (await admin.PostJsonAsync("/api/v1/dph/price-index", new AddPriceIndexRequest(region, Today.AddDays(-5), 100m, null))).StatusCode.ShouldBe(HttpStatusCode.Conflict);
     }
+
+    [Fact]
+    public async Task A_file_that_is_not_a_rate_sheet_or_is_too_big_in_rows_is_refused_before_anything_is_kept()
+    {
+        using var admin = await factory.AdminAsync();
+
+        using (var form = new MultipartFormDataContent { { new StringContent("Append"), "mode" } })
+        {
+            var binary = new ByteArrayContent([0x4D, 0x5A, 0x90, 0x00, 0x03, 0x00, 0x00, 0x00, 0x04, 0x00]); // an executable renamed to .csv
+            form.Add(binary, "file", "rates.csv");
+            var refused = await admin.PostAsync("/api/v1/freight-rates/import", form);
+            refused.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+            (await refused.Content.ReadAsStringAsync()).ShouldContain("rate_import.unreadable");
+        }
+
+        var rows = string.Join("\n", Enumerable.Repeat("a,b", 20_005));
+        var tooMany = await UploadAsync(admin, "x,y\n" + rows);
+        tooMany.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        (await tooMany.Content.ReadAsStringAsync()).ShouldContain("rate_import.too_large");
+    }
+
+    [Fact]
+    public async Task Every_freight_route_is_closed_to_a_staff_user_who_holds_no_contract_permission()
+    {
+        using var admin = await factory.AdminAsync();
+        using var outsider = await factory.UserWithPermissionsAsync(admin, "audit.read");
+        var id = Guid.NewGuid();
+
+        foreach (var route in new[]
+                 {
+                     "/api/v1/freight-contracts", "/api/v1/freight-rates", "/api/v1/freight-rates/export", "/api/v1/freight-rates/import", "/api/v1/freight-rating/history",
+                     "/api/v1/freight-contract-dashboard/summary", "/api/v1/freight-contract-dashboard/expiry", "/api/v1/freight-contract-reports/contracts", "/api/v1/dph/rules",
+                     "/api/v1/dph/price-index", "/api/v1/accessorials", $"/api/v1/contracts/{id}/dph-rules", $"/api/v1/contracts/{id}/accessorials", $"/api/v1/contracts/{id}/capacity",
+                     $"/api/v1/contracts/{id}/sla", $"/api/v1/contracts/{id}/renewal-impact",
+                 })
+        {
+            (await outsider.GetAsync(route)).StatusCode.ShouldBe(HttpStatusCode.Forbidden, route);
+        }
+
+        foreach (var route in new[] { $"/api/v1/contracts/{id}/suspend", $"/api/v1/contracts/{id}/cancel", $"/api/v1/contracts/{id}/resume", $"/api/v1/freight-contracts/{id}/submit" })
+        {
+            (await outsider.PostJsonAsync(route, new ContractReasonRequest("because"))).StatusCode.ShouldBe(HttpStatusCode.Forbidden, route);
+        }
+    }
 }

@@ -170,4 +170,18 @@ export const queryKeys = {
     trips: ['tracking', 'trips'] as const,
     customer: (token: string) => ['tracking', 'customer', token] as const,
   },
+  reports: {
+    all: ['reports'] as const,
+    catalogue: (search?: string) => ['reports', 'catalogue', search ?? ''] as const,
+    metadata: (code: string) => ['reports', 'metadata', code] as const,
+    run: (code: string, request: object) => ['reports', 'run', code, request] as const,
+    lookup: (name: string) => ['reports', 'lookup', name] as const,
+    jobs: ['reports', 'jobs'] as const,
+    subscriptions: ['reports', 'subscriptions'] as const,
+    preferences: ['reports', 'preferences'] as const,
+    settings: ['reports', 'settings'] as const,
+    dataSource: ['reports', 'data-source'] as const,
+    audit: (params: object) => ['reports', 'audit', params] as const,
+    kpis: ['reports', 'kpis'] as const,
+  },
 }

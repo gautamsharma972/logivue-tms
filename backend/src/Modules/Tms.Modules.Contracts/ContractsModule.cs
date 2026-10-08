@@ -55,6 +55,7 @@ public static class ContractsModule
         services.AddScoped<IContractualBaselineService>(sp => sp.GetRequiredService<FreightRatingIntegration>());
         services.AddScoped<IFreightTransporterIntegration, TransporterCoverageIntegration>();
         services.AddScoped<ITransporterDirectoryLookup, DirectoryLookup>();
+        services.AddScoped<IFreightContractReportingProvider, ContractsReportingProvider>();
         services.AddScoped<IContractsDemoSeeder, ContractsDemoSeeder>();
         services.AddScoped<IContractedCapacityProvider, ContractedCapacityProvider>();
         // Delivery and tracking will supply what happened on a shipment; until one does, a stand-in says there are no actuals.

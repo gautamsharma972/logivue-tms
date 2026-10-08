@@ -18,6 +18,7 @@ Status: ✅ done · 🔨 in progress · ⬜ not started · ⏸ deferred
 | 5. Billing & audit (7) | Freight calc from contract, bill verification, excess/duplicate detection, accrual; GST, TDS | ⬜ |
 | 6. Claims (8) | Transit damage/shortage claims, approval, insurance, recovery | ⬜ |
 | 7. Tracking (5) | Driver-phone GPS (browser PWA stand-in for a native app), validated location pipeline, tracking health, milestones, geofences, route progress and deviation, standing time, rule-based ETA and risk, alerts versus exceptions with escalation, control tower with live push, customer link, reports, demo data. See `docs/SHIPMENT_TRACKING_VISIBILITY_INTEGRATION.md`. **Open:** native background tracking, server-side map matching, ETA from learned history, traffic. | ✅ (limits listed) |
+| 9. Reports & Analytics (6) | 39 reports and dashboards on one reporting framework: provider contracts, central KPI engine with numerator/denominator and versions, filters and dimensions, drill-down that keeps filters, server-side paging and grouping, CSV / Excel / PDF export with background jobs, schedules and subscriptions, audit, data limits, demonstration dataset, daily KPI summary table (see `docs/REPORTS_AND_ANALYTICS.md`). Not load-tested at 1M shipments; widget designer and customer-facing pages not built. | ✅ |
 | 8. E-way bill | Via a GSP — **deferred by decision** | ⏸ |
 
 Out of scope for now: modules 9–17 (analytics, alerts, integrations, mobile, dashboards, AI, ISO 27001), except what

@@ -62,6 +62,12 @@ const DriverTripPage = lazy(() => import('@/features/tracking/DriverTripPage').t
 const DriverTrackingSyncPage = lazy(() => import('@/features/tracking/DriverTrackingSyncPage').then((m) => ({ default: m.DriverTrackingSyncPage })))
 const TrackingDashboardPage = lazy(() => import('@/features/tracking/DashboardPage').then((m) => ({ default: m.TrackingDashboardPage })))
 const TrackingHistoryPage = lazy(() => import('@/features/tracking/HistoryPage').then((m) => ({ default: m.TrackingHistoryPage })))
+const ReportsHomePage = lazy(() => import('@/features/reports/ReportsHomePage').then((m) => ({ default: m.ReportsHomePage })))
+const ReportPage = lazy(() => import('@/features/reports/ReportPage').then((m) => ({ default: m.ReportPage })))
+const ReportExportsPage = lazy(() => import('@/features/reports/ExportsPage').then((m) => ({ default: m.ExportsPage })))
+const ReportSchedulesPage = lazy(() => import('@/features/reports/SchedulesPage').then((m) => ({ default: m.SchedulesPage })))
+const ReportSettingsPage = lazy(() => import('@/features/reports/ReportSettingsPage').then((m) => ({ default: m.ReportSettingsPage })))
+const ReportAuditPage = lazy(() => import('@/features/reports/ReportAuditPage').then((m) => ({ default: m.ReportAuditPage })))
 const CustomerTrackingPage = lazy(() => import('@/features/tracking/CustomerTrackingPage').then((m) => ({ default: m.CustomerTrackingPage })))
 const DeliverySettingsPage = lazy(() => import('@/features/deliveries/DeliverySettingsPage').then((m) => ({ default: m.DeliverySettingsPage })))
 const DriverArea = lazy(() => import('@/features/deliveries/DriverArea').then((m) => ({ default: m.DriverArea })))
@@ -172,6 +178,25 @@ export function App() {
             <Route path="driver" element={<DriverArea />}>
               <Route index element={<MobileDeliveriesPage />} />
               <Route path=":id" element={<MobileDeliveryPage />} />
+            </Route>
+          </Route>
+          <Route path="reports">
+            <Route element={<RequireAnyPermission permissions={['reports.read', 'reports.self']} />}>
+              <Route index element={<ReportsHomePage />} />
+              <Route path="exports" element={<ReportExportsPage />} />
+              <Route path=":code" element={<ReportPage />} />
+            </Route>
+            <Route element={<RequirePermission permission="reports.executive" />}>
+              <Route path="executive" element={<ReportPage code="R01_EXECUTIVE_DASHBOARD" />} />
+            </Route>
+            <Route element={<RequirePermission permission="reports.schedule" />}>
+              <Route path="schedules" element={<ReportSchedulesPage />} />
+            </Route>
+            <Route element={<RequirePermission permission="reports.manage" />}>
+              <Route path="settings" element={<ReportSettingsPage />} />
+            </Route>
+            <Route element={<RequirePermission permission="reports.audit" />}>
+              <Route path="audit" element={<ReportAuditPage />} />
             </Route>
           </Route>
           <Route path="tracking">

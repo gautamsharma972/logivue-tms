@@ -64,6 +64,10 @@ internal sealed class ImportHandler(
         {
             rows = await Sheets.ReadAsync(file, cancellationToken);
         }
+        catch (InvalidDataException ex) when (ex.Message.StartsWith("A rate sheet may", StringComparison.Ordinal))
+        {
+            return Error.Validation("rate_import.too_large", ex.Message);
+        }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             return Error.Validation("rate_import.unreadable", "The file could not be read. Use the template: an .xlsx or .csv file with its header row.");

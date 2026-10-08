@@ -92,6 +92,14 @@ status are four separate things; a lost phone is never reported as a parked truc
 a person and is never auto-resolved. Stale/lost and escalation are evaluated lazily on read (`TrackingHealthMonitor`), not by a cross-tenant worker. The customer link is anonymous: only the token's
 hash is stored, every failure is a 404, and it exposes no price, note or exception. Thresholds are per-tenant settings, never code. Other modules learn of tracking only through shared-kernel events and feeds.
 
+## Reports & Analytics
+Module `Tms.Modules.Reports` (`docs/REPORTS_AND_ANALYTICS.md`, `docs/KPI_DEFINITIONS.md`, `docs/REPORTS_MODULE_INTEGRATION.md`, tables `rpt_*`): 39 reports on one framework. It reads other modules **only** through the reporting provider
+contracts in `SharedKernel/Contracts/Reporting.cs` (each owning module implements its provider in `Integration/*ReportingProvider.cs`; `DemoReportingData` stands in for a missing one) and never recreates a rule another module owns.
+Every KPI is defined once in `KpiCatalogue` with numerator, denominator and a calculation version; "not measurable" is a null value, never zero; a ratio over a group is re-derived from summed parts. Period, filters and the caller's limits
+(a transporter's company, a user's customers/regions) are applied once in `ReportFacts`, so no report or KPI can skip them; a fact type that does not carry a limited dimension is refused (fail closed). Providers are awaited one at a time (a module's
+`DbContext` serves one query at once). Reports are code (`Domain/Catalogue`); name, permission, columns and status are data. Exports over `SyncExportRows` and schedules run as jobs in background services as the requester; a notice carries a link, never data.
+Thresholds are per-organisation report settings, never code.
+
 ## Vendor portal (transporter users)
 A user of type `Transporter` carries a `trn` claim (`ICurrentUser.TransporterId`). Any module serving transporter-owned data
 must scope by it and answer another company's ids with **404, not 403**. In Transporters this lives in `TransporterAccess`;

@@ -59,6 +59,7 @@ public static class TrackingModule
         services.AddScoped<ITrackingDeliveryIntegration, OutboxTrackingDeliveryIntegration>();
         services.AddScoped<ITrackingClaimsIntegration, TrackingClaimsEvidence>();
         services.AddScoped<ITrackingPositionFeed, TrackingPositionFeed>();
+        services.AddScoped<ITrackingReportingProvider, Integration.TrackingReportingProvider>();
         services.AddScoped<ITrackingNotificationService, InAppTrackingNotificationService>();
         services.TryAddSingleton<ITrackingLiveNotifier, SignalRTrackingLiveNotifier>();
         services.AddScoped<ITrackingAlertService, TrackingAlertService>();

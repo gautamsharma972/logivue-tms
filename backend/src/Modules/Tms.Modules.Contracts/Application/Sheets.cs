@@ -14,7 +14,15 @@ internal static class Sheets
     public const string Csv = "text/csv; charset=utf-8";
     public const long MaxBytes = 6 * 1024 * 1024;
 
-    internal static string Safe(string value) => value.Length > 0 && value[0] is '=' or '+' or '-' or '@' or '\t' or '\r' ? "'" + value : value;
+    /// <summary>A workbook is a zip: what it unpacks to is limited too, so a small file cannot expand into gigabytes of rows.</summary>
+    public const long MaxUnpackedBytes = 40 * 1024 * 1024;
+
+    public const int MaxRows = 20_000;
+
+    public const int MaxColumns = 60;
+
+    internal static string Safe(string value) =>
+        value.Length > 0 && value[0] is '=' or '+' or '-' or '@' or '\t' or '\r' && !decimal.TryParse(value, NumberStyles.Number | NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out _) ? "'" + value : value;
 
     public static async Task<SheetFile> WriteAsync(string format, string name, IReadOnlyList<Dictionary<string, object?>> rows)
     {
@@ -49,16 +57,29 @@ internal static class Sheets
     /// <summary>Reads the first sheet (or a CSV) as rows keyed by their header, every value as text. Headers are trimmed and matched without regard to case or spacing by the caller.</summary>
     public static async Task<IReadOnlyList<IReadOnlyDictionary<string, string?>>> ReadAsync(Stream stream, CancellationToken cancellationToken)
     {
-        var head = new byte[2];
-        var read = await stream.ReadAtLeastAsync(head, 2, throwOnEndOfStream: false, cancellationToken);
+        var head = new byte[512];
+        var read = await stream.ReadAtLeastAsync(head, head.Length, throwOnEndOfStream: false, cancellationToken);
         stream.Position = 0;
-        var isZip = read == 2 && head[0] == 'P' && head[1] == 'K';
+        var isZip = read >= 4 && head[0] == 'P' && head[1] == 'K' && head[2] == 3 && head[3] == 4;
+        if (isZip)
+        {
+            CheckWorkbook(stream);
+        }
+        else if (Array.IndexOf(head, (byte)0, 0, read) >= 0)
+        {
+            throw new InvalidDataException("Not an .xlsx or .csv file.");
+        }
 
         var rows = new List<IReadOnlyDictionary<string, string?>>();
         var query = isZip ? MiniExcel.Query(stream, useHeaderRow: true) : MiniExcel.Query(stream, useHeaderRow: true, excelType: ExcelType.CSV, configuration: new CsvConfiguration { ReadEmptyStringAsNull = true });
         foreach (IDictionary<string, object?> raw in query)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (rows.Count >= MaxRows || raw.Count > MaxColumns)
+            {
+                throw new InvalidDataException($"A rate sheet may have up to {MaxRows:N0} rows and {MaxColumns} columns.");
+            }
+
             var row = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
             foreach (var (key, value) in raw)
             {
@@ -80,6 +101,18 @@ internal static class Sheets
         }
 
         return rows;
+    }
+
+    /// <summary>Only a real workbook is read: it must have the parts of an .xlsx and unpack to a sane size.</summary>
+    private static void CheckWorkbook(Stream stream)
+    {
+        using var zip = new System.IO.Compression.ZipArchive(stream, System.IO.Compression.ZipArchiveMode.Read, leaveOpen: true);
+        if (zip.Entries.Count > 200 || zip.Entries.Sum(e => e.Length) > MaxUnpackedBytes || zip.GetEntry("[Content_Types].xml") is null || zip.GetEntry("xl/workbook.xml") is null)
+        {
+            throw new InvalidDataException("Not a readable .xlsx workbook.");
+        }
+
+        stream.Position = 0;
     }
 
     /// <summary>"Weight From", "weight_from" and "WEIGHTFROM" are the same column.</summary>
