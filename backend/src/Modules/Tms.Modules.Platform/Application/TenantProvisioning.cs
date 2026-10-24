@@ -5,10 +5,13 @@ using Tms.Modules.Platform.Domain;
 using Tms.Modules.Platform.Infrastructure.Persistence;
 using Tms.Modules.Platform.Infrastructure.Security;
 using Tms.SharedKernel.Results;
+using Tms.SharedKernel.Security;
 
 namespace Tms.Modules.Platform.Application;
 
-public sealed record ProvisionTenantRequest(string Code, string Name, string AdminEmail, string AdminName);
+/// <param name="Modules">Module keys to give the organisation (see TmsModules); null gives every module.</param>
+/// <param name="IsPlatform">The operator's own organisation, whose administrators allocate modules to the others.</param>
+public sealed record ProvisionTenantRequest(string Code, string Name, string AdminEmail, string AdminName, IReadOnlyList<string>? Modules = null, bool IsPlatform = false);
 
 /// <param name="InviteLink">One-time link for the administrator to choose their password. Hand it over securely; it expires.</param>
 public sealed record ProvisionedTenant(Guid TenantId, string Code, string AdminEmail, string InviteLink, DateTimeOffset InviteExpiresAt);
@@ -47,7 +50,12 @@ internal sealed partial class TenantProvisioning(
             return Error.Conflict("tenants.code_exists", $"An organisation with code {code} already exists.");
         }
 
-        var tenant = Tenant.Create(code, request.Name);
+        if (request.Modules?.FirstOrDefault(m => !TmsModules.Keys.Contains(m)) is { } unknown)
+        {
+            return Error.Validation("tenants.module_unknown", $"Unknown module '{unknown}'. Known modules: {string.Join(", ", TmsModules.Keys)}.");
+        }
+
+        var tenant = Tenant.Create(code, request.Name, request.Modules, request.IsPlatform);
         var admin = Role.Create(tenant.Id, Role.AdministratorName, "Full access to everything in this organisation.", catalog.Codes, isSystem: true);
         // The password hash is of random bytes nobody knows; the account is usable only via the invitation link.
         var unusable = passwords.Hash(Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(48)));

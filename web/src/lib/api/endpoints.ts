@@ -178,6 +178,22 @@ export const authApi = {
   me: () => http.get<UserProfile>(`${v1}/auth/me`).then((r) => r.data),
 }
 
+export interface PlatformModule { key: string; name: string; description: string }
+export interface PlatformTenant { id: string; code: string; name: string; isActive: boolean; isPlatform: boolean; modules: string[]; users: number; firstAdminEmail: string | null }
+
+export interface CreateTenantInput { code: string; name: string; adminName: string; adminEmail: string; modules: string[] }
+export interface ProvisionedTenant { tenantId: string; code: string; adminEmail: string; inviteLink: string; inviteExpiresAt: string }
+
+export interface AdminPasswordReset { adminEmail: string; adminName: string; resetLink: string; expiresAt: string }
+
+export const platformApi = {
+  resetAdminPassword: (id: string) => http.post<AdminPasswordReset>(`${v1}/platform/tenants/${id}/reset-admin-password`).then((r) => r.data),
+  createTenant: (b: CreateTenantInput) => http.post<ProvisionedTenant>(`${v1}/platform/tenants`, b).then((r) => r.data),
+  modules: () => http.get<PlatformModule[]>(`${v1}/platform/modules`).then((r) => r.data),
+  tenants: () => http.get<PlatformTenant[]>(`${v1}/platform/tenants`).then((r) => r.data),
+  setModules: (id: string, modules: string[]) => http.put<PlatformTenant>(`${v1}/platform/tenants/${id}/modules`, { modules }).then((r) => r.data),
+}
+
 export const usersApi = {
   list: (params: ListUsersParams) =>
     http.get<PagedResult<UserDto>>(`${v1}/users`, { params }).then((r) => r.data),

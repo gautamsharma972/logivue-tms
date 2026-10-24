@@ -208,6 +208,11 @@ public static class FactDims
         .Set("trip", f.ShipmentRef).Set("load", f.PlanRef).Set("contract", f.ContractRef).Set("vehicle", f.VehicleRef).Set("driver", f.DriverName)
         .Set("status", f.Status).Set("businessUnit", f.BusinessUnit);
 
+    public static Dims Of(OpsLrFact f) => new Dims { Date = f.Date }.Set("customer", f.Customer).Set("vehicle", f.Vehicle).Set("trip", f.Trip).Set("status", f.Status).Set("destination", f.DestinationCity)
+        .Set("origin", f.Cfa).Set("lane", LaneOf(f.Cfa, f.DestinationCity)).Set("shipment", f.LrNumber);
+
+    public static Dims Of(OpsInvoiceFact f) => new Dims { Date = f.Date }.Set("customer", f.Customer).Set("status", f.Status).Set("shipment", f.InvoiceNumber);
+
     public static Dims Of(PlanningRunFact f) => new Dims { Date = f.PlanningDate }.Set("status", f.Status).Set("load", f.RunRef);
 
     public static Dims Of(PlanVehicleFact f) => new Dims { Date = f.PlanningDate, TransporterId = f.TransporterId }

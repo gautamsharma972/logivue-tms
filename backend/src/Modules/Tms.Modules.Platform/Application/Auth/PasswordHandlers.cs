@@ -22,6 +22,8 @@ internal sealed class PasswordResetService(
     TimeProvider clock,
     ILogger<PasswordResetService> logger)
 {
+    public const int ResetMinutes = 10;
+
     public static string Hash(string token) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
 
     /// <summary>Invalidates any earlier unused links for the user and issues a new one. Returns the full link.</summary>
@@ -43,7 +45,7 @@ internal sealed class PasswordResetService(
     public async Task SendResetAsync(User user, string link, CancellationToken cancellationToken)
     {
         await SendAsync(user.Email, "Reset your TMS password",
-            $"Hello {user.FullName},\n\nSomeone asked to reset the password for your TMS account. If that was you, choose a new password here (the link works once and expires in 1 hour):\n\n{link}\n\nIf you did not ask for this, you can ignore this email; your password has not changed.",
+            $"Hello {user.FullName},\n\nSomeone asked to reset the password for your TMS account. If that was you, choose a new password here (the link works once and expires in {ResetMinutes} minutes):\n\n{link}\n\nIf you did not ask for this, you can ignore this email; your password has not changed.",
             cancellationToken);
     }
 
@@ -51,6 +53,13 @@ internal sealed class PasswordResetService(
     {
         await SendAsync(user.Email, $"Your TMS account for {tenantName}",
             $"Hello {user.FullName},\n\nAn account has been created for you in TMS ({tenantName}). Choose your password here (the link works once and expires in {validDays} days):\n\n{link}",
+            cancellationToken);
+    }
+
+    public async Task SendAdminResetAsync(User user, string tenantName, string link, int validMinutes, CancellationToken cancellationToken)
+    {
+        await SendAsync(user.Email, $"Reset your TMS password for {tenantName}",
+            $"Hello {user.FullName},\n\nThe TMS platform administrator has reset the password for your account in {tenantName}. Choose a new password here (the link works once and expires in {validMinutes} minutes):\n\n{link}\n\nUntil you do, your old password keeps working.",
             cancellationToken);
     }
 
@@ -68,12 +77,14 @@ internal sealed class PasswordResetService(
 }
 
 /// <summary>Always answers the same way, so the endpoint cannot be used to discover which emails have accounts.</summary>
-internal sealed class ForgotPasswordHandler(PlatformDbContext db, PasswordResetService resets)
+internal sealed class ForgotPasswordHandler(PlatformDbContext db, PasswordResetService resets, IAmbientUserContext ambient)
 {
-    public static readonly TimeSpan Validity = TimeSpan.FromHours(1);
+    /// <summary>Password-reset links are short-lived: they are meant to be used straight away.</summary>
+    public static readonly TimeSpan Validity = TimeSpan.FromMinutes(PasswordResetService.ResetMinutes);
 
     public async Task<Result> HandleAsync(ForgotPasswordRequest request, CancellationToken cancellationToken)
     {
+        ambient.RunAs(null, null, null); // a session in this browser for another organisation must not matter
         var code = request.TenantCode.Trim().ToUpperInvariant();
         var email = User.NormaliseEmail(request.Email);
 
@@ -92,10 +103,12 @@ internal sealed class ForgotPasswordHandler(PlatformDbContext db, PasswordResetS
     }
 }
 
-internal sealed class ResetPasswordHandler(PlatformDbContext db, IPasswordService passwords, SessionService sessions, TimeProvider clock)
+internal sealed class ResetPasswordHandler(PlatformDbContext db, IPasswordService passwords, SessionService sessions, TimeProvider clock, IAmbientUserContext ambient)
 {
     public async Task<Result> HandleAsync(ResetPasswordRequest request, CancellationToken cancellationToken)
     {
+        // The link may be opened in a browser that is still signed in to another organisation. That session must not matter: the link alone decides whose password changes.
+        ambient.RunAs(null, null, null);
         var now = clock.GetUtcNow();
         var hash = PasswordResetService.Hash(request.Token);
 

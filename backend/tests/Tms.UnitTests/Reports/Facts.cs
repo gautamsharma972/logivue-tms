@@ -33,5 +33,5 @@ internal static class F
     public static TrackFact Trip(string health = "Healthy", string execution = "InTransit", string risk = "OnTime", DateTimeOffset? plannedEta = null, DateTimeOffset? latestEta = null, DateTimeOffset? actual = null, Guid? carrier = null, string name = "Alpha") => new(
         "TRP-1", "SH-1", "MH12AB1234", carrier ?? A, name, "Mumbai → Pune", health, execution, risk, plannedEta, latestEta, actual, 500m, 510m, 600, 620, 3, 3, 0, 60, 0m, null, null, Noon, 0, Day);
 
-    public static ReportingProviders All(TestProvider p) => new(p, p, p, p, p);
+    public static ReportingProviders All(TestProvider p) => new(p, p, p, p, p, ReportTestKit.Demo);
 }

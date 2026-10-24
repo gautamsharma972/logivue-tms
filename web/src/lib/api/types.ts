@@ -13,6 +13,9 @@ export interface UserProfile {
   roles: string[]
   permissions: string[]
   mustChangePassword: boolean
+  /** Module keys the organisation has (see the Platform page). */
+  modules: string[]
+  isPlatform: boolean
 }
 
 export interface AuthResponse {
@@ -62,6 +65,10 @@ export interface UpdateUserRequest {
   isActive: boolean
   roleIds: string[]
   version: number
+  /** Optional: left out, the value stays as it is. */
+  email?: string
+  type?: UserType
+  transporterId?: string | null
 }
 
 export interface ListUsersParams {

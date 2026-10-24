@@ -2,6 +2,11 @@ import type { ListTrackedParams, ListDeliveriesParams, ListDeliveryExceptionsPar
 
 /** One place for cache keys so invalidation after a mutation can never drift from the queries. */
 export const queryKeys = {
+  ops: {
+    all: ['ops'] as const,
+    list: (name: string, params?: object) => ['ops', name, params ?? {}] as const,
+    detail: (name: string, id: string) => ['ops', name, 'detail', id] as const,
+  },
   users: {
     all: ['users'] as const,
     list: (params: ListUsersParams) => ['users', 'list', params] as const,

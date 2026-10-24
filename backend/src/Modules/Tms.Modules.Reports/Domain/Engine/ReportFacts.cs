@@ -8,7 +8,8 @@ public sealed record ReportingProviders(
     ITransporterReportingProvider Transporters,
     IPodReportingProvider Pod,
     ITrackingReportingProvider Tracking,
-    IFreightContractReportingProvider Freight);
+    IFreightContractReportingProvider Freight,
+    IOperationsReportingProvider Operations);
 
 /// <summary>
 /// The facts one report run (or one KPI) works from, for one period. Each kind is fetched once on first use, then narrowed by the request's
@@ -144,6 +145,10 @@ public sealed class ReportFacts
     public Task<IReadOnlyList<DwellFact>> Dwells() => Load("dwl", w => _providers.Tracking.DwellsAsync(w), FactDims.Of, false);
 
     public Task<IReadOnlyList<GapFact>> Gaps() => Load("gap", w => _providers.Tracking.GapsAsync(w), FactDims.Of, false);
+
+    public Task<IReadOnlyList<OpsLrFact>> OpsLrs() => Load("ops-lr", w => _providers.Operations.LrsAsync(w), FactDims.Of, false);
+
+    public Task<IReadOnlyList<OpsInvoiceFact>> OpsInvoices() => Load("ops-inv", w => _providers.Operations.InvoicesAsync(w), FactDims.Of, false);
 
     public Task<IReadOnlyList<ContractFact>> Contracts() => Load("ctr", w => _providers.Freight.ContractsAsync(w), FactDims.Of, true);
 

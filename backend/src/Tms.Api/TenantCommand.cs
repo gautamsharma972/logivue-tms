@@ -5,6 +5,7 @@ namespace Tms.Api;
 
 /// <summary>
 /// <c>dotnet Tms.Api.dll tenant:create --code ACME --name "Acme Freight Ltd" --admin-email a@acme.com --admin-name "A. Admin"</c>
+/// Add <c>--modules transport-ops,reports</c> to limit the organisation to those modules (default: all), or <c>--platform</c> to create the operator's own organisation.
 /// Creates a customer organisation and prints a one-time link for its first administrator to choose a password.
 /// </summary>
 internal static class TenantCommand
@@ -23,11 +24,12 @@ internal static class TenantCommand
         var adminName = Arg("--admin-name");
         if (code is null || name is null || email is null || adminName is null)
         {
-            await Console.Error.WriteLineAsync("Usage: tenant:create --code <CODE> --name <organisation name> --admin-email <email> --admin-name <name>");
+            await Console.Error.WriteLineAsync("Usage: tenant:create --code <CODE> --name <organisation name> --admin-email <email> --admin-name <name> [--modules <key,key>] [--platform]");
             return 2;
         }
 
-        var result = await services.ProvisionTenantAsync(new ProvisionTenantRequest(code, name, email, adminName));
+        var modules = Arg("--modules")?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var result = await services.ProvisionTenantAsync(new ProvisionTenantRequest(code, name, email, adminName, modules, args.Contains("--platform")));
         if (result.IsFailure)
         {
             await Console.Error.WriteLineAsync($"Failed: {result.Error.Description}");

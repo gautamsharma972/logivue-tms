@@ -48,7 +48,7 @@ function renderPage(c: ContractDto) {
   return renderWithProviders(<Routes><Route path="/contracts/:id" element={<ContractDetailPage />} /></Routes>, { route: '/contracts/c1' })
 }
 
-const user = (): UserProfile => ({ id: 'u1', email: 'a@b.c', fullName: 'Staff', type: 'Internal', transporterId: null, tenantCode: 'DEMO', tenantName: 'Demo', roles: [], permissions: [], mustChangePassword: false })
+const user = (): UserProfile => ({ id: 'u1', email: 'a@b.c', fullName: 'Staff', type: 'Internal', transporterId: null, tenantCode: 'DEMO', tenantName: 'Demo', roles: [], permissions: [], mustChangePassword: false, modules: [], isPlatform: false })
 
 describe('ContractDetailPage', () => {
   beforeEach(() => {

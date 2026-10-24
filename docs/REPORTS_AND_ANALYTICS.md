@@ -77,6 +77,31 @@ Report logic is code; everything a person may want to change without a release (
 
 Four report types are supported by one result shape: **Dashboard** (KPI cards, charts, map), **Operational** (transaction rows), **Analytical** (grouping, aggregation, trends) and **Drill-down** (Shipment 360: sections across modules).
 
+## The 18 transporter operations reports
+
+These read only from Transporter Operations (`docs/TRANSPORTER_OPERATIONS_INTEGRATION.md`) and need `reports.operations`. They are limited to the customers a user may see. A time or an amount that was never recorded is blank, never zero; the demonstration data set holds no operations data, so they are empty until the module holds records.
+
+| Code | Report | Type | Source | Permission | Refresh | Export |
+|---|---|---|---|---|---|---|
+| `R40_REQUEST_REGISTER` | Delivery request register | Operational | Transporter Operations | `reports.operations` | NearRealTime | csv, xlsx, pdf |
+| `R41_LR_REGISTER` | LR register | Operational | Transporter Operations | `reports.operations` | NearRealTime | csv, xlsx, pdf |
+| `R42_DISPATCH_REGISTER` | Vehicle dispatch register | Operational | Transporter Operations | `reports.operations` | NearRealTime | csv, xlsx, pdf |
+| `R43_CFA_LOADING` | CFA loading duration | Operational | Transporter Operations | `reports.operations` | NearRealTime | csv, xlsx, pdf |
+| `R44_DESTINATION_WAIT` | Destination arrival and unloading duration | Operational | Transporter Operations | `reports.operations` | NearRealTime | csv, xlsx, pdf |
+| `R45_DELIVERY_COMPLETION` | Delivery completion register | Operational | Transporter Operations | `reports.operations` | NearRealTime | csv, xlsx, pdf |
+| `R46_PENDING_POD` | Pending POD report | Operational | Transporter Operations | `reports.operations` | NearRealTime | csv, xlsx, pdf |
+| `R47_POD_AGEING_OPS` | POD ageing report | Operational | Transporter Operations | `reports.operations` | NearRealTime | csv, xlsx, pdf |
+| `R48_POD_REJECTIONS_OPS` | POD rejection report | Operational | Transporter Operations | `reports.operations` | NearRealTime | csv, xlsx, pdf |
+| `R49_FREIGHT_REGISTER` | Freight calculation register | Operational | Transporter Operations | `reports.operations` | NearRealTime | csv, xlsx, pdf |
+| `R50_CUSTOMER_FREIGHT` | Customer-wise freight report | Operational | Transporter Operations | `reports.operations` | NearRealTime | csv, xlsx, pdf |
+| `R51_DETENTION` | Detention calculation report | Operational | Transporter Operations | `reports.operations` | NearRealTime | csv, xlsx, pdf |
+| `R52_DETENTION_CUSTOMER` | Detention charges by customer | Operational | Transporter Operations | `reports.operations` | NearRealTime | csv, xlsx, pdf |
+| `R53_DELIVERY_CHARGES` | Delivery-wise charges | Operational | Transporter Operations | `reports.operations` | NearRealTime | csv, xlsx, pdf |
+| `R54_INVOICE_REGISTER` | Invoice register | Operational | Transporter Operations | `reports.operations` | NearRealTime | csv, xlsx, pdf |
+| `R55_INVOICE_SUBMISSION` | Invoice submission and rejection report | Operational | Transporter Operations | `reports.operations` | NearRealTime | csv, xlsx, pdf |
+| `R56_RECEIVABLES` | Outstanding receivables and ageing | Operational | Transporter Operations | `reports.operations` | NearRealTime | csv, xlsx, pdf |
+| `R57_VEHICLE_UTILISATION` | Vehicle utilisation summary | Operational | Transporter Operations | `reports.operations` | NearRealTime | csv, xlsx, pdf |
+
 ## Filters, dimensions and grouping
 
 Common filters: dates and period (daily, weekly, monthly, quarterly, YTD, rolling 30 / 90), business unit, origin, destination, zone, lane, region, transporter, vehicle, vehicle type, driver, customer, service type (FTL / PTL / Dedicated), shipment, load, trip, contract, status, exception. A report offers the filters that make sense for its rows, and each filter narrows only the facts that carry that dimension.

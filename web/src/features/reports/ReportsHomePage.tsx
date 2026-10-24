@@ -10,7 +10,7 @@ import { queryKeys } from '@/lib/api/queryKeys'
 import { reportsApi } from './api'
 import type { ReportSummaryDto } from './types'
 
-const ORDER = ['Executive Dashboard', 'Planning & Load Optimisation', 'Transporter Management', 'POD & Delivery', 'Shipment Tracking & Visibility', 'Freight Contract Management', 'Cross-Module Analytics']
+const ORDER = ['Executive Dashboard', 'Planning & Load Optimisation', 'Transporter Management', 'POD & Delivery', 'Shipment Tracking & Visibility', 'Freight Contract Management', 'Cross-Module Analytics', 'Transporter Operations']
 
 /** Every report a person may open, grouped as the business thinks of them, searchable, with favourites on top. */
 export function ReportsHomePage() {

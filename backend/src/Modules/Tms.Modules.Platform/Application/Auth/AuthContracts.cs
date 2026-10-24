@@ -16,7 +16,9 @@ public sealed record UserProfile(
     string TenantName,
     IReadOnlyList<string> Roles,
     IReadOnlyList<string> Permissions,
-    bool MustChangePassword);
+    bool MustChangePassword,
+    IReadOnlyList<string> Modules,
+    bool IsPlatform);
 
 /// <summary>What the client receives. The refresh token travels only in an HttpOnly cookie, never in the body.</summary>
 public sealed record AuthResponse(string AccessToken, DateTimeOffset AccessTokenExpiresAt, UserProfile User);

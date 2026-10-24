@@ -35,7 +35,7 @@ const base: TransporterDto = {
 }
 
 function internalUser(): UserProfile {
-  return { id: 'u1', email: 'a@b.c', fullName: 'Staff', type: 'Internal', transporterId: null, tenantCode: 'DEMO', tenantName: 'Demo', roles: [], permissions: [], mustChangePassword: false }
+  return { id: 'u1', email: 'a@b.c', fullName: 'Staff', type: 'Internal', transporterId: null, tenantCode: 'DEMO', tenantName: 'Demo', roles: [], permissions: [], mustChangePassword: false, modules: [], isPlatform: false }
 }
 
 function renderPage(transporter: TransporterDto) {

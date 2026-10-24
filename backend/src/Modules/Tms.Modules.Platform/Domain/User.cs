@@ -132,6 +132,27 @@ public sealed class User : AggregateRoot, ITenantScoped
         FullName = fullName.Trim();
     }
 
+    public void ChangeEmail(string email)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(email);
+        Email = NormaliseEmail(email);
+    }
+
+    /// <summary>
+    /// Moves the account to another audience. Staff accounts have no transporter; vendor and driver accounts must have one.
+    /// The caller must replace the roles too, because a role belongs to one audience.
+    /// </summary>
+    public void ChangeType(UserType type, Guid? transporterId)
+    {
+        if ((type != UserType.Internal) != (transporterId is not null))
+        {
+            throw new ArgumentException("Transporter and driver users must be linked to a transporter, and only they may be.", nameof(transporterId));
+        }
+
+        Type = type;
+        TransporterId = transporterId;
+    }
+
     public void SetActive(bool isActive) => IsActive = isActive;
 
     public void SetRoles(IEnumerable<Role> roles)

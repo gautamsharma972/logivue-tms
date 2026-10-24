@@ -269,9 +269,18 @@ namespace Tms.Modules.Platform.Infrastructure.Persistence.Migrations
                         .HasColumnType("char(36)")
                         .HasColumnName("created_by");
 
+                    b.Property<string>("EnabledModules")
+                        .HasMaxLength(300)
+                        .HasColumnType("varchar(300)")
+                        .HasColumnName("enabled_modules");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("tinyint(1)")
                         .HasColumnName("is_active");
+
+                    b.Property<bool>("IsPlatform")
+                        .HasColumnType("tinyint(1)")
+                        .HasColumnName("is_platform");
 
                     b.Property<DateTimeOffset?>("ModifiedAt")
                         .HasColumnType("datetime(6)")

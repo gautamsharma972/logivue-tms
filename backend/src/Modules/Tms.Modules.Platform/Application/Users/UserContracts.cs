@@ -26,7 +26,11 @@ public sealed record CreateUserRequest(
     Guid? TransporterId = null,
     bool RequirePasswordChange = false);
 
-public sealed record UpdateUserRequest(string FullName, bool IsActive, IReadOnlyList<Guid> RoleIds, long Version);
+/// <summary>
+/// <c>Email</c>, <c>Type</c> and <c>TransporterId</c> are optional: left out, they stay as they are.
+/// Moving a user to Transporter or Driver needs a transporter company (sent, or already linked); moving to Internal removes it.
+/// </summary>
+public sealed record UpdateUserRequest(string FullName, bool IsActive, IReadOnlyList<Guid> RoleIds, long Version, string? Email = null, UserType? Type = null, Guid? TransporterId = null);
 
 public sealed record ListUsersQuery(string? Search, bool? IsActive, int Page = 1, int PageSize = 25);
 
@@ -48,6 +52,8 @@ internal sealed class UpdateUserRequestValidator : AbstractValidator<UpdateUserR
     {
         RuleFor(x => x.FullName).NotEmpty().MaximumLength(200);
         RuleFor(x => x.RoleIds).NotNull();
+        RuleFor(x => x.Email).MaximumLength(254).EmailAddress().When(x => !string.IsNullOrWhiteSpace(x.Email));
+        RuleFor(x => x.Type).IsInEnum().When(x => x.Type is not null);
     }
 }
 

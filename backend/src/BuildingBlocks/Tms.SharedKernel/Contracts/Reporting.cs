@@ -504,3 +504,68 @@ public sealed record ExceptionFact(
     DateTimeOffset? ResolvedAt,
     string? Owner,
     string Status);
+
+// ---- Transporter operations (owned by TransportOps): the transporter's own work for its customers, from request to payment.
+
+/// <summary>One consignment (LR) with its timeline, proof of delivery and billing, as Transporter Operations knows it.</summary>
+/// <param name="PodStatus">NotYetDue, Pending, Received, UnderReview, Accepted or Rejected. Independent of the delivery status.</param>
+/// <param name="CalcStatus">Calculated, OnHold, Reviewed or Invoiced; null when nothing has been calculated yet (never zero).</param>
+public sealed record OpsLrFact(
+    string LrNumber,
+    Guid LrId,
+    string Customer,
+    string? CustomerReference,
+    string? RequestNumber,
+    DateTimeOffset? RequestReceivedAt,
+    string Cfa,
+    string Destination,
+    string DestinationCity,
+    string? Vehicle,
+    string? Trip,
+    DateOnly Date,
+    string Status,
+    decimal WeightKg,
+    int Packages,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset? CfaReachedAt,
+    DateTimeOffset? LoadingStartedAt,
+    DateTimeOffset? LoadingCompletedAt,
+    DateTimeOffset? DepartedAt,
+    DateTimeOffset? ArrivedAt,
+    DateTimeOffset? UnloadedAt,
+    string PodStatus,
+    DateTimeOffset? PodReceivedAt,
+    DateTimeOffset? PodReviewedAt,
+    int PodRejections,
+    string? PodSource,
+    string? CalcStatus,
+    decimal? BasicFreight,
+    decimal? OtherCharges,
+    decimal? Detention,
+    string? DetentionStatus,
+    string? Hold,
+    string? InvoiceNumber);
+
+public sealed record OpsInvoiceFact(
+    string InvoiceNumber,
+    Guid InvoiceId,
+    string Customer,
+    DateOnly Date,
+    DateOnly DueDate,
+    string Status,
+    string Submission,
+    decimal Subtotal,
+    decimal Tax,
+    decimal Total,
+    decimal Paid,
+    int Lines,
+    int SubmissionAttempts,
+    string? LastRejection,
+    DateTimeOffset? LastSubmittedAt);
+
+public interface IOperationsReportingProvider
+{
+    Task<IReadOnlyList<OpsLrFact>> LrsAsync(ReportingWindow window, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<OpsInvoiceFact>> InvoicesAsync(ReportingWindow window, CancellationToken cancellationToken = default);
+}

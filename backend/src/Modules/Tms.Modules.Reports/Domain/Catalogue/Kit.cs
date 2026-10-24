@@ -13,6 +13,7 @@ internal static class Kit
     public const string CatTracking = "Shipment Tracking & Visibility";
     public const string CatContracts = "Freight Contract Management";
     public const string CatCross = "Cross-Module Analytics";
+    public const string CatOps = "Transporter Operations";
 
     public static readonly string[] Reasons = ["NoVehicle", "PayloadExceeded", "VolumeExceeded", "SlaImpossible", "NoCompatibleVehicle", "NoRate", "NoRoute", "LockedConflict", "Other"];
 

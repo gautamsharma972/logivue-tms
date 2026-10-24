@@ -10,7 +10,13 @@ internal sealed class UserDirectory(PlatformDbContext db) : IUserDirectory
     public async Task<IReadOnlySet<string>> GetPermissionsAsync(Guid userId, CancellationToken cancellationToken = default)
     {
         var user = await db.Users.AsNoTracking().Include(u => u.Roles).FirstOrDefaultAsync(u => u.Id == userId && u.IsActive, cancellationToken);
-        return user?.EffectivePermissions ?? new HashSet<string>();
+        if (user is null)
+        {
+            return new HashSet<string>();
+        }
+
+        var tenant = await db.Tenants.AsNoTracking().FirstAsync(t => t.Id == user.TenantId, cancellationToken);
+        return TenantAccess.PermissionsFor(user, tenant).ToHashSet(StringComparer.Ordinal);
     }
 
     public async Task<IReadOnlyDictionary<Guid, string>> GetDisplayNamesAsync(IEnumerable<Guid> userIds, CancellationToken cancellationToken = default)

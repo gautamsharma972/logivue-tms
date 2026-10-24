@@ -30,15 +30,21 @@ export function UserFormDrawer({ open, user, onClose }: Props) {
   const [form] = Form.useForm<FormValues>()
   const { message } = App.useApp()
   const queryClient = useQueryClient()
-  const { can } = useAuth()
+  const { can, user: me } = useAuth()
   const editing = user !== null
   const type = Form.useWatch('type', form) as UserType | undefined
   const [companySearch, setCompanySearch] = useState('')
   const companies = useQuery({
     queryKey: queryKeys.transporters.lookup(companySearch),
     queryFn: () => transportersApi.lookup(companySearch || undefined),
-    enabled: open && type !== undefined && type !== 'Internal' && !editing,
+    enabled: open && type !== undefined && type !== 'Internal',
   })
+
+  const companyOptions = [
+    ...(companies.data?.map((c) => ({ value: c.id, label: `${c.legalName} (${c.code})` })) ?? []),
+    // the company the user has now, until the list loads or when it is not in the first page of results
+    ...(user?.transporterId && !companies.data?.some((c) => c.id === user.transporterId) ? [{ value: user.transporterId, label: 'Current company' }] : []),
+  ]
 
   const roles = useQuery({ queryKey: queryKeys.roles.all, queryFn: rolesApi.list, enabled: open && can('roles.read') })
 
@@ -55,7 +61,7 @@ export function UserFormDrawer({ open, user, onClose }: Props) {
   const save = useMutation({
     mutationFn: (values: FormValues) =>
       user
-        ? usersApi.update(user.id, { fullName: values.fullName, isActive: values.isActive, roleIds: values.roleIds, version: user.version })
+        ? usersApi.update(user.id, { fullName: values.fullName, isActive: values.isActive, roleIds: values.roleIds, version: user.version, email: values.email, type: values.type, transporterId: values.type !== 'Internal' ? values.transporterId : null })
         : usersApi.create({ email: values.email, fullName: values.fullName, password: values.password ?? '', type: values.type, roleIds: values.roleIds, transporterId: values.type !== 'Internal' ? values.transporterId : null, requirePasswordChange: values.requirePasswordChange ?? false }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: queryKeys.users.all })
@@ -101,8 +107,11 @@ export function UserFormDrawer({ open, user, onClose }: Props) {
           name="email"
           rules={[{ required: true, message: 'Enter an email' }, { type: 'email', message: 'Enter a valid email' }]}
         >
-          <Input autoComplete="off" disabled={editing} />
+          <Input autoComplete="off" />
         </Form.Item>
+        {editing && (
+          <Alert type="info" showIcon style={{ marginBottom: 16 }} title="Changing the email, user type or company signs the user out everywhere; they sign in again with the new email." />
+        )}
         {!editing && (
           <Form.Item
             label="Initial password"
@@ -127,7 +136,7 @@ export function UserFormDrawer({ open, user, onClose }: Props) {
         <Form.Item label="User type" name="type">
           <Select
             onChange={() => form.setFieldValue('roleIds', [])}
-            disabled={editing}
+            disabled={editing && user?.id === me?.id}
             options={[
               { value: 'Internal', label: 'Internal (employee)' },
               { value: 'Transporter', label: 'Transporter (vendor portal)' },
@@ -136,7 +145,7 @@ export function UserFormDrawer({ open, user, onClose }: Props) {
           />
         </Form.Item>
 
-        {type !== undefined && type !== 'Internal' && !editing && (
+        {type !== undefined && type !== 'Internal' && (
           <Form.Item label="Transporter company" name="transporterId" rules={[{ required: true, message: 'Choose the transporter this user belongs to' }]} extra="This user will only ever see and manage this company’s data.">
             <Select
               showSearch
@@ -144,7 +153,7 @@ export function UserFormDrawer({ open, user, onClose }: Props) {
               onSearch={setCompanySearch}
               loading={companies.isFetching}
               placeholder="Search active transporters"
-              options={companies.data?.map((c) => ({ value: c.id, label: `${c.legalName} (${c.code})` }))}
+              options={companyOptions}
             />
           </Form.Item>
         )}

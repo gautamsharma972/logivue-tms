@@ -19,9 +19,50 @@ body {
   .login-brand {
     display: none !important;
   }
+
+  .login-mobile-logo {
+    display: block !important;
+  }
 }
 
 :focus-visible {
   outline: 2px solid #2f5bea;
   outline-offset: 2px;
+}
+
+/* Phones: data entry happens here, so inputs are big enough to tap, never trigger the browser's zoom-on-focus, and nothing forces sideways scrolling. */
+@media (max-width: 767px) {
+  .ant-input,
+  .ant-input-number-input,
+  .ant-select-selection-search-input,
+  .ant-picker-input > input,
+  textarea.ant-input {
+    font-size: 16px !important;
+  }
+
+  .ant-btn {
+    min-height: 40px;
+  }
+
+  .ant-btn-sm {
+    min-height: 32px;
+  }
+
+  .ant-drawer-body {
+    padding: 12px !important;
+  }
+
+  .ant-input-search,
+  .ant-select {
+    max-width: 100%;
+  }
+
+  .ant-modal {
+    max-width: calc(100vw - 16px) !important;
+    margin-inline: auto;
+  }
+
+  .ant-card-body {
+    padding: 12px !important;
+  }
 }

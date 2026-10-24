@@ -45,7 +45,23 @@ internal sealed class PlatformInitializer(
             await SeedDemoTenantAsync(options, cancellationToken);
         }
 
+        if (options.SeedDemoData && !string.IsNullOrWhiteSpace(options.DemoAdminPassword) && !await db.Tenants.AnyAsync(t => t.IsPlatform, cancellationToken))
+        {
+            await SeedPlatformTenantAsync(options, cancellationToken);
+        }
+
         await SyncSystemRolesAsync(cancellationToken);
+    }
+
+    /// <summary>Development only: the operator organisation whose administrator allocates modules to customers. In production it is created with <c>tenant:create --platform</c>.</summary>
+    private async Task SeedPlatformTenantAsync(PlatformInitializationOptions options, CancellationToken cancellationToken)
+    {
+        var tenant = Tenant.Create("PLATFORM", "Platform operator", isPlatform: true);
+        var admin = Role.Create(tenant.Id, Role.AdministratorName, "Full access to everything in this organisation.", catalog.Codes, isSystem: true);
+        var user = User.Create(tenant.Id, "platform@tms.local", "Platform Administrator", passwords.Hash(options.DemoAdminPassword!), UserType.Internal, [admin]);
+        db.AddRange(tenant, admin, user);
+        await db.SaveChangesAsync(cancellationToken);
+        logger.LogWarning("Seeded platform organisation PLATFORM with administrator platform@tms.local. Never enable this in production.");
     }
 
     private async Task SeedDemoTenantAsync(PlatformInitializationOptions options, CancellationToken cancellationToken)

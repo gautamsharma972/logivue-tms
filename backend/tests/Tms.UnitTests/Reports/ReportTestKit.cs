@@ -21,11 +21,11 @@ internal static class ReportTestKit
 
     public static DemoReportingData Demo { get; } = new(new FixedClock(Now));
 
-    public static ReportingProviders Providers => new(Demo, Demo, Demo, Demo, Demo);
+    public static ReportingProviders Providers => new(Demo, Demo, Demo, Demo, Demo, Demo);
 
     public static ReportPrincipal Admin(params string[] extra) => new(Guid.NewGuid(), TenantId, new HashSet<string>(
         [ReportingPermissions.Read, ReportingPermissions.Executive, ReportingPermissions.Planning, ReportingPermissions.Transporters, ReportingPermissions.Delivery, ReportingPermissions.Tracking,
-            ReportingPermissions.Contracts, ReportingPermissions.Cross, ReportingPermissions.Export, ReportingPermissions.Schedule, .. extra]), null, new Dictionary<string, IReadOnlyList<string>>());
+            ReportingPermissions.Contracts, ReportingPermissions.Cross, ReportingPermissions.Operations, ReportingPermissions.Export, ReportingPermissions.Schedule, .. extra]), null, new Dictionary<string, IReadOnlyList<string>>());
 
     public static ReportPrincipal Vendor(Guid transporterId) => new(Guid.NewGuid(), TenantId, new HashSet<string> { ReportingPermissions.Self }, transporterId, new Dictionary<string, IReadOnlyList<string>>());
 

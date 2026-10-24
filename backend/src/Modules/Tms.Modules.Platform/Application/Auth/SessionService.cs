@@ -17,7 +17,7 @@ internal sealed class SessionService(
 {
     public async Task<AuthResult> IssueAsync(User user, Tenant tenant, Guid familyId, CancellationToken cancellationToken)
     {
-        var permissions = user.EffectivePermissions.Order(StringComparer.Ordinal).ToArray();
+        var permissions = TenantAccess.PermissionsFor(user, tenant).ToArray();
         var access = tokens.CreateAccessToken(user, permissions);
         var (refreshToken, refreshHash) = tokens.CreateRefreshToken();
 
@@ -66,6 +66,8 @@ internal sealed class SessionService(
             tenant.Code,
             tenant.Name,
             user.Roles.Select(r => r.Name).Order(StringComparer.Ordinal).ToArray(),
-            user.EffectivePermissions.Order(StringComparer.Ordinal).ToArray(),
-            user.MustChangePassword);
+            TenantAccess.PermissionsFor(user, tenant).ToArray(),
+            user.MustChangePassword,
+            (tenant.Modules ?? TmsModules.Keys).Order(StringComparer.Ordinal).ToArray(),
+            tenant.IsPlatform);
 }

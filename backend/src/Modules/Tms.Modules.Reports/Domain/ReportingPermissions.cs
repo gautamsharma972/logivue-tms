@@ -17,6 +17,9 @@ public static class ReportingPermissions
     public const string Contracts = "reports.contracts";
 
     public const string Cross = "reports.cross";
+
+    /// <summary>Transporter operations: requests, LRs, POD ageing, freight and detention, invoices and receivables.</summary>
+    public const string Operations = "reports.operations";
     public const string Export = "reports.export";
     public const string Schedule = "reports.schedule";
 
@@ -31,6 +34,7 @@ public static class ReportingPermissions
     public static IReadOnlyList<PermissionDefinition> All { get; } =
     [
         new(Read, "Reports", "Open Reports & Analytics and use the report catalogue"),
+        new(Operations, "Reports", "Transporter operations reports: requests, LRs, POD, freight, detention, invoices and receivables"),
         new(Executive, "Reports", "Executive dashboard and management analytics"),
         new(Planning, "Reports", "Planning and load optimisation reports"),
         new(Transporters, "Reports", "Transporter performance, ranking, tender and placement reports"),

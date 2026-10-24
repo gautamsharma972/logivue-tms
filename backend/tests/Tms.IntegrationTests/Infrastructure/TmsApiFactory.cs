@@ -80,6 +80,7 @@ public sealed class TmsApiFactory : WebApplicationFactory<Program>, IAsyncLifeti
             ["Database:DemoAdminPassword"] = DemoAdminPassword,
             ["Jwt:SigningKey"] = "integration-tests-signing-key-0123456789abcdef",
             ["RateLimiting:AuthPermitsPerMinute"] = "100000",
+            ["RateLimiting:PublicOpsPermitsPerMinute"] = "100000",
             ["Storage:RootPath"] = StorageRoot,
             ["FieldEncryption:Keys:1"] = "I7SO9wGeyFMUYDhd81VLYuK+M9qY2I6xsmExlE6aGV4=",
             ["Contracts:LifecycleEnabled"] = "false",

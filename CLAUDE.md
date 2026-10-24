@@ -120,3 +120,18 @@ cd web && npm run typecheck && npm test && npm run lint && npm run build
 ```
 Test runner is Microsoft.Testing.Platform (xunit v3) — use `dotnet test --solution/--project`, not VSTest flags.
 EF Core is pinned to 9.x because Pomelo (MySQL provider) has no EF Core 10 release yet; upgrade both together.
+
+## Transporter Operations
+Module `Tms.Modules.TransportOps` (`docs/TRANSPORTER_OPERATIONS_INTEGRATION.md`, tables `to_*`, permissions `ops.*`): requests → LR with QR → trips → driver QR page → POD → customer freight/detention → invoices. Sell side only; never reuse Contracts.
+The QR page is anonymous (hash-only token, uniform 404, `ops-public` rate limit); location is read **only** at Confirm Arrival and judged on the server; unloading/POD code has no location. A POD upload never accepts it.
+Calculators (`GeofenceVerifier`, `DetentionCalculator`, `CustomerFreightCalculator`, `TaxCalculator`) are pure; missing times = hold, never zero. Invoice numbers are gap-free per financial year; issued invoices are immutable. Rates, radius, tax and detention are per-customer data, never code.
+
+## Module entitlements (what each organisation has)
+`TmsModules` (SharedKernel/Security) maps every permission to one business module (or to core: users, roles, audit, approvals). A `Tenant` has `EnabledModules` (null = all, so older organisations keep everything) and
+`IsPlatform` (the operator's own organisation). Entitlement is enforced where permissions are issued (`TenantAccess.PermissionsFor`: token, `/auth/me`, `IUserDirectory`), so API, menu and reports follow without per-endpoint checks;
+new permissions must use a known prefix or be added to `TmsModules`. Platform administrators allocate modules at `/platform/tenants` (`platform.tenants.manage` is granted only to the platform organisation's Administrator and is
+deliberately not in the permission catalogue); the same page adds organisations (`POST /api/v1/platform/tenants`, provisioning in a tenant-less scope, single-use invite link shown once). Operator: `tenant:create ... [--modules transport-ops,reports] [--platform]`. Sidebar: one group per module with its pages and its reports in `web/src/layouts/navigation.tsx`.
+
+## Transporter Operations on a phone
+LRs, trips and the delivery timeline are entered on mobile. Delivery requests are no longer a screen (an LR is created directly; the request API remains but is unused by the UI, and `/ops/requests` redirects to LRs).
+Use `ResponsiveDrawer` (full screen on a phone) and `useIsMobile` in this module; list pages show cards on a phone, tables elsewhere. Invoice copies (max 10 per LR) come from `PhotoPicker`: camera capture or upload, photos shrunk client-side first.

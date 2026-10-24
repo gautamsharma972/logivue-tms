@@ -104,7 +104,7 @@ internal sealed class ReportingProviderResolver(IServiceProvider services)
         var demo = services.GetRequiredService<DemoReportingData>();
         if (settings.DataSource == "Demo")
         {
-            return (new ReportingProviders(demo, demo, demo, demo, demo), new Dictionary<string, string> { ["Planning"] = "Demo", ["Transporters"] = "Demo", ["Deliveries"] = "Demo", ["Tracking"] = "Demo", ["Freight Contracts"] = "Demo" });
+            return (new ReportingProviders(demo, demo, demo, demo, demo, demo), new Dictionary<string, string> { ["Planning"] = "Demo", ["Transporters"] = "Demo", ["Deliveries"] = "Demo", ["Tracking"] = "Demo", ["Freight Contracts"] = "Demo", ["Transporter Operations"] = "Demo" });
         }
 
         var planning = services.GetService<IPlanningReportingProvider>();
@@ -112,9 +112,10 @@ internal sealed class ReportingProviderResolver(IServiceProvider services)
         var pod = services.GetService<IPodReportingProvider>();
         var tracking = services.GetService<ITrackingReportingProvider>();
         var freight = services.GetService<IFreightContractReportingProvider>();
+        var operations = services.GetService<IOperationsReportingProvider>();
         string Source(object? live) => live is null or DemoReportingData ? "Demo (module not installed)" : "Live";
-        return (new ReportingProviders(planning ?? demo, transporters ?? demo, pod ?? demo, tracking ?? demo, freight ?? demo),
-            new Dictionary<string, string> { ["Planning"] = Source(planning), ["Transporters"] = Source(transporters), ["Deliveries"] = Source(pod), ["Tracking"] = Source(tracking), ["Freight Contracts"] = Source(freight) });
+        return (new ReportingProviders(planning ?? demo, transporters ?? demo, pod ?? demo, tracking ?? demo, freight ?? demo, operations ?? demo),
+            new Dictionary<string, string> { ["Planning"] = Source(planning), ["Transporters"] = Source(transporters), ["Deliveries"] = Source(pod), ["Tracking"] = Source(tracking), ["Freight Contracts"] = Source(freight), ["Transporter Operations"] = Source(operations) });
     }
 }
 

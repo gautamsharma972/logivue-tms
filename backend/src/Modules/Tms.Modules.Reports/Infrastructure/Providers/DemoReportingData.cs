@@ -7,8 +7,13 @@ namespace Tms.Modules.Reports.Infrastructure.Providers;
 /// without the other modules (and is the stand-in for any module that is not installed).
 /// </summary>
 internal sealed class DemoReportingData(TimeProvider clock) :
-    IPlanningReportingProvider, ITransporterReportingProvider, IPodReportingProvider, ITrackingReportingProvider, IFreightContractReportingProvider
+    IPlanningReportingProvider, ITransporterReportingProvider, IPodReportingProvider, ITrackingReportingProvider, IFreightContractReportingProvider, IOperationsReportingProvider
 {
+    // Transporter operations has no built-in demonstration data: its reports show what the module holds, and are empty until it holds something.
+    Task<IReadOnlyList<OpsLrFact>> IOperationsReportingProvider.LrsAsync(ReportingWindow window, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<OpsLrFact>>([]);
+
+    Task<IReadOnlyList<OpsInvoiceFact>> IOperationsReportingProvider.InvoicesAsync(ReportingWindow window, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<OpsInvoiceFact>>([]);
+
     private static readonly object Gate = new();
     private static DateOnly _builtFor;
     private static DemoDataset? _dataset;

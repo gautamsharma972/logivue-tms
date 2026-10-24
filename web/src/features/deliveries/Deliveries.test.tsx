@@ -33,7 +33,7 @@ vi.mock('@/lib/api/endpoints', () => ({
   },
 }))
 
-const profile = (transporterId: string | null): UserProfile => ({ id: 'u1', email: 'a@b.c', fullName: 'User', type: transporterId ? 'Transporter' : 'Internal', transporterId, tenantCode: 'DEMO', tenantName: 'Demo', roles: [], permissions: [], mustChangePassword: false })
+const profile = (transporterId: string | null): UserProfile => ({ id: 'u1', email: 'a@b.c', fullName: 'User', type: transporterId ? 'Transporter' : 'Internal', transporterId, tenantCode: 'DEMO', tenantName: 'Demo', roles: [], permissions: [], mustChangePassword: false, modules: [], isPlatform: false })
 
 const delivery = (over: Partial<DeliveryDto['summary']> = {}): DeliveryDto => ({
   summary: {

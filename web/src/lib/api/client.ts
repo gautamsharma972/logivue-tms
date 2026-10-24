@@ -13,6 +13,13 @@ export const http = axios.create({ baseURL, headers: clientHeaders })
 // A bare client for the refresh call itself, so it never recurses through the interceptors below.
 const bare = axios.create({ baseURL, headers: clientHeaders })
 
+/** The browser's refresh cookie now belongs to another user (someone signed in as them in another tab). */
+export class SessionChangedError extends Error {
+  constructor() {
+    super('The browser is now signed in as another user.')
+  }
+}
+
 let inflight: Promise<AuthResponse> | null = null
 
 async function rotateRefreshToken(): Promise<AuthResponse> {
@@ -20,7 +27,11 @@ async function rotateRefreshToken(): Promise<AuthResponse> {
   // across tabs means each one presents the cookie the previous one just received, instead of two tabs presenting the
   // same token (which the server treats as theft and answers by revoking the session).
   const run = async () => {
+    const known = session.getUserId()
     const { data } = await bare.post<AuthResponse>('/api/v1/auth/refresh')
+    // One refresh cookie serves the whole browser. If another tab signed in as someone else, this tab must not quietly
+    // carry on as that person while still showing the old user's screens: end it and say why.
+    if (known && data.user.id !== known) throw new SessionChangedError()
     session.set(data)
     return data
   }
@@ -54,9 +65,9 @@ http.interceptors.response.use(
       try {
         await refreshSession()
         return http(original)
-      } catch {
+      } catch (e) {
         session.clear()
-        session.notifyExpired()
+        session.notifyExpired(e instanceof SessionChangedError ? 'other-user' : 'expired')
       }
     }
     throw toApiError(error)

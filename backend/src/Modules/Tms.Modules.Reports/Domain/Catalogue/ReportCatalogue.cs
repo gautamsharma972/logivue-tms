@@ -16,6 +16,7 @@ public static class ReportCatalogue
             .Concat(TrackingReports.All())
             .Concat(ContractReports.All())
             .Concat(CrossReports.All().Where(r => r.Code != "R01_EXECUTIVE_DASHBOARD"))
+            .Concat(OperationsReports.All())
             .OrderBy(r => r.SortOrder)
             .ToList();
         var duplicate = all.GroupBy(r => r.Code, StringComparer.OrdinalIgnoreCase).FirstOrDefault(g => g.Count() > 1);

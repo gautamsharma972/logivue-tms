@@ -4,7 +4,11 @@ import type { AuthResponse } from './types'
 const HINT_KEY = 'tms.session'
 
 let accessToken: string | null = null
-let onExpired: (() => void) | null = null
+/** Why a session ended: it ran out, or the browser's sign-in now belongs to a different user (another tab signed in). */
+export type ExpiryReason = 'expired' | 'other-user'
+
+let userId: string | null = null
+let onExpired: ((reason: ExpiryReason) => void) | null = null
 
 function readHint(): boolean {
   try {
@@ -21,10 +25,13 @@ function readHint(): boolean {
  */
 export const session = {
   getAccessToken: () => accessToken,
+  /** The user this tab signed in as; a refresh must never hand the tab to anyone else. */
+  getUserId: () => userId,
   hasSession: readHint,
 
-  set(auth: Pick<AuthResponse, 'accessToken'>) {
+  set(auth: Pick<AuthResponse, 'accessToken'> & Partial<Pick<AuthResponse, 'user'>>) {
     accessToken = auth.accessToken
+    if (auth.user) userId = auth.user.id
     try {
       localStorage.setItem(HINT_KEY, '1')
     } catch {
@@ -34,6 +41,7 @@ export const session = {
 
   clear() {
     accessToken = null
+    userId = null
     try {
       localStorage.removeItem(HINT_KEY)
     } catch {
@@ -42,11 +50,11 @@ export const session = {
   },
 
   /** Registered by the auth provider; called when a refresh fails and the user must sign in again. */
-  onExpired(handler: (() => void) | null) {
+  onExpired(handler: ((reason: ExpiryReason) => void) | null) {
     onExpired = handler
   },
 
-  notifyExpired() {
-    onExpired?.()
+  notifyExpired(reason: ExpiryReason = 'expired') {
+    onExpired?.(reason)
   },
 }

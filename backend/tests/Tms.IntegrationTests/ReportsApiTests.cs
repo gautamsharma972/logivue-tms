@@ -78,12 +78,12 @@ public class ReportsApiTests(TmsApiFactory factory)
     // ---- framework
 
     [Fact]
-    public async Task The_catalogue_lists_all_39_reports_and_each_one_publishes_its_columns_filters_grouping_sorting_and_export_formats()
+    public async Task The_catalogue_lists_all_57_reports_and_each_one_publishes_its_columns_filters_grouping_sorting_and_export_formats()
     {
         using var admin = await AdminOnDemoAsync();
         var list = await (await admin.GetAsync(Reports)).ReadAsync<List<ReportSummaryDto>>();
-        list.Count.ShouldBe(39);
-        list.Select(r => r.Category).Distinct().Count().ShouldBe(7);
+        list.Count.ShouldBe(57); // 39 core + 18 transporter operations
+        list.Select(r => r.Category).Distinct().Count().ShouldBe(8);
 
         var found = await (await admin.GetAsync($"{Reports}?search=transporter")).ReadAsync<List<ReportSummaryDto>>();
         found.Select(r => r.ReportCode).ShouldContain("R09_TRANSPORTER_SCORECARD");

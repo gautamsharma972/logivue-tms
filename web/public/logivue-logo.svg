@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="100 170 1060 1000" role="img" aria-label="LogiVue TMS">
+  <title>LogiVue TMS</title>
+  <g fill="none" stroke-width="22" stroke-linecap="round" stroke-linejoin="round">
+  <g stroke="#FF8A00"><path d="M655 520C602 462 546 388 546 322C546 258 595 214 655 214C715 214 764 258 764 322C764 388 708 462 655 520Z"/><circle cx="655" cy="322" r="58"/></g>
+  <g stroke="#0B2E8C">
+    <path d="M250 438H552M305 493H372M405 493H430M360 543H518M275 592H290M325 592H552"/>
+    <path d="M758 438H782Q796 438 796 454V592Q796 640 846 646H972"/>
+    <path d="M806 488Q990 488 998 640V704Q998 742 960 742H922"/>
+    <path d="M842 534Q890 546 915 590"/>
+    <path d="M400 630V726Q400 742 416 742H484M598 742H802M416 703H446M620 703H776"/>
+    <circle cx="541" cy="735" r="50"/><circle cx="861" cy="735" r="50"/>
+    <path d="M944 664H982"/>
+  </g>
+</g>
+  <text x="125" y="1018" font-family="Montserrat, 'Poppins', 'Segoe UI', Arial, sans-serif" font-weight="800" font-size="268" textLength="1010" lengthAdjust="spacingAndGlyphs"><tspan fill="#0B2E8C">Logi</tspan><tspan fill="#FF8A00">Vue</tspan></text>
+  <text x="858" y="1118" font-family="Montserrat, 'Poppins', 'Segoe UI', Arial, sans-serif" font-weight="800" font-size="104" fill="#0B2E8C" textLength="262" lengthAdjust="spacing">TMS</text>
+</svg>

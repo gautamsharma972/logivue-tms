@@ -4,6 +4,7 @@
     <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
     <PackageReference Include="Serilog" />
     <PackageReference Include="MailKit" />
+    <PackageReference Include="System.Security.Cryptography.Pkcs" />
     <ProjectReference Include="..\Tms.SharedKernel\Tms.SharedKernel.csproj" />
   </ItemGroup>
 </Project>

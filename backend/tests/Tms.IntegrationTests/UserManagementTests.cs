@@ -3,6 +3,9 @@ using Tms.IntegrationTests.Infrastructure;
 using Tms.Modules.Platform.Application.Audit;
 using Tms.Modules.Platform.Application.Users;
 using Tms.Modules.Platform.Domain;
+using Tms.Modules.Transporters.Application;
+using Tms.Modules.Transporters.Domain;
+using static Tms.IntegrationTests.Infrastructure.TransporterTestData;
 using Tms.SharedKernel.Paging;
 
 namespace Tms.IntegrationTests;
@@ -108,6 +111,100 @@ public class UserManagementTests(TmsApiFactory factory)
         var raw = string.Concat(logs.Items.Select(l => l.Changes?.ToString()));
         raw.ShouldNotContain("PasswordHash");
         raw.ShouldNotContain(ApiExtensions.StrongPassword);
+    }
+
+    [Fact]
+    public async Task An_administrator_can_change_the_email_and_the_user_signs_in_with_the_new_one()
+    {
+        using var admin = await factory.AdminAsync();
+        var oldEmail = ApiExtensions.UniqueEmail("old");
+        var newEmail = ApiExtensions.UniqueEmail("new").ToUpperInvariant();
+        var user = await admin.CreateUserAsync(oldEmail);
+
+        var response = await admin.PutJsonAsync($"/api/v1/users/{user.Id}", new UpdateUserRequest(user.FullName, true, [], user.Version, Email: newEmail));
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await response.ReadAsync<UserDto>()).Email.ShouldBe(newEmail.ToLowerInvariant());
+        using var anonymous = factory.CreateClient();
+        (await anonymous.PostJsonAsync("/api/v1/auth/login", new Tms.Modules.Platform.Application.Auth.LoginRequest(TmsApiFactory.DemoTenant, oldEmail, ApiExtensions.StrongPassword)))
+            .StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+        (await anonymous.LoginAsync(TmsApiFactory.DemoTenant, newEmail, ApiExtensions.StrongPassword)).AccessToken.ShouldNotBeNullOrEmpty();
+    }
+
+    [Fact]
+    public async Task Changing_the_email_to_one_that_is_taken_is_a_conflict()
+    {
+        using var admin = await factory.AdminAsync();
+        var taken = ApiExtensions.UniqueEmail("taken");
+        await admin.CreateUserAsync(taken);
+        var user = await admin.CreateUserAsync();
+
+        var response = await admin.PutJsonAsync($"/api/v1/users/{user.Id}", new UpdateUserRequest(user.FullName, true, [], user.Version, Email: taken));
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        (await response.ProblemCodeAsync()).ShouldBe("users.email_taken");
+    }
+
+    [Fact]
+    public async Task A_staff_user_can_be_moved_to_a_transporter_company_and_back()
+    {
+        using var admin = await factory.AdminAsync();
+        var transporter = await CreateAsync(admin);
+        var staffRole = await admin.CreateRoleAsync(TransporterPermissions.Read);
+        var vendorRole = await admin.CreateExternalRoleAsync(TransporterPermissions.SelfManage);
+        var user = await admin.CreateUserAsync(roleIds: [staffRole.Id]);
+
+        // The company is mandatory for a vendor account, and the roles must belong to the new audience.
+        var noCompany = await admin.PutJsonAsync($"/api/v1/users/{user.Id}", new UpdateUserRequest(user.FullName, true, [vendorRole.Id], user.Version, Type: UserType.Transporter));
+        (await noCompany.ProblemCodeAsync()).ShouldBe("users.transporter_link");
+        var staffRoleOnVendor = await admin.PutJsonAsync($"/api/v1/users/{user.Id}", new UpdateUserRequest(user.FullName, true, [staffRole.Id], user.Version, Type: UserType.Transporter, TransporterId: transporter.Id));
+        (await staffRoleOnVendor.ProblemCodeAsync()).ShouldBe("users.role_audience");
+
+        var moved = await admin.PutJsonAsync($"/api/v1/users/{user.Id}", new UpdateUserRequest(user.FullName, true, [vendorRole.Id], user.Version, Type: UserType.Transporter, TransporterId: transporter.Id));
+        moved.StatusCode.ShouldBe(HttpStatusCode.OK, await moved.Content.ReadAsStringAsync());
+        var vendor = await moved.ReadAsync<UserDto>();
+        vendor.Type.ShouldBe(UserType.Transporter);
+        vendor.TransporterId.ShouldBe(transporter.Id);
+        vendor.Roles.ShouldHaveSingleItem().Id.ShouldBe(vendorRole.Id);
+
+        // Switching between vendor and driver keeps the company.
+        var driver = await (await admin.PutJsonAsync($"/api/v1/users/{user.Id}", new UpdateUserRequest(user.FullName, true, [vendorRole.Id], vendor.Version, Type: UserType.Driver))).ReadAsync<UserDto>();
+        driver.Type.ShouldBe(UserType.Driver);
+        driver.TransporterId.ShouldBe(transporter.Id);
+
+        // And back to staff: the company is removed.
+        var back = await (await admin.PutJsonAsync($"/api/v1/users/{user.Id}", new UpdateUserRequest(user.FullName, true, [staffRole.Id], driver.Version, Type: UserType.Internal))).ReadAsync<UserDto>();
+        back.Type.ShouldBe(UserType.Internal);
+        back.TransporterId.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task An_unknown_transporter_is_refused_and_staff_cannot_carry_one()
+    {
+        using var admin = await factory.AdminAsync();
+        var staffRole = await admin.CreateRoleAsync(TransporterPermissions.Read);
+        var vendorRole = await admin.CreateExternalRoleAsync(TransporterPermissions.SelfManage);
+        var user = await admin.CreateUserAsync(roleIds: [staffRole.Id]);
+
+        var unknown = await admin.PutJsonAsync($"/api/v1/users/{user.Id}", new UpdateUserRequest(user.FullName, true, [vendorRole.Id], user.Version, Type: UserType.Transporter, TransporterId: Guid.NewGuid()));
+        (await unknown.ProblemCodeAsync()).ShouldBe("users.transporter_unknown");
+
+        var staffWithCompany = await admin.PutJsonAsync($"/api/v1/users/{user.Id}", new UpdateUserRequest(user.FullName, true, [staffRole.Id], user.Version, TransporterId: Guid.NewGuid()));
+        (await staffWithCompany.ProblemCodeAsync()).ShouldBe("users.transporter_link");
+    }
+
+    [Fact]
+    public async Task An_administrator_cannot_change_the_type_of_their_own_account()
+    {
+        using var admin = await factory.AdminAsync();
+        var transporter = await CreateAsync(admin);
+        var me = await (await admin.GetAsync("/api/v1/auth/me")).ReadAsync<Tms.Modules.Platform.Application.Auth.UserProfile>();
+        var self = await (await admin.GetAsync($"/api/v1/users/{me.Id}")).ReadAsync<UserDto>();
+
+        var response = await admin.PutJsonAsync($"/api/v1/users/{self.Id}", new UpdateUserRequest(self.FullName, true, self.Roles.Select(r => r.Id).ToList(), self.Version, Type: UserType.Transporter, TransporterId: transporter.Id));
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        (await response.ProblemCodeAsync()).ShouldBe("users.cannot_change_own_type");
     }
 }
 

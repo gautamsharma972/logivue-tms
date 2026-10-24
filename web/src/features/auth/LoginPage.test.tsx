@@ -23,7 +23,7 @@ const authResponse = {
     tenantName: 'Demo Logistics',
     roles: ['Administrator'],
     permissions: ['users.read'],
-    mustChangePassword: false,
+    mustChangePassword: false, modules: [], isPlatform: false,
   },
 }
 

@@ -5,11 +5,12 @@ namespace Tms.UnitTests.Reports;
 public class ReportCatalogueTests
 {
     [Fact]
-    public void The_catalogue_holds_the_39_core_reports_and_dashboards_with_unique_codes()
+    public void The_catalogue_holds_the_39_core_reports_and_the_18_transporter_operations_reports_with_unique_codes()
     {
-        ReportCatalogue.All.Count.ShouldBe(39);
-        ReportCatalogue.All.Select(r => r.Code).Distinct(StringComparer.OrdinalIgnoreCase).Count().ShouldBe(39);
-        for (var n = 1; n <= 39; n++)
+        ReportCatalogue.All.Count.ShouldBe(39 + 18);
+        ReportCatalogue.All.Select(r => r.Code).Distinct(StringComparer.OrdinalIgnoreCase).Count().ShouldBe(39 + 18);
+        ReportCatalogue.All.Count(r => r.Category == Kit.CatOps).ShouldBe(18);
+        for (var n = 1; n <= 39 + 18; n++)
         {
             ReportCatalogue.All.ShouldContain(r => r.Code.StartsWith($"R{n:00}_", StringComparison.Ordinal), $"R{n:00} is missing");
         }

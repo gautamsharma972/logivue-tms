@@ -1,5 +1,5 @@
 import { Button, Result } from 'antd'
-import { lazy } from 'react'
+import { lazy, Suspense } from 'react'
 import { Link, Navigate, Route, Routes } from 'react-router-dom'
 import { useAuth } from '@/features/auth/AuthContext'
 import { LoginPage } from '@/features/auth/LoginPage'
@@ -69,6 +69,21 @@ const ReportSchedulesPage = lazy(() => import('@/features/reports/SchedulesPage'
 const ReportSettingsPage = lazy(() => import('@/features/reports/ReportSettingsPage').then((m) => ({ default: m.ReportSettingsPage })))
 const ReportAuditPage = lazy(() => import('@/features/reports/ReportAuditPage').then((m) => ({ default: m.ReportAuditPage })))
 const CustomerTrackingPage = lazy(() => import('@/features/tracking/CustomerTrackingPage').then((m) => ({ default: m.CustomerTrackingPage })))
+const OpsDashboardPage = lazy(() => import('@/features/transportops/DashboardPage').then((m) => ({ default: m.OpsDashboardPage })))
+const OpsLrsRoute = lazy(() => import('@/features/transportops/RoutePages').then((m) => ({ default: m.LrsRoute })))
+const OpsLrPrintPage = lazy(() => import('@/features/transportops/DispatchPages').then((m) => ({ default: m.LrPrintPage })))
+const OpsTripsPage = lazy(() => import('@/features/transportops/DispatchPages').then((m) => ({ default: m.TripsPage })))
+const OpsPodPage = lazy(() => import('@/features/transportops/PodAndBillingPages').then((m) => ({ default: m.PodPage })))
+const OpsBillingPage = lazy(() => import('@/features/transportops/PodAndBillingPages').then((m) => ({ default: m.BillingPage })))
+const OpsInvoicesPage = lazy(() => import('@/features/transportops/InvoicesPage').then((m) => ({ default: m.InvoicesPage })))
+const OpsCustomersPage = lazy(() => import('@/features/transportops/MastersPages').then((m) => ({ default: m.CustomersPage })))
+const OpsLocationsPage = lazy(() => import('@/features/transportops/MastersPages').then((m) => ({ default: m.LocationsPage })))
+const PlatformTenantsPage = lazy(() => import('@/features/platform/TenantsPage').then((m) => ({ default: m.TenantsPage })))
+const OpsUomPage = lazy(() => import('@/features/transportops/MastersPages').then((m) => ({ default: m.UomPage })))
+const OpsSettingsPage = lazy(() => import('@/features/transportops/MastersPages').then((m) => ({ default: m.OpsSettingsPage })))
+const OpsInvoicePrintPage = lazy(() => import('@/features/transportops/InvoicesPage').then((m) => ({ default: m.InvoicePrintPage })))
+const OpsAgreementsPage = lazy(() => import('@/features/transportops/AgreementsPage').then((m) => ({ default: m.AgreementsPage })))
+const OpsQrPage = lazy(() => import('@/features/transportops/QrPage').then((m) => ({ default: m.QrPage })))
 const DeliverySettingsPage = lazy(() => import('@/features/deliveries/DeliverySettingsPage').then((m) => ({ default: m.DeliverySettingsPage })))
 const DriverArea = lazy(() => import('@/features/deliveries/DriverArea').then((m) => ({ default: m.DriverArea })))
 const MobileDeliveriesPage = lazy(() => import('@/features/deliveries/MobileDeliveriesPage').then((m) => ({ default: m.MobileDeliveriesPage })))
@@ -103,6 +118,8 @@ export function App() {
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/track/:token" element={<CustomerTrackingPage />} />
+      {/* The driver's page, opened by scanning the QR code on an LR: no sign-in, so it sits outside RequireAuth and carries its own Suspense. */}
+      <Route path="/q/:token" element={<Suspense fallback={null}><OpsQrPage /></Suspense>} />
       <Route element={<RequireAuth />}>
         <Route path="/change-password" element={<ChangePasswordPage />} />
         <Route element={<AppLayout />}>
@@ -180,6 +197,30 @@ export function App() {
               <Route path=":id" element={<MobileDeliveryPage />} />
             </Route>
           </Route>
+          <Route path="ops">
+            <Route element={<RequireAnyPermission permissions={['ops.read']} />}>
+              <Route index element={<OpsDashboardPage />} />
+              <Route path="requests" element={<Navigate to="/ops/lrs" replace />} />
+              <Route path="lrs" element={<OpsLrsRoute />} />
+              <Route path="trips" element={<OpsTripsPage />} />
+              <Route path="pod" element={<OpsPodPage />} />
+              <Route path="customers" element={<OpsCustomersPage />} />
+              <Route path="locations" element={<OpsLocationsPage />} />
+              <Route path="uom" element={<OpsUomPage />} />
+            </Route>
+            <Route element={<RequirePermission permission="ops.billing.read" />}>
+              <Route path="billing" element={<OpsBillingPage />} />
+              <Route path="invoices" element={<OpsInvoicesPage />} />
+              <Route path="invoices/:id/print" element={<OpsInvoicePrintPage />} />
+              <Route path="agreements" element={<OpsAgreementsPage />} />
+            </Route>
+            <Route element={<RequirePermission permission="ops.dispatch" />}>
+              <Route path="lrs/:id/print" element={<OpsLrPrintPage />} />
+            </Route>
+            <Route element={<RequirePermission permission="ops.configure" />}>
+              <Route path="settings" element={<OpsSettingsPage />} />
+            </Route>
+          </Route>
           <Route path="reports">
             <Route element={<RequireAnyPermission permissions={['reports.read', 'reports.self']} />}>
               <Route index element={<ReportsHomePage />} />
@@ -221,6 +262,11 @@ export function App() {
                 <Route path="sync" element={<DriverTrackingSyncPage />} />
                 <Route path=":trip" element={<DriverTripPage />} />
               </Route>
+            </Route>
+          </Route>
+          <Route path="platform">
+            <Route element={<RequirePermission permission="platform.tenants.manage" />}>
+              <Route path="tenants" element={<PlatformTenantsPage />} />
             </Route>
           </Route>
           <Route path="admin">

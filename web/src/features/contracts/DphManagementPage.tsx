@@ -105,9 +105,9 @@ function PriceIndex({ canEdit }: { canEdit: boolean }) {
         <Input.Search allowClear placeholder="Filter by region" style={{ width: 200 }} onSearch={(v) => setRegion(v || undefined)} />
         {canEdit && (
           <Form layout="inline" onFinish={(v: { region: string; referenceDate: dayjs.Dayjs; price: number; source?: string }) => add.mutate(v)}>
-            <Form.Item name="region" rules={[{ required: true }]}><Input placeholder="Region" style={{ width: 130 }} /></Form.Item>
-            <Form.Item name="referenceDate" rules={[{ required: true }]}><DatePicker /></Form.Item>
-            <Form.Item name="price" rules={[{ required: true }]}><InputNumber min={1} max={500} placeholder="₹ / litre" /></Form.Item>
+            <Form.Item name="region" rules={[{ required: true, message: 'Enter the region' }]}><Input placeholder="Region" style={{ width: 130 }} /></Form.Item>
+            <Form.Item name="referenceDate" rules={[{ required: true, message: 'Choose the date' }]}><DatePicker /></Form.Item>
+            <Form.Item name="price" rules={[{ required: true, message: 'Enter the price' }]}><InputNumber min={1} max={500} placeholder="₹ / litre" /></Form.Item>
             <Form.Item name="source"><Input placeholder="Source" style={{ width: 140 }} /></Form.Item>
             <Button type="primary" htmlType="submit" loading={add.isPending}>Add price</Button>
           </Form>

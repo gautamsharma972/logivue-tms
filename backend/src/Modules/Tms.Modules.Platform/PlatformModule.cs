@@ -94,6 +94,7 @@ public static class PlatformModule
         UserEndpoints.Map(app);
         RoleEndpoints.Map(app);
         AuditEndpoints.Map(app);
+        TenantEndpoints.Map(app);
         return app;
     }
 

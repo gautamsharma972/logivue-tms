@@ -119,7 +119,7 @@ internal sealed class CreateUserHandler(PlatformDbContext db, ICurrentUser curre
     }
 }
 
-internal sealed class UpdateUserHandler(PlatformDbContext db, ICurrentUser currentUser)
+internal sealed class UpdateUserHandler(PlatformDbContext db, ICurrentUser currentUser, ITransporterDirectory transporters, Application.Auth.SessionService sessions)
 {
     public async Task<Result<UserDto>> HandleAsync(Guid id, UpdateUserRequest request, CancellationToken cancellationToken)
     {
@@ -129,12 +129,52 @@ internal sealed class UpdateUserHandler(PlatformDbContext db, ICurrentUser curre
             return Error.NotFound("users.not_found", "User not found.");
         }
 
-        if (!request.IsActive && user.Id == currentUser.UserId)
+        var isSelf = user.Id == currentUser.UserId;
+        if (!request.IsActive && isSelf)
         {
             return Error.Conflict("users.cannot_deactivate_self", "You cannot deactivate your own account.");
         }
 
-        var roles = await RoleResolver.ResolveAsync(db, currentUser, request.RoleIds, user.Type, cancellationToken);
+        // The new email must be free (unique per organisation).
+        string? newEmail = null;
+        if (!string.IsNullOrWhiteSpace(request.Email) && User.NormaliseEmail(request.Email) != user.Email)
+        {
+            newEmail = User.NormaliseEmail(request.Email);
+            if (await db.Users.AnyAsync(u => u.Email == newEmail && u.Id != user.Id, cancellationToken))
+            {
+                return Error.Conflict("users.email_taken", $"A user with email '{newEmail}' already exists.");
+            }
+        }
+
+        // The audience: the requested type, or the one the user has now.
+        var targetType = request.Type ?? user.Type;
+        var typeChanged = targetType != user.Type;
+        Guid? targetTransporter = user.TransporterId;
+        if (typeChanged || request.TransporterId is not null)
+        {
+            if (isSelf && typeChanged)
+            {
+                return Error.Conflict("users.cannot_change_own_type", "You cannot change the type of your own account.");
+            }
+
+            targetTransporter = targetType == UserType.Internal ? null : request.TransporterId ?? (typeChanged && user.Type != UserType.Internal ? user.TransporterId : null);
+            if ((targetType != UserType.Internal) != (targetTransporter is not null))
+            {
+                return Error.Validation("users.transporter_link", "Transporter and driver users must be linked to a transporter; staff users must not be.");
+            }
+
+            if (request.TransporterId is not null && targetType == UserType.Internal)
+            {
+                return Error.Validation("users.transporter_link", "Transporter and driver users must be linked to a transporter; staff users must not be.");
+            }
+
+            if (targetTransporter is { } tid && tid != user.TransporterId && !await transporters.ExistsAsync(tid, cancellationToken))
+            {
+                return Error.Validation("users.transporter_unknown", "The selected transporter does not exist.");
+            }
+        }
+
+        var roles = await RoleResolver.ResolveAsync(db, currentUser, request.RoleIds, targetType, cancellationToken);
         if (roles.IsFailure)
         {
             return roles.Error;
@@ -147,12 +187,38 @@ internal sealed class UpdateUserHandler(PlatformDbContext db, ICurrentUser curre
             return Error.Forbidden("users.role_escalation", "You cannot remove roles that carry permissions you do not hold.");
         }
 
+        var accessChanged = typeChanged || targetTransporter != user.TransporterId || (newEmail is not null && !isSelf);
+
         db.Entry(user).Property(u => u.Version).OriginalValue = request.Version;
         user.UpdateProfile(request.FullName);
         user.SetActive(request.IsActive);
+        if (newEmail is not null)
+        {
+            user.ChangeEmail(newEmail);
+        }
+
+        if (typeChanged || targetTransporter != user.TransporterId)
+        {
+            user.ChangeType(targetType, targetTransporter);
+        }
+
         user.SetRoles(roles.Value);
 
-        await db.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex) when (ex.IsUniqueViolation())
+        {
+            return Error.Conflict("users.email_taken", $"A user with email '{newEmail}' already exists.");
+        }
+
+        // A different audience, company or sign-in name must not keep running on tokens issued for the old one.
+        if (accessChanged)
+        {
+            await sessions.RevokeAllForUserAsync(user.Id, cancellationToken);
+        }
+
         return user.ToDto();
     }
 }

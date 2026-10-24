@@ -44,10 +44,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   useEffect(() => {
-    session.onExpired(() => {
+    session.onExpired((reason) => {
       queryClient.clear()
       setState({ status: 'anonymous', user: null })
-      void message.warning('Your session has expired. Please sign in again.')
+      void message.warning(
+        reason === 'other-user'
+          ? 'This browser was signed in as a different user in another tab. Please sign in again.'
+          : 'Your session has expired. Please sign in again.',
+      )
     })
     return () => session.onExpired(null)
   }, [message, queryClient])

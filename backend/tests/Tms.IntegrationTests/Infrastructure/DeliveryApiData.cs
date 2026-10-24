@@ -100,11 +100,20 @@ internal sealed class DeliveryScenario : IDisposable
         return await factory.SignedInAsync(TmsApiFactory.DemoTenant, email, ApiExtensions.StrongPassword);
     }
 
+    /// <summary>Two hours from now, but never past the end of today in India: the dashboards count a delivery on the day it is planned for, so a late-evening run must not push it into tomorrow.</summary>
+    private static DateTimeOffset PlannedTime()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var india = TimeSpan.FromMinutes(330);
+        var endOfToday = new DateTimeOffset(now.ToOffset(india).Date.AddDays(1), india).AddMinutes(-1);
+        return now.AddHours(2) < endOfToday ? now.AddHours(2) : (endOfToday > now ? endOfToday : now);
+    }
+
     public SaveDeliveryRequest Request(decimal quantity = 100, string? email = "customer@example.test", double? lat = null, double? lon = null, int? radius = null, DateTimeOffset? windowEnd = null,
         params (string Sku, decimal Qty)[] more) => new(
         ShipmentReference, "INV9001", null, null, "LR-000123", 1, Transporter.Id, Transporter.LegalName, null, "MH12AB1234", "Ramesh",
         "CUST-ABC", "ABC Distributors", "9876543210", email, "Pune", "Surat", "Plot 1, Surat", lat, lon, radius,
-        DateTimeOffset.UtcNow.AddHours(2), DateTimeOffset.UtcNow, windowEnd ?? DateTimeOffset.UtcNow.AddHours(6),
+        PlannedTime(), DateTimeOffset.UtcNow, windowEnd ?? DateTimeOffset.UtcNow.AddHours(6),
         [new CreateDeliveryItemRequest("SKU-001", "Widgets", quantity, quantity, "PKG"), .. more.Select(m => new CreateDeliveryItemRequest(m.Sku, m.Sku, m.Qty, m.Qty, "PKG"))]);
 
     public async Task<DeliveryDto> DeliveryAsync(SaveDeliveryRequest? request = null)
