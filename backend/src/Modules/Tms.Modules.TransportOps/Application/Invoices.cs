@@ -15,11 +15,11 @@ public sealed record InvoiceLineDto(
 
 public sealed record SubmissionDto(Guid Id, int Attempt, SubmissionStatus Status, DateTimeOffset SubmittedAt, Guid? SubmittedBy, string? PortalReference, string? DocumentReference, DateTimeOffset? DecidedAt, string? RejectionReason, string? Notes);
 
-public sealed record PaymentDto(Guid Id, decimal Amount, DateOnly ReceivedOn, string? Mode, string? Reference, string? Remarks, DateTimeOffset RecordedAt);
+public sealed record PaymentDto(Guid Id, decimal Amount, DateOnly ReceivedOn, string? Mode, string? Reference, string? Remarks, DateTimeOffset RecordedAt, decimal TdsAmount = 0);
 
 public sealed record InvoiceSummaryDto(
     Guid Id, string Number, Guid CustomerId, string CustomerName, DateOnly InvoiceDate, DateOnly DueDate, InvoiceStatus Status, SubmissionStatus Submission, PaymentState PaymentState, decimal Subtotal, decimal Tax,
-    decimal GrandTotal, decimal AmountPaid, decimal Outstanding, int LineCount, int DaysOverdue);
+    decimal GrandTotal, decimal AmountPaid, decimal Outstanding, int LineCount, int DaysOverdue, decimal TdsDeducted = 0);
 
 public sealed record InvoiceDto(
     InvoiceSummaryDto Summary, string? CustomerGstin, string? BillingAddress, string? CustomerReference, TaxMode TaxMode, decimal TaxRatePercent, string? TaxNote, string? Sac, decimal Cgst, decimal Sgst, decimal Igst,
@@ -35,7 +35,8 @@ public sealed record RejectSubmissionRequest(string Reason);
 
 public sealed record CancelInvoiceRequest(string Reason);
 
-public sealed record PaymentRequest(decimal Amount, DateOnly ReceivedOn, string? Mode, string? Reference, string? Remarks);
+/// <summary><see cref="Amount"/> is what reached the bank (it must match the bank statement); <see cref="TdsAmount"/> is tax the customer deducted at source. Together they settle the invoice.</summary>
+public sealed record PaymentRequest(decimal Amount, DateOnly ReceivedOn, string? Mode, string? Reference, string? Remarks, decimal TdsAmount = 0);
 
 public sealed record ReceivableRowDto(Guid CustomerId, string CustomerName, decimal NotDue, decimal Days1To30, decimal Days31To60, decimal Days61To90, decimal Over90, decimal Total, int Invoices);
 
@@ -74,6 +75,7 @@ internal sealed class PaymentRequestValidator : AbstractValidator<PaymentRequest
     public PaymentRequestValidator()
     {
         RuleFor(x => x.Amount).GreaterThan(0);
+        RuleFor(x => x.TdsAmount).GreaterThanOrEqualTo(0);
         RuleFor(x => x.Mode).MaximumLength(30);
         RuleFor(x => x.Reference).MaximumLength(100);
         RuleFor(x => x.Remarks).MaximumLength(500);
@@ -315,13 +317,13 @@ internal sealed class InvoiceHandler(TransportOpsDbContext db, OpsAccess access,
             return OpsErrors.InvoiceNotFound;
         }
 
-        var applied = invoice.ApplyPayment(request.Amount);
+        var applied = invoice.ApplyPayment(request.Amount, request.TdsAmount);
         if (applied.IsFailure)
         {
             return applied.Error;
         }
 
-        db.Payments.Add(Payment.Create(invoice.TenantId, invoice.Id, invoice.CustomerId, request.Amount, request.ReceivedOn, request.Mode, request.Reference, request.Remarks, clock.GetUtcNow(), access.UserId));
+        db.Payments.Add(Payment.Create(invoice.TenantId, invoice.Id, invoice.CustomerId, request.Amount, request.ReceivedOn, request.Mode, request.Reference, request.Remarks, clock.GetUtcNow(), access.UserId, request.TdsAmount));
         try
         {
             await db.SaveChangesAsync(cancellationToken);
@@ -392,7 +394,7 @@ internal sealed class InvoiceHandler(TransportOpsDbContext db, OpsAccess access,
 
     private static InvoiceSummaryDto Summary(Invoice i, int lines, DateOnly today) =>
         new(i.Id, i.Number, i.CustomerId, i.CustomerName, i.InvoiceDate, i.DueDate, i.Status, i.Submission, i.PaymentState, i.Subtotal, i.Cgst + i.Sgst + i.Igst, i.GrandTotal, i.AmountPaid, i.Outstanding, lines,
-            i.Status == InvoiceStatus.Issued && i.Outstanding > 0 ? Math.Max(0, today.DayNumber - i.DueDate.DayNumber) : 0);
+            i.Status == InvoiceStatus.Issued && i.Outstanding > 0 ? Math.Max(0, today.DayNumber - i.DueDate.DayNumber) : 0, i.TdsDeducted);
 
     private async Task<InvoiceDto> ToDtoAsync(Invoice i, CancellationToken cancellationToken)
     {
@@ -403,6 +405,6 @@ internal sealed class InvoiceHandler(TransportOpsDbContext db, OpsAccess access,
             i.Lines.OrderBy(l => l.LineNumber).Select(l => new InvoiceLineDto(l.Id, l.LineNumber, l.LrId, l.LrNumber, l.FreightCalculationId, l.CalculationVersion, l.AgreementRevision, l.Description, l.BasicFreight, l.Detention,
                 l.OtherCharges, l.Taxable, l.Cgst, l.Sgst, l.Igst)).ToList(),
             i.Submissions.OrderBy(s => s.Attempt).Select(s => new SubmissionDto(s.Id, s.Attempt, s.Status, s.SubmittedAt, s.SubmittedBy, s.PortalReference, s.DocumentReference, s.DecidedAt, s.RejectionReason, s.Notes)).ToList(),
-            payments.Select(p => new PaymentDto(p.Id, p.Amount, p.ReceivedOn, p.Mode, p.Reference, p.Remarks, p.RecordedAt)).ToList(), i.Version);
+            payments.Select(p => new PaymentDto(p.Id, p.Amount, p.ReceivedOn, p.Mode, p.Reference, p.Remarks, p.RecordedAt, p.TdsAmount)).ToList(), i.Version);
     }
 }

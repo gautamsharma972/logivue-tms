@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Tms.Modules.Approvals.Domain;
 using Tms.Modules.Approvals.Infrastructure.Persistence;
+using Tms.SharedKernel.Contracts;
 using Tms.SharedKernel.Results;
 using Tms.SharedKernel.Security;
 
@@ -13,13 +14,15 @@ internal static class PolicyMapping
             policy.Steps.Select(s => new PolicyStepDto(s.Name, s.RequiredPermission, s.MinAmount)).ToList(), policy.Version);
 }
 
-internal sealed class ListPoliciesHandler(ApprovalsDbContext db, DocumentTypeCatalog documentTypes)
+internal sealed class ListPoliciesHandler(ApprovalsDbContext db, DocumentTypeCatalog documentTypes, ICurrentUser currentUser, ITenantDirectory tenants)
 {
     public async Task<Result<IReadOnlyList<PolicyDto>>> HandleAsync(CancellationToken cancellationToken)
     {
         var policies = (await db.Policies.AsNoTracking().ToListAsync(cancellationToken)).ToDictionary(p => p.DocumentType);
 
-        IReadOnlyList<PolicyDto> rows = documentTypes.All
+        // Only the document types of the modules this organisation has.
+        var modules = currentUser.TenantId is { } tenantId ? await tenants.GetModulesAsync(tenantId, cancellationToken) : null;
+        IReadOnlyList<PolicyDto> rows = documentTypes.AvailableTo(modules)
             .Select(t => policies.TryGetValue(t.Code, out var p)
                 ? p.ToDto(t.Name)
                 : new PolicyDto(null, t.Code, t.Name, false, false, [], null))
@@ -32,11 +35,13 @@ internal sealed class SavePolicyHandler(
     ApprovalsDbContext db,
     ICurrentUser currentUser,
     DocumentTypeCatalog documentTypes,
+    ITenantDirectory tenants,
     IEnumerable<PermissionDefinition> permissions)
 {
     public async Task<Result<PolicyDto>> HandleAsync(string documentType, SavePolicyRequest request, CancellationToken cancellationToken)
     {
-        if (documentTypes.Find(documentType) is not { } type)
+        var modules = currentUser.TenantId is { } tenantId ? await tenants.GetModulesAsync(tenantId, cancellationToken) : null;
+        if (documentTypes.AvailableTo(modules).FirstOrDefault(t => t.Code == documentType) is not { } type)
         {
             return Error.NotFound("approvals.unknown_document_type", $"'{documentType}' is not a document type that supports approval.");
         }

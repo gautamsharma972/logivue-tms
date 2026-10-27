@@ -179,9 +179,10 @@ export const authApi = {
 }
 
 export interface PlatformModule { key: string; name: string; description: string }
-export interface PlatformTenant { id: string; code: string; name: string; isActive: boolean; isPlatform: boolean; modules: string[]; users: number; firstAdminEmail: string | null }
+export interface PlatformTenant { id: string; code: string; name: string; isActive: boolean; isPlatform: boolean; modules: string[]; users: number; firstAdminEmail: string | null; maxUsers: number | null; maxLocations: number | null; activeUsers: number }
 
-export interface CreateTenantInput { code: string; name: string; adminName: string; adminEmail: string; modules: string[] }
+export interface CreateTenantInput { code: string; name: string; adminName: string; adminEmail: string; modules: string[]; maxUsers?: number | null; maxLocations?: number | null }
+export interface UpdateTenantInput { name: string; modules: string[]; maxUsers: number | null; maxLocations: number | null }
 export interface ProvisionedTenant { tenantId: string; code: string; adminEmail: string; inviteLink: string; inviteExpiresAt: string }
 
 export interface AdminPasswordReset { adminEmail: string; adminName: string; resetLink: string; expiresAt: string }
@@ -191,6 +192,7 @@ export const platformApi = {
   createTenant: (b: CreateTenantInput) => http.post<ProvisionedTenant>(`${v1}/platform/tenants`, b).then((r) => r.data),
   modules: () => http.get<PlatformModule[]>(`${v1}/platform/modules`).then((r) => r.data),
   tenants: () => http.get<PlatformTenant[]>(`${v1}/platform/tenants`).then((r) => r.data),
+  updateTenant: (id: string, b: UpdateTenantInput) => http.put<PlatformTenant>(`${v1}/platform/tenants/${id}`, b).then((r) => r.data),
   setModules: (id: string, modules: string[]) => http.put<PlatformTenant>(`${v1}/platform/tenants/${id}/modules`, { modules }).then((r) => r.data),
 }
 

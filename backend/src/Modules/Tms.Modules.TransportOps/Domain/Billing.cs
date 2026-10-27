@@ -121,6 +121,12 @@ public sealed class FreightCalculation : AggregateRoot, ITenantScoped
         return calc;
     }
 
+    /// <summary>True when recalculating would give the same agreement, rate, amounts and holds, so a reviewer's approval of this version still stands.</summary>
+    public bool SameOutcomeAs(FreightCalculation other) =>
+        AgreementId == other.AgreementId && AgreementRevision == other.AgreementRevision && RateId == other.RateId && BillableWeightKg == other.BillableWeightKg
+        && BasicFreight == other.BasicFreight && OtherCharges == other.OtherCharges && DetentionAmount == other.DetentionAmount
+        && PodAccepted == other.PodAccepted && BilledWithoutPod == other.BilledWithoutPod && Holds.SequenceEqual(other.Holds);
+
     public bool IsBillable => Status is CalculationStatus.Reviewed && InvoiceId is null;
 
     /// <summary>A reviewer confirms the figures. A calculation that is on hold cannot be reviewed until the hold is cleared.</summary>
@@ -296,7 +302,10 @@ public sealed class Payment : Entity, ITenantScoped
 
     public Guid CustomerId { get; private set; }
 
+    /// <summary>What reached the bank, as on the bank statement. TDS is kept apart in <see cref="TdsAmount"/>.</summary>
     public decimal Amount { get; private set; }
+
+    public decimal TdsAmount { get; private set; }
 
     public DateOnly ReceivedOn { get; private set; }
 
@@ -310,9 +319,9 @@ public sealed class Payment : Entity, ITenantScoped
 
     public Guid? RecordedBy { get; private set; }
 
-    public static Payment Create(Guid tenantId, Guid invoiceId, Guid customerId, decimal amount, DateOnly receivedOn, string? mode, string? reference, string? remarks, DateTimeOffset at, Guid? by) => new()
+    public static Payment Create(Guid tenantId, Guid invoiceId, Guid customerId, decimal amount, DateOnly receivedOn, string? mode, string? reference, string? remarks, DateTimeOffset at, Guid? by, decimal tds = 0) => new()
     {
-        TenantId = tenantId, InvoiceId = invoiceId, CustomerId = customerId, Amount = Money.Round(amount), ReceivedOn = receivedOn, Mode = Customer.Clean(mode), Reference = Customer.Clean(reference),
+        TenantId = tenantId, InvoiceId = invoiceId, CustomerId = customerId, Amount = Money.Round(amount), TdsAmount = Money.Round(tds), ReceivedOn = receivedOn, Mode = Customer.Clean(mode), Reference = Customer.Clean(reference),
         Remarks = Customer.Clean(remarks), RecordedAt = at, RecordedBy = by,
     };
 }
@@ -400,6 +409,9 @@ public sealed class Invoice : AggregateRoot, ITenantScoped
     public List<InvoiceLine> Lines { get; private set; } = [];
 
     public List<InvoiceSubmission> Submissions { get; private set; } = [];
+
+    /// <summary>Of <see cref="AmountPaid"/> (everything settled, cash plus TDS), the part the customer deducted as tax at source and never sent to the bank.</summary>
+    public decimal TdsDeducted { get; private set; }
 
     public decimal Outstanding => GrandTotal - AmountPaid;
 
@@ -529,7 +541,8 @@ public sealed class Invoice : AggregateRoot, ITenantScoped
         return Result.Success();
     }
 
-    public Result ApplyPayment(decimal amount)
+    /// <summary><paramref name="amount"/> is what reached the bank; <paramref name="tds"/> is tax the customer deducted at source. Both settle the invoice.</summary>
+    public Result ApplyPayment(decimal amount, decimal tds = 0)
     {
         if (Status != InvoiceStatus.Issued)
         {
@@ -541,12 +554,19 @@ public sealed class Invoice : AggregateRoot, ITenantScoped
             return Error.Validation("ops.payment_amount", "The payment must be more than zero.");
         }
 
-        if (amount > Outstanding)
+        if (tds < 0)
         {
-            return Error.Conflict("ops.payment_mismatch", $"The payment ({amount:0.00}) is more than the outstanding balance ({Outstanding:0.00}). Check the amount or the invoice number.");
+            return Error.Validation("ops.payment_tds", "The TDS cannot be negative.");
         }
 
-        AmountPaid += Money.Round(amount);
+        var settled = Money.Round(amount) + Money.Round(tds);
+        if (settled > Outstanding)
+        {
+            return Error.Conflict("ops.payment_mismatch", $"The payment plus TDS ({settled:0.00}) is more than the outstanding balance ({Outstanding:0.00}). Check the amounts or the invoice number.");
+        }
+
+        AmountPaid += settled;
+        TdsDeducted += Money.Round(tds);
         return Result.Success();
     }
 }
@@ -584,9 +604,24 @@ public sealed record ArrivalSetting(int MaxAccuracyM = 100, int TokenValidityDay
 
 public sealed record NumberingSetting(string RequestPrefix = "REQ", string LrPrefix = "LR", string TripPrefix = "TRP", int Digits = 6);
 
-public sealed record PodSetting(int MaxFiles = 10, long MaxBytes = 10 * 1024 * 1024);
+public sealed record PodSetting(int MaxFiles = PodSetting.Ceiling, long MaxBytes = 10 * 1024 * 1024)
+{
+    /// <summary>No POD submission, from the driver or the office, carries more than this many photos or files, whatever an older setting says.</summary>
+    public const int Ceiling = 10;
+
+    public int EffectiveMaxFiles => Math.Clamp(MaxFiles, 1, Ceiling);
+}
 
 /// <summary>The transporter whose fleet the vehicle pick-list shows (the vehicle master belongs to a transporter record).</summary>
 public sealed record FleetSetting(Guid? OperatingTransporterId = null);
 
-public sealed record InvoiceSetting(string SeriesPrefix = "INV", string? SupplierGstin = null, string? SupplierStateCode = null, bool RequireApproval = false);
+/// <param name="SupplierName">The name printed on the invoice ("For : ...").</param>
+/// <param name="SupplierState">The state's name as printed under the address.</param>
+/// <param name="LogoKey">Stored file keys of the logo and signature images. Set only through the branding upload, never through the settings form.</param>
+/// <param name="Declaration">The declaration printed on the invoice; empty means the standard wording.</param>
+public sealed record InvoiceSetting(
+    string SeriesPrefix = "INV", string? SupplierGstin = null, string? SupplierStateCode = null, bool RequireApproval = false,
+    string? SupplierName = null, string? SupplierAddress = null, string? SupplierState = null, string? LogoKey = null, string? SignatureKey = null, string? Declaration = null)
+{
+    public const string StandardDeclaration = "We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.";
+}

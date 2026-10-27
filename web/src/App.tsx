@@ -4,7 +4,8 @@ import { Link, Navigate, Route, Routes } from 'react-router-dom'
 import { useAuth } from '@/features/auth/AuthContext'
 import { LoginPage } from '@/features/auth/LoginPage'
 import { ChangePasswordPage, ForgotPasswordPage, ResetPasswordPage } from '@/features/auth/PasswordPages'
-import { RequireAnyPermission, RequireAuth, RequirePermission } from '@/features/auth/guards'
+import { RequireAnyModule, RequireAnyPermission, RequireAuth, RequirePermission } from '@/features/auth/guards'
+import { approvalModules } from '@/layouts/navigation'
 import { AppLayout } from '@/layouts/AppLayout'
 
 // Each page is its own chunk, so a user only downloads the screens they actually open.
@@ -75,13 +76,14 @@ const OpsLrPrintPage = lazy(() => import('@/features/transportops/DispatchPages'
 const OpsTripsPage = lazy(() => import('@/features/transportops/DispatchPages').then((m) => ({ default: m.TripsPage })))
 const OpsPodPage = lazy(() => import('@/features/transportops/PodAndBillingPages').then((m) => ({ default: m.PodPage })))
 const OpsBillingPage = lazy(() => import('@/features/transportops/PodAndBillingPages').then((m) => ({ default: m.BillingPage })))
+const OpsArrearsPage = lazy(() => import('@/features/transportops/ArrearsPage').then((m) => ({ default: m.ArrearsPage })))
 const OpsInvoicesPage = lazy(() => import('@/features/transportops/InvoicesPage').then((m) => ({ default: m.InvoicesPage })))
 const OpsCustomersPage = lazy(() => import('@/features/transportops/MastersPages').then((m) => ({ default: m.CustomersPage })))
 const OpsLocationsPage = lazy(() => import('@/features/transportops/MastersPages').then((m) => ({ default: m.LocationsPage })))
 const PlatformTenantsPage = lazy(() => import('@/features/platform/TenantsPage').then((m) => ({ default: m.TenantsPage })))
 const OpsUomPage = lazy(() => import('@/features/transportops/MastersPages').then((m) => ({ default: m.UomPage })))
 const OpsSettingsPage = lazy(() => import('@/features/transportops/MastersPages').then((m) => ({ default: m.OpsSettingsPage })))
-const OpsInvoicePrintPage = lazy(() => import('@/features/transportops/InvoicesPage').then((m) => ({ default: m.InvoicePrintPage })))
+const OpsInvoicePrintPage = lazy(() => import('@/features/transportops/InvoiceSheet').then((m) => ({ default: m.InvoicePrintPage })))
 const OpsAgreementsPage = lazy(() => import('@/features/transportops/AgreementsPage').then((m) => ({ default: m.AgreementsPage })))
 const OpsQrPage = lazy(() => import('@/features/transportops/QrPage').then((m) => ({ default: m.QrPage })))
 const DeliverySettingsPage = lazy(() => import('@/features/deliveries/DeliverySettingsPage').then((m) => ({ default: m.DeliverySettingsPage })))
@@ -124,7 +126,9 @@ export function App() {
         <Route path="/change-password" element={<ChangePasswordPage />} />
         <Route element={<AppLayout />}>
           <Route index element={<DashboardPage />} />
-          <Route path="approvals" element={<ApprovalsPage />} />
+          <Route element={<RequireAnyModule modules={approvalModules} />}>
+            <Route path="approvals" element={<ApprovalsPage />} />
+          </Route>
           <Route path="my-company" element={<MyCompany />} />
           <Route path="transporters">
             <Route element={<RequireAnyPermission permissions={['transporters.read', 'transporters.manage']} />}>
@@ -211,6 +215,7 @@ export function App() {
             <Route element={<RequirePermission permission="ops.billing.read" />}>
               <Route path="billing" element={<OpsBillingPage />} />
               <Route path="invoices" element={<OpsInvoicesPage />} />
+              <Route path="billing/arrears" element={<OpsArrearsPage />} />
               <Route path="invoices/:id/print" element={<OpsInvoicePrintPage />} />
               <Route path="agreements" element={<OpsAgreementsPage />} />
             </Route>
@@ -277,8 +282,10 @@ export function App() {
             <Route element={<RequirePermission permission="roles.read" />}>
               <Route path="roles" element={<RolesPage />} />
             </Route>
-            <Route element={<RequirePermission permission="approvals.policies.manage" />}>
-              <Route path="approval-policies" element={<PoliciesPage />} />
+            <Route element={<RequireAnyModule modules={approvalModules} />}>
+              <Route element={<RequirePermission permission="approvals.policies.manage" />}>
+                <Route path="approval-policies" element={<PoliciesPage />} />
+              </Route>
             </Route>
             <Route element={<RequirePermission permission="audit.read" />}>
               <Route path="audit" element={<AuditLogPage />} />

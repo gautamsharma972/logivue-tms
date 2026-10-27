@@ -47,8 +47,11 @@ export function AppLayout() {
   const pendingApprovals = inbox.data?.totalCount ?? 0
 
   const visible = useCallback(
-    (item: NavItem) => (!item.anyPermission || item.anyPermission.some(can)) && (!item.audience || (item.audience === 'vendor') === (user?.transporterId != null)),
-    [can, user?.transporterId],
+    (item: NavItem) =>
+      (!item.anyPermission || item.anyPermission.some(can)) &&
+      (!item.anyModule || user?.isPlatform || item.anyModule.some((m) => user?.modules.includes(m))) &&
+      (!item.audience || (item.audience === 'vendor') === (user?.transporterId != null)),
+    [can, user?.transporterId, user?.isPlatform, user?.modules],
   )
   const toMenuItem = useCallback(
     (item: NavItem) => ({

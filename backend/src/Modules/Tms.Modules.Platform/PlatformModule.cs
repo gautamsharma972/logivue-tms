@@ -62,6 +62,8 @@ public static class PlatformModule
         services.AddScoped<Application.TenantProvisioning>();
         services.AddHandlers(typeof(PlatformModule).Assembly, "Tms.Modules.Platform.Application");
         services.AddScoped<IUserDirectory, UserDirectory>();
+        services.AddScoped<ITenantDirectory, TenantDirectory>();
+        services.AddScoped<ITenantLimits, TenantLimitsLookup>();
         services.AddScoped<ISequenceGenerator, Infrastructure.Persistence.SequenceGenerator>();
         services.AddValidatorsFrom<PlatformDbContext>();
 

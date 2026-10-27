@@ -8,7 +8,7 @@ using Tms.SharedKernel.Results;
 
 namespace Tms.Modules.TransportOps.Application;
 
-public sealed record MaterialLineDto(string? MaterialCode, string MaterialName, decimal Quantity, string Unit, decimal WeightKg, decimal? VolumeCbm, string? Dimensions, int Packages, string? Remarks = null, decimal? VolumeCuFt = null, decimal? NetWeightKg = null);
+public sealed record MaterialLineDto(string? MaterialCode, string MaterialName, decimal Quantity, string Unit, decimal WeightKg, decimal? VolumeCbm, string? Dimensions, int Packages, string? Remarks = null, decimal? VolumeCuFt = null, decimal? NetWeightKg = null, string? InvoiceNo = null);
 
 public sealed record FileDto(Guid Id, string FileName, string ContentType, long SizeBytes, DateTimeOffset UploadedAt);
 

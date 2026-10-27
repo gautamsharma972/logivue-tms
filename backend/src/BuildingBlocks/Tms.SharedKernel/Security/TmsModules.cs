@@ -59,7 +59,7 @@ public static class TmsModules
     /// <summary>Transporter Operations actions that make no sense without seeing the records they act on.</summary>
     private static readonly string[] OpsActions =
     [
-        "ops.dispatch", "ops.masters.manage", "ops.pod.upload", "ops.pod.review", "ops.arrival.override", "ops.configure",
+        "ops.dispatch", "ops.masters.manage", "ops.pod.upload", "ops.pod.review", "ops.arrival.override", "ops.configure", "ops.crossbilling.create", "ops.destination.record",
     ];
 
     /// <summary>Money actions: they imply seeing the rates, billing and invoices they work on (and, as before, the operational records).</summary>
@@ -72,6 +72,12 @@ public static class TmsModules
         if (all.Overlaps(OpsActions) || all.Overlaps(OpsBillingActions))
         {
             all.Add("ops.read");
+        }
+
+        // Dispatchers collect the proof of delivery along with the LR; the accountant's billing roles already carry it.
+        if (all.Contains("ops.dispatch"))
+        {
+            all.Add("ops.pod.upload");
         }
 
         if (all.Overlaps(OpsBillingActions))

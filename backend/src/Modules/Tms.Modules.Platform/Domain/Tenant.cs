@@ -25,6 +25,12 @@ public sealed class Tenant : AggregateRoot
     /// <summary>The modules this organisation has; null means all of them.</summary>
     public IReadOnlySet<string>? Modules => IsPlatform ? null : TmsModules.Parse(EnabledModules);
 
+    /// <summary>The most active users the organisation may have; null means no limit.</summary>
+    public int? MaxUsers { get; private set; }
+
+    /// <summary>The most CFAs and distributors (delivery locations) the organisation may create; null means no limit.</summary>
+    public int? MaxLocations { get; private set; }
+
     public static Tenant Create(string code, string name, IEnumerable<string>? modules = null, bool isPlatform = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(code);
@@ -37,6 +43,18 @@ public sealed class Tenant : AggregateRoot
         }
 
         return tenant;
+    }
+
+    public void SetLimits(int? maxUsers, int? maxLocations)
+    {
+        MaxUsers = maxUsers;
+        MaxLocations = maxLocations;
+    }
+
+    public void Rename(string name)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        Name = name.Trim();
     }
 
     /// <summary>Replaces the organisation's modules. Unknown keys are ignored; an empty list means no business modules (core administration only).</summary>

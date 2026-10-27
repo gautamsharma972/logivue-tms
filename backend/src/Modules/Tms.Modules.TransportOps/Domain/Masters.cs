@@ -122,6 +122,9 @@ public sealed class OpsLocation : AggregateRoot, ITenantScoped
 
     public string? AccessNotes { get; private set; }
 
+    /// <summary>The HSN/SAC code of the service billed for this CFA or distributor; printed on the customer's invoice.</summary>
+    public string? SacCode { get; private set; }
+
     public ActiveStatus Status { get; private set; } = ActiveStatus.Active;
 
     public bool HasCoordinates => Latitude is not null && Longitude is not null;
@@ -131,8 +134,9 @@ public sealed class OpsLocation : AggregateRoot, ITenantScoped
     public static OpsLocation Create(Guid tenantId, string code, string name, LocationKind kind) =>
         new() { TenantId = tenantId, Code = code.Trim().ToUpperInvariant(), Name = name.Trim(), Kind = kind };
 
-    public void Update(string name, LocationKind kind, Guid? customerId, string line1, string city, string state, string? pincode, double? latitude, double? longitude, int radiusM, string? accessNotes, ActiveStatus status)
+    public void Update(string name, LocationKind kind, Guid? customerId, string line1, string city, string state, string? pincode, double? latitude, double? longitude, int radiusM, string? accessNotes, ActiveStatus status, string? sacCode = null)
     {
+        SacCode = Customer.Clean(sacCode);
         Name = name.Trim();
         Kind = kind;
         CustomerId = customerId;

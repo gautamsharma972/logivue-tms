@@ -1,9 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Alert, Button, Card, Form, Input, InputNumber, Select, Space, Switch, Table, Tag, message } from 'antd'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { PageHeader } from '@/components/PageHeader'
 import { toApiError } from '@/lib/api/errors'
-import { opsApi, type CustomerDto, type LocationDto, type LocationKind, type OpsSettingsDto, type UomDto } from '@/lib/api/opsApi'
+import { opsApi, type BrandingKind, type CustomerDto, type LocationDto, type LocationKind, type OpsSettingsDto, type UomDto } from '@/lib/api/opsApi'
 import { applyFieldErrors } from '@/lib/formErrors'
 import { useAuth } from '@/features/auth/AuthContext'
 import { ResponsiveDrawer, StatusTag } from './shared'
@@ -120,7 +120,7 @@ export function LocationsPage() {
             { title: 'Code', dataIndex: 'code', width: 130 }, { title: 'Name', dataIndex: 'name' }, { title: 'Type', dataIndex: 'kind', render: (v) => (v === 'Cfa' ? 'CFA' : 'Distributor') },
             { title: 'City', dataIndex: 'city' }, { title: 'Customer', dataIndex: 'customerName', render: (v) => v ?? '—' },
             { title: 'Map point', render: (_, l) => (l.latitude == null ? <Tag color="red">Missing: arrival cannot be verified</Tag> : `${l.latitude}, ${l.longitude}`) },
-            { title: 'Radius', dataIndex: 'geofenceRadiusM', render: (v) => `${v} m` }, { title: 'Status', dataIndex: 'status', render: (v) => <StatusTag value={v} /> },
+            { title: 'HSN/SAC', dataIndex: 'sacCode', render: (v) => v ?? '—' }, { title: 'Radius', dataIndex: 'geofenceRadiusM', render: (v) => `${v} m` }, { title: 'Status', dataIndex: 'status', render: (v) => <StatusTag value={v} /> },
             { title: '', width: 80, render: (_, l) => can('ops.masters.manage') && <Button size="small" onClick={() => open(l)}>Edit</Button> },
           ]} />
       </Card>
@@ -144,6 +144,7 @@ export function LocationsPage() {
             <Form.Item name="longitude" label="Longitude" style={{ flex: 1 }}><InputNumber style={{ width: '100%' }} step={0.0001} /></Form.Item>
             <Form.Item name="geofenceRadiusM" label="Geofence radius (m)" rules={[{ required: true }]} style={{ width: 170 }}><InputNumber min={20} max={5000} style={{ width: '100%' }} /></Form.Item>
           </Space.Compact>
+          <Form.Item name="sacCode" label="HSN/SAC code" extra="The code of the transport service billed for this place. Printed on the customer's invoice with the codes of the customer's other places."><Input maxLength={8} style={{ width: 140 }} /></Form.Item>
           <Alert type="info" showIcon style={{ marginBottom: 16 }} title="Coordinates must be inside India. A driver's arrival is accepted only within the radius of this point; without coordinates it cannot be verified." />
           <Form.Item name="accessNotes" label="Access instructions"><Input.TextArea rows={2} /></Form.Item>
           <Form.Item name="status" label="Status"><Select options={statusOptions} /></Form.Item>
@@ -173,7 +174,7 @@ export function OpsSettingsPage() {
             <Card size="small" title="Driver arrival check and QR code" style={{ marginBottom: 16 }}>
               <Form.Item name={['arrival', 'maxAccuracyM']} label="Largest GPS error accepted (metres)" extra="A phone reporting a vaguer position than this is asked to retry."><InputNumber min={10} max={1000} /></Form.Item>
               <Form.Item name={['arrival', 'tokenValidityDays']} label="QR code valid for (days)"><InputNumber min={1} max={120} /></Form.Item>
-              <Form.Item name={['pod', 'maxFiles']} label="Most POD files per upload"><InputNumber min={1} max={20} /></Form.Item>
+              <Form.Item name={['pod', 'maxFiles']} label="Most POD files per upload (10 at most)"><InputNumber min={1} max={10} /></Form.Item>
             </Card>
             <Card size="small" title="Numbering" style={{ marginBottom: 16 }}>
               <Space wrap>
@@ -185,7 +186,14 @@ export function OpsSettingsPage() {
             </Card>
             <Card size="small" title="Invoices" style={{ marginBottom: 16 }}>
               <Form.Item name={['invoice', 'seriesPrefix']} label="Invoice series" extra="Invoices are numbered SERIES/26-27/00001: gap-free, restarting each financial year."><Input style={{ width: 120 }} /></Form.Item>
+              <Form.Item name={['invoice', 'supplierName']} label="Your organisation's name on the invoice" extra="Printed in the signature box: For : <name>."><Input maxLength={200} /></Form.Item>
+              <Form.Item name={['invoice', 'supplierAddress']} label="Your address on the invoice"><Input.TextArea rows={2} maxLength={400} /></Form.Item>
+              <Form.Item name={['invoice', 'supplierState']} label="Your state (as printed)"><Input maxLength={60} style={{ width: 220 }} /></Form.Item>
               <Form.Item name={['invoice', 'supplierGstin']} label="Your GSTIN"><Input maxLength={15} /></Form.Item>
+              <Form.Item name={['invoice', 'declaration']} label="Declaration" extra="Left empty, the standard wording is printed."><Input.TextArea rows={2} maxLength={500} /></Form.Item>
+              <Form.Item label="Logo and signature" extra="PNG or JPEG, up to 512 KB each. They are saved as soon as you choose them.">
+                <Space size={24} wrap align="start"><BrandingPicker kind="logo" label="Logo" disabled={!editable} /><BrandingPicker kind="signature" label="Signature" disabled={!editable} /></Space>
+              </Form.Item>
               <Form.Item name={['invoice', 'supplierStateCode']} label="Your state code (two digits)" extra="Used with the customer's GSTIN to choose IGST or CGST + SGST. Taken from your GSTIN when left empty."><Input style={{ width: 90 }} maxLength={2} /></Form.Item>
               <Form.Item name={['invoice', 'requireApproval']} label="Approval before an invoice is issued" valuePropName="checked" extra="Needs an approval policy for customer invoices (Administration → Approval policies)."><Switch /></Form.Item>
             </Card>
@@ -229,5 +237,35 @@ export function UomPage() {
         </Form>
       </ResponsiveDrawer>
     </>
+  )
+}
+
+/** The logo or signature printed on the invoice: shows the saved picture and replaces or removes it. It saves on choosing, apart from the settings form. */
+function BrandingPicker({ kind, label, disabled }: { kind: BrandingKind; label: string; disabled: boolean }) {
+  const qc = useQueryClient()
+  const input = useRef<HTMLInputElement>(null)
+  const image = useQuery({ queryKey: ['ops', 'branding', kind], queryFn: () => opsApi.brandingImage(kind), retry: false, staleTime: Infinity })
+  const [url, setUrl] = useState<string>()
+  useEffect(() => {
+    if (!image.data) { setUrl(undefined); return undefined }
+    const u = URL.createObjectURL(image.data)
+    setUrl(u)
+    return () => URL.revokeObjectURL(u)
+  }, [image.data])
+  const refresh = () => { void qc.invalidateQueries({ queryKey: ['ops', 'branding', kind] }); void qc.invalidateQueries({ queryKey: ['ops', 'settings'] }) }
+  const upload = useMutation({ mutationFn: (f: File) => opsApi.uploadBranding(kind, f), onSuccess: () => { message.success(`${label} saved`); refresh() }, onError: (e) => message.error(toApiError(e).message) })
+  const remove = useMutation({ mutationFn: () => opsApi.removeBranding(kind), onSuccess: () => { message.success(`${label} removed`); refresh() }, onError: (e) => message.error(toApiError(e).message) })
+  return (
+    <div style={{ width: 220 }}>
+      <div style={{ marginBottom: 4 }}>{label}</div>
+      <div style={{ height: 90, border: '1px dashed #bbb', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fff' }}>
+        {url ? <img src={url} alt={label} style={{ maxWidth: '100%', maxHeight: 86 }} /> : <span style={{ color: '#999' }}>None yet</span>}
+      </div>
+      <Space style={{ marginTop: 6 }}>
+        <input ref={input} type="file" accept="image/png,image/jpeg" style={{ display: 'none' }} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) upload.mutate(f) }} />
+        <Button size="small" disabled={disabled} loading={upload.isPending} onClick={() => input.current?.click()}>{url ? 'Replace' : 'Choose picture'}</Button>
+        {url && <Button size="small" danger disabled={disabled} loading={remove.isPending} onClick={() => remove.mutate()}>Remove</Button>}
+      </Space>
+    </div>
   )
 }

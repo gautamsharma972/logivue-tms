@@ -37,6 +37,11 @@ internal sealed class DestinationEventsHandler(TransportOpsDbContext db, OpsAcce
 {
     private static readonly TimeSpan FutureSlack = TimeSpan.FromMinutes(5);
 
+    /// <summary>An arrival replaces the driver's GPS check, so a dispatcher alone may not record one: it takes a supervisor or the arrival-recorder role.</summary>
+    private bool CanRecordArrival => access.Has(Domain.OpsPermissions.ArrivalOverride) || access.Has(Domain.OpsPermissions.DestinationRecord);
+
+    private bool CanRecordUnloading => access.Has(Domain.OpsPermissions.Dispatch) || CanRecordArrival;
+
     public async Task<Result<LrDetailDto>> RecordAsync(Guid lrId, DestinationEventRequest request, CancellationToken cancellationToken)
     {
         var lr = await db.Lrs.Include(l => l.Lines).FirstOrDefaultAsync(l => l.Id == lrId, cancellationToken);
@@ -45,9 +50,11 @@ internal sealed class DestinationEventsHandler(TransportOpsDbContext db, OpsAcce
             return OpsErrors.LrNotFound;
         }
 
-        if (request.Type == EventType.DestinationArrival && !access.Has(Domain.OpsPermissions.ArrivalOverride))
+        if (request.Type == EventType.DestinationArrival ? !CanRecordArrival : !CanRecordUnloading)
         {
-            return Error.Forbidden("ops.arrival_override_forbidden", "Only a supervisor can record an arrival on the driver's behalf.");
+            return Error.Forbidden("ops.arrival_override_forbidden", request.Type == EventType.DestinationArrival
+                ? "Only a supervisor or an arrival recorder can record an arrival on the driver's behalf."
+                : "You are not allowed to record unloading times.");
         }
 
         var now = clock.GetUtcNow();
@@ -133,6 +140,11 @@ internal sealed class DestinationEventsHandler(TransportOpsDbContext db, OpsAcce
         if (await db.Calculations.AnyAsync(c => c.LrId == lrId && c.Status == CalculationStatus.Invoiced, cancellationToken))
         {
             return Error.Conflict("ops.invoiced", "This LR has been invoiced, so its times cannot be changed.");
+        }
+
+        if (!CanRecordUnloading)
+        {
+            return Error.Forbidden("ops.destination_forbidden", "You are not allowed to correct arrival or unloading times.");
         }
 
         var now = clock.GetUtcNow();

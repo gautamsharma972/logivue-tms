@@ -1,14 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Alert, Button, Card, Col, DatePicker, Descriptions, Divider, Flex, Form, Input, InputNumber, List, Modal, Popconfirm, QRCode, Row, Select, Space, Steps, Table, Timeline, Typography, message } from 'antd'
+import { Alert, Button, Card, Col, DatePicker, Descriptions, Divider, Flex, Form, Input, InputNumber, List, Modal, Popconfirm, QRCode, Radio, Row, Select, Space, Steps, Table, Timeline, Typography, message } from 'antd'
 import dayjs from 'dayjs'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { PageHeader } from '@/components/PageHeader'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { toApiError } from '@/lib/api/errors'
-import { opsApi, type DeliveryStatus, type EventDto, type EventType, type LrDetailDto, type LrSummaryDto, type TripDetailDto, type TripSummaryDto } from '@/lib/api/opsApi'
+import { formatInrExact } from '@/lib/format'
+import { opsApi, type DeliveryStatus, type EventDto, type EventType, type LrDetailDto, type LrSummaryDto, type MovementType, type TripDetailDto, type TripSummaryDto } from '@/lib/api/opsApi'
 import { useAuth } from '@/features/auth/AuthContext'
 import { day, eventLabel, kg, mins, when } from './fmt'
+import { a5SheetCss } from './printSheet'
+import { downloadSheetPdf } from './sheetPdf'
 import { ResponsiveDrawer, StatusTag } from './shared'
 import { useCustomerOptions, useDebounced, useFileOpener, useLocationOptions, useUomOptions } from './hooks'
 import { PhotoPicker } from './PhotoPicker'
@@ -18,8 +21,7 @@ const deliveryStatuses: DeliveryStatus[] = ['Created', 'Assigned', 'AtCfa', 'Loa
 /** The goods table shared by the LR screen and its printout. */
 const lineColumns = [
   { title: 'No. of packages', dataIndex: 'packages' }, { title: 'Unit', dataIndex: 'unit' }, { title: 'Gross weight', dataIndex: 'weightKg', render: kg },
-  { title: 'Net weight', dataIndex: 'netWeightKg', render: (v: number | null | undefined) => (v == null ? '—' : kg(v)) },
-  { title: 'Vol. cu. ft.', dataIndex: 'volumeCuFt', render: (v: number | null | undefined) => v ?? '—' },
+  { title: 'Invoice no.', dataIndex: 'invoiceNo', render: (v: string | null | undefined) => v ?? '—' },
 ]
 
 const sourceText = (e: EventDto) => (e.source === 'QrWeb' ? 'driver (QR)' : e.source === 'Office' ? 'office' : 'system')
@@ -105,6 +107,7 @@ function LrDrawer({ id, onClose, onChanged }: { id: string | null; onClose: () =
   const revoke = useMutation({ mutationFn: () => opsApi.revokeQr(id!), onSuccess: refresh, onError: fail })
   const reissue = useMutation({ mutationFn: () => opsApi.reissueQr(id!), onSuccess: () => { message.success('New code issued. Reprint the LR: the old code no longer works.'); refresh() }, onError: fail })
   const cancel = useMutation({ mutationFn: () => opsApi.cancelLr(id!), onSuccess: refresh, onError: fail })
+  const remove = useMutation({ mutationFn: () => opsApi.deleteLr(id!), onSuccess: () => { message.success('LR deleted'); onChanged(); onClose() }, onError: fail })
   const [event, setEvent] = useState<{ type: 'DestinationArrival' | 'UnloadingCompleted'; correct: boolean } | null>(null)
   const [form] = Form.useForm<{ at?: dayjs.Dayjs; reason: string }>()
   const record = useMutation({
@@ -125,14 +128,18 @@ function LrDrawer({ id, onClose, onChanged }: { id: string | null; onClose: () =
             {can('ops.dispatch') && lr.status !== 'Cancelled' && <Popconfirm title="Issue a new QR code?" description="The printed code stops working at once." onConfirm={() => reissue.mutate()}><Button>New QR code</Button></Popconfirm>}
             {can('ops.dispatch') && lr.qrActive && <Popconfirm title="Revoke the QR code?" onConfirm={() => revoke.mutate()}><Button danger>Revoke QR</Button></Popconfirm>}
             {can('ops.dispatch') && ['Created', 'Assigned', 'AtCfa', 'Loading', 'Loaded'].includes(lr.status) && <Popconfirm title="Cancel this LR?" onConfirm={() => cancel.mutate()}><Button danger>Cancel LR</Button></Popconfirm>}
+            {can('ops.dispatch') && ['Created', 'Assigned', 'Cancelled'].includes(lr.status) && <Popconfirm title="Delete this LR?" description="Use this only for an LR created by mistake. It and its invoice copies are removed for good. LRs with events, POD or charges can only be cancelled." okButtonProps={{ danger: true }} onConfirm={() => remove.mutate()}><Button danger type="primary">Delete LR</Button></Popconfirm>}
           </Space>
           {!lr.qrActive && lr.status !== 'Cancelled' && <Alert type="warning" showIcon style={{ marginBottom: 12 }} title="The QR code on this LR is not active (revoked or expired). Issue a new code and reprint." />}
           <Descriptions size="small" bordered column={{ xs: 1, md: 2 }}>
             <Descriptions.Item label="Customer">{lr.customerName}</Descriptions.Item><Descriptions.Item label="Customer PO">{lr.customerReference ?? '—'}</Descriptions.Item>
             <Descriptions.Item label="From">{lr.cfaName}</Descriptions.Item><Descriptions.Item label="To">{lr.destinationName}, {lr.destinationCity}</Descriptions.Item>
             <Descriptions.Item label="Vehicle">{lr.vehicleRegistration ?? '—'}</Descriptions.Item><Descriptions.Item label="Trip">{lr.tripNumber ?? '—'}</Descriptions.Item>
-            <Descriptions.Item label="Delivery date">{day(lr.deliveryDate)}</Descriptions.Item><Descriptions.Item label="QR valid until">{when(d.qrExpiresAt)} · printed {d.printCount}×</Descriptions.Item>
+            <Descriptions.Item label="LR date">{when(lr.createdAt)}</Descriptions.Item><Descriptions.Item label="Delivery date">{day(lr.deliveryDate)}</Descriptions.Item>
+            <Descriptions.Item label="QR valid until">{when(d.qrExpiresAt)} · printed {d.printCount}×</Descriptions.Item>
             <Descriptions.Item label="Indent no.">{d.indentNo ?? '—'}</Descriptions.Item><Descriptions.Item label="Instructions">{d.instructions ?? '—'}</Descriptions.Item>
+            <Descriptions.Item label="Type">{movementLabel[lr.movement ?? 'Supply']}</Descriptions.Item>
+            {d.crossBilling && <Descriptions.Item label="Cross-billing price">{d.crossBilling.mode === 'Lumpsum' ? `Lumpsum ${formatInrExact(d.crossBilling.amount ?? 0)}` : `${d.crossBilling.kg} kg x ${d.crossBilling.ratePerKg} = ${formatInrExact(d.crossBilling.freight ?? 0)}`}</Descriptions.Item>}
           </Descriptions>
           <Table scroll={{ x: 'max-content' }} size="small" style={{ marginTop: 12 }} pagination={false} rowKey={(l) => `${l.materialName}${l.quantity}${l.weightKg}`} dataSource={d.lines}
             columns={lineColumns} />
@@ -143,9 +150,9 @@ function LrDrawer({ id, onClose, onChanged }: { id: string | null; onClose: () =
           <Steps size="small" orientation={mobile ? 'vertical' : 'horizontal'} current={steps.filter(Boolean).length} items={['At CFA', 'Loading', 'Loaded', 'Left CFA', 'Arrived', 'Unloaded'].map((t, i) => ({ title: t, description: steps[i] ? when(steps[i]) : undefined }))} />
           {lr.loadingStartedAt && lr.loadingCompletedAt && <Typography.Paragraph type="secondary" style={{ marginTop: 8 }}>Loading took {mins((new Date(lr.loadingCompletedAt).getTime() - new Date(lr.loadingStartedAt).getTime()) / 60000)}.</Typography.Paragraph>}
           {lr.arrivedAt && lr.unloadedAt && <Typography.Paragraph type="secondary">Waited {mins((new Date(lr.unloadedAt).getTime() - new Date(lr.arrivedAt).getTime()) / 60000)} at the destination (arrival to unloading).</Typography.Paragraph>}
-          {can('ops.dispatch') && (
+          {(can('ops.dispatch') || can('ops.destination.record') || can('ops.arrival.override')) && (
             <Space style={{ margin: '8px 0' }} wrap>
-              {lr.status === 'InTransit' && can('ops.arrival.override') && <Button onClick={() => setEvent({ type: 'DestinationArrival', correct: false })}>Record arrival (supervisor)</Button>}
+              {lr.status === 'InTransit' && (can('ops.arrival.override') || can('ops.destination.record')) && <Button onClick={() => setEvent({ type: 'DestinationArrival', correct: false })}>Record vehicle arrival</Button>}
               {lr.status === 'Arrived' && <Button onClick={() => setEvent({ type: 'UnloadingCompleted', correct: false })}>Record unloading completed</Button>}
               {lr.arrivedAt && <Button onClick={() => setEvent({ type: 'DestinationArrival', correct: true })}>Correct arrival time</Button>}
               {lr.unloadedAt && <Button onClick={() => setEvent({ type: 'UnloadingCompleted', correct: true })}>Correct unloading time</Button>}
@@ -168,21 +175,38 @@ function LrDrawer({ id, onClose, onChanged }: { id: string | null; onClose: () =
 
 const maxInvoiceFiles = 10
 
+const movementOptions: { value: MovementType; label: string }[] = [{ value: 'Supply', label: 'Supply' }, { value: 'Return', label: 'Return' }, { value: 'CrossBilling', label: 'Cross billing' }]
+const movementLabel: Record<MovementType, string> = { Supply: 'Supply', Return: 'Return', CrossBilling: 'Cross billing' }
+const movementHelp: Record<MovementType, string> = {
+  Supply: 'Material goes from the CFA to the distributor. Freight comes from the rate in the customer agreement.',
+  Return: 'Material comes back from the distributor to the CFA. Freight comes from the rate in the customer agreement.',
+  CrossBilling: 'Material goes from the CFA to the distributor at a price different from the agreement: enter a lumpsum or kg and rate.',
+}
+
 function CreateLrDrawer({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: (id: string) => void }) {
   const mobile = useIsMobile()
   const customers = useCustomerOptions()
   const cfas = useLocationOptions('Cfa')
   const places = useLocationOptions('Distributor')
   const uoms = useUomOptions()
+  const { can } = useAuth()
   const [form] = Form.useForm()
+  const movement = Form.useWatch('movement', form) as MovementType | undefined
+  const crossMode = Form.useWatch('crossMode', form) as string | undefined
+  const crossKg = (Form.useWatch('crossKg', form) as number | undefined) ?? 0
+  const crossRate = (Form.useWatch('crossRate', form) as number | undefined) ?? 0
   const [copies, setCopies] = useState<File[]>([])
   const blankLine = { packages: 1, unit: uoms.find((u) => u.value === 'PKG')?.value ?? uoms[0]?.value, weightKg: 0 }
   const save = useMutation({
     mutationFn: async (v: Record<string, unknown>) => {
-      const lines = (v.lines as { packages: number; unit: string; weightKg: number; netWeightKg?: number | null; volumeCuFt?: number | null }[]).map((l) => ({
-        quantity: l.packages, packages: l.packages, unit: l.unit, weightKg: l.weightKg, netWeightKg: l.netWeightKg ?? null, volumeCuFt: l.volumeCuFt ?? null,
+      const lines = (v.lines as { packages: number; unit: string; weightKg: number; invoiceNo?: string | null }[]).map((l) => ({
+        quantity: l.packages, packages: l.packages, unit: l.unit, weightKg: l.weightKg, invoiceNo: l.invoiceNo?.trim() || null,
       }))
-      const created = await opsApi.createLr({ ...(v as object), lines, deliveryDate: (v.deliveryDate as dayjs.Dayjs | undefined)?.format('YYYY-MM-DD') ?? null } as never)
+      const move = (v.movement as MovementType | undefined) ?? 'Supply'
+      const crossBilling = move !== 'CrossBilling' ? null
+        : v.crossMode === 'PerKg' ? { mode: 'PerKg' as const, kg: v.crossKg as number, ratePerKg: v.crossRate as number }
+          : { mode: 'Lumpsum' as const, amount: v.crossAmount as number }
+      const created = await opsApi.createLr({ ...(v as object), movement: move, crossBilling, lines, deliveryDate: (v.deliveryDate as dayjs.Dayjs | undefined)?.format('YYYY-MM-DD') ?? null } as never)
       const failed: string[] = []
       for (const file of copies) {
         try { await opsApi.attachLrFile(created.lr.lr.id, file) } catch { failed.push(file.name) }
@@ -200,12 +224,36 @@ function CreateLrDrawer({ open, onClose, onCreated }: { open: boolean; onClose: 
       footer={<Flex gap={8} justify="flex-end"><Button size={mobile ? 'large' : 'middle'} onClick={onClose}>Cancel</Button><Button size={mobile ? 'large' : 'middle'} type="primary" loading={save.isPending} onClick={() => form.submit()}>Create LR</Button></Flex>}>
       <Form form={form} layout="vertical" size={mobile ? 'large' : 'middle'} onFinish={(v) => save.mutate(v)} requiredMark="optional">
         <Form.Item name="customerId" label="Customer" rules={[{ required: true }]}><Select showSearch optionFilterProp="label" options={customers} /></Form.Item>
-        <Row gutter={12}>
-          <Col xs={24} md={12}><Form.Item name="customerReference" label="Customer PO / reference"><Input /></Form.Item></Col>
-          <Col xs={24} md={12}><Form.Item name="indentNo" label="Indent no."><Input maxLength={60} /></Form.Item></Col>
-        </Row>
-        <Form.Item name="cfaLocationId" label="From (CFA)" rules={[{ required: true }]}><Select showSearch optionFilterProp="label" options={cfas} /></Form.Item>
-        <Form.Item name="destinationLocationId" label="To (distributor)" rules={[{ required: true }]}><Select showSearch optionFilterProp="label" options={places} /></Form.Item>
+        <Form.Item name="movement" label="Type" initialValue="Supply" rules={[{ required: true }]} extra={movementHelp[movement as MovementType] ?? movementHelp.Supply}>
+          <Select options={movementOptions.filter((o) => o.value !== 'CrossBilling' || can('ops.crossbilling.create'))} />
+        </Form.Item>
+        {movement === 'CrossBilling' && (
+          <Card size="small" style={{ marginBottom: 12 }} title="Cross billing: price for this LR">
+            <Form.Item name="crossMode" label="Priced as" initialValue="Lumpsum" rules={[{ required: true }]}>
+              <Radio.Group options={[{ value: 'Lumpsum', label: 'Lumpsum' }, { value: 'PerKg', label: 'Per K.G.' }]} />
+            </Form.Item>
+            {crossMode === 'PerKg' ? (
+              <Row gutter={12}>
+                <Col xs={12}><Form.Item name="crossKg" label="Material (kg)" rules={[{ required: true }, { type: 'number', min: 0.001, message: 'Enter the kg' }]}><InputNumber min={0} inputMode="decimal" style={{ width: '100%' }} /></Form.Item></Col>
+                <Col xs={12}><Form.Item name="crossRate" label="Rate per kg (₹)" rules={[{ required: true }, { type: 'number', min: 0.0001, message: 'Enter the rate' }]}><InputNumber min={0} inputMode="decimal" style={{ width: '100%' }} /></Form.Item></Col>
+              </Row>
+            ) : (
+              <Form.Item name="crossAmount" label="Lumpsum amount (₹)" rules={[{ required: true }, { type: 'number', min: 0.01, message: 'Enter the amount' }]}><InputNumber min={0} inputMode="decimal" style={{ width: '100%' }} /></Form.Item>
+            )}
+            {crossMode === 'PerKg' && crossKg > 0 && crossRate > 0 && <Typography.Text>Freight: <b>{formatInrExact(Math.round(crossKg * crossRate * 100) / 100)}</b></Typography.Text>}
+          </Card>
+        )}
+        {movement === 'Return' ? (
+          <>
+            <Form.Item name="destinationLocationId" label="From (distributor)" rules={[{ required: true }]}><Select showSearch optionFilterProp="label" options={places} /></Form.Item>
+            <Form.Item name="cfaLocationId" label="To (CFA)" rules={[{ required: true }]}><Select showSearch optionFilterProp="label" options={cfas} /></Form.Item>
+          </>
+        ) : (
+          <>
+            <Form.Item name="cfaLocationId" label="From (CFA)" rules={[{ required: true }]}><Select showSearch optionFilterProp="label" options={cfas} /></Form.Item>
+            <Form.Item name="destinationLocationId" label="To (distributor)" rules={[{ required: true }]}><Select showSearch optionFilterProp="label" options={places} /></Form.Item>
+          </>
+        )}
         <Form.Item name="deliveryDate" label="Delivery date"><DatePicker format="DD MMM YYYY" style={{ width: mobile ? '100%' : undefined }} /></Form.Item>
         <Form.Item name="instructions" label="Instructions"><Input.TextArea rows={2} /></Form.Item>
         <Form.List name="lines">
@@ -214,16 +262,10 @@ function CreateLrDrawer({ open, onClose, onCreated }: { open: boolean; onClose: 
               {fields.map((f, index) => (
                 <Card key={f.key} size="small" style={{ marginBottom: 12 }} title={fields.length > 1 ? `Line ${index + 1}` : undefined} extra={fields.length > 1 ? <Button size="small" danger onClick={() => remove(f.name)}>Remove</Button> : undefined}>
                   <Row gutter={12}>
+                    <Col xs={24} md={6}><Form.Item name={[f.name, 'invoiceNo']} label="Invoice no."><Input maxLength={60} /></Form.Item></Col>
                     <Col xs={12} md={6}><Form.Item name={[f.name, 'packages']} label="No. of packages" rules={[{ required: true }]}><InputNumber min={1} precision={0} inputMode="numeric" style={{ width: '100%' }} /></Form.Item></Col>
                     <Col xs={12} md={6}><Form.Item name={[f.name, 'unit']} label="Unit" rules={[{ required: true }]}><Select showSearch optionFilterProp="label" options={uoms} /></Form.Item></Col>
                     <Col xs={12} md={6}><Form.Item name={[f.name, 'weightKg']} label="Gross weight (kg)" rules={[{ required: true }, { type: 'number', min: 0.001, message: 'Enter the weight' }]}><InputNumber min={0} inputMode="decimal" style={{ width: '100%' }} /></Form.Item></Col>
-                    <Col xs={12} md={6}>
-                      <Form.Item name={[f.name, 'netWeightKg']} label="Net weight (kg)" dependencies={[['lines', f.name, 'weightKg']]}
-                        rules={[({ getFieldValue }) => ({ validator: (_, v) => (v == null || v <= (getFieldValue(['lines', f.name, 'weightKg']) ?? 0) ? Promise.resolve() : Promise.reject(new Error('More than gross weight'))) })]}>
-                        <InputNumber min={0} inputMode="decimal" style={{ width: '100%' }} />
-                      </Form.Item>
-                    </Col>
-                    <Col xs={12} md={6}><Form.Item name={[f.name, 'volumeCuFt']} label="Vol. cu. ft."><InputNumber min={0} inputMode="decimal" style={{ width: '100%' }} /></Form.Item></Col>
                   </Row>
                 </Card>
               ))}
@@ -244,30 +286,33 @@ export function LrPrintPage() {
   const { id = '' } = useParams()
   const nav = useNavigate()
   const q = useQuery({ queryKey: ['ops', 'print', id], queryFn: () => opsApi.printLr(id), retry: false, staleTime: Infinity })
+  const sheet = useRef<HTMLDivElement>(null)
+  const [saving, setSaving] = useState(false)
   if (q.isError) return <Alert type="error" showIcon style={{ margin: 24 }} title={toApiError(q.error).message} action={<Button onClick={() => nav(-1)}>Back</Button>} />
   const p = q.data
   if (!p) return null
   const link = `${window.location.origin}${p.qrPath}`
   return (
-    <div style={{ maxWidth: 820, margin: '0 auto', padding: 24, background: '#fff' }}>
-      <style>{'@media print { .no-print, .ant-layout-sider, .ant-layout-header, .ant-float-btn-group { display: none !important } body, .ant-layout { background: #fff !important } .ant-layout-content { padding: 0 !important; max-width: none !important } @page { margin: 12mm } }'}</style>
-      <Space className="no-print" style={{ marginBottom: 16 }}><Button onClick={() => nav(-1)}>Back</Button><Button type="primary" onClick={() => window.print()}>Print</Button></Space>
-      <Space align="start" style={{ width: '100%', justifyContent: 'space-between' }}>
+    <div className="a5-sheet" ref={sheet}>
+      <style>{a5SheetCss}</style>
+      <Space className="no-print" style={{ marginBottom: 12 }}><Button onClick={() => nav(-1)}>Back</Button><Button type="primary" loading={saving} onClick={() => { setSaving(true); void downloadSheetPdf(sheet.current!, `${p.number}.pdf`).finally(() => setSaving(false)) }}>Download PDF</Button><Button onClick={() => window.print()}>Print</Button><Typography.Text type="secondary">A5 landscape</Typography.Text></Space>
+      <Flex justify="space-between" align="flex-start" gap={12}>
         <div>
-          <Typography.Title level={2} style={{ margin: 0 }}>Lorry receipt</Typography.Title>
-          <Typography.Title level={1} style={{ margin: '0 0 8px' }}>{p.number}</Typography.Title>
+          <div className="a5-kind">Lorry receipt</div>
+          <div className="a5-number">{p.number}</div>
+          <div>LR date: <b>{day(p.createdAt)}</b></div>
           <div>Customer: <b>{p.customerName}</b></div>
           {p.indentNo && <div>Indent no.: <b>{p.indentNo}</b></div>}
           {p.customerReference && <div>PO / reference: <b>{p.customerReference}</b></div>}
           {p.tripNumber && <div>Trip: {p.tripNumber}</div>}
         </div>
         <div style={{ textAlign: 'center' }}>
-          <QRCode value={link} size={170} errorLevel="M" />
-          <div style={{ fontSize: 12, maxWidth: 170 }}>Driver: scan to confirm arrival, unloading and upload the POD</div>
+          <QRCode value={link} size={96} type="svg" errorLevel="M" bordered={false} />
+          <div style={{ fontSize: 9, maxWidth: 110, lineHeight: 1.2 }}>Driver: scan to confirm arrival, unloading and upload the POD</div>
         </div>
-      </Space>
+      </Flex>
       <Divider />
-      <Descriptions column={{ xs: 1, md: 2 }} size="small" bordered>
+      <Descriptions column={2} size="small" bordered>
         <Descriptions.Item label="From">{p.cfaName}<br />{p.cfaAddress}</Descriptions.Item>
         <Descriptions.Item label="To">{p.destinationName}<br />{p.destinationAddress}</Descriptions.Item>
         <Descriptions.Item label="Vehicle">{p.vehicleRegistration ?? '—'}</Descriptions.Item>
@@ -275,11 +320,10 @@ export function LrPrintPage() {
         <Descriptions.Item label="Delivery date">{day(p.deliveryDate)}</Descriptions.Item>
         <Descriptions.Item label="Instructions">{p.instructions ?? '—'}</Descriptions.Item>
       </Descriptions>
-      <Table scroll={{ x: 'max-content' }} size="small" style={{ marginTop: 16 }} pagination={false} rowKey={(l) => `${l.materialName}${l.quantity}${l.weightKg}`} dataSource={p.lines}
+      <Table size="small" style={{ marginTop: 8 }} pagination={false} rowKey={(l) => `${l.materialName}${l.quantity}${l.weightKg}${l.invoiceNo ?? ''}`} dataSource={p.lines}
         columns={lineColumns}
         footer={() => <b>Total: {kg(p.totalWeightKg)}, {p.totalPackages} packages</b>} />
-      <Divider />
-      <Space size={80}><div style={{ marginTop: 40 }}>Receiver's signature and stamp</div><div style={{ marginTop: 40 }}>Driver's signature</div></Space>
+      <Flex gap={60} style={{ marginTop: 22 }}><div>Receiver's signature and stamp</div><div>Driver's signature</div></Flex>
     </div>
   )
 }

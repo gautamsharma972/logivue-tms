@@ -135,3 +135,8 @@ deliberately not in the permission catalogue); the same page adds organisations 
 ## Transporter Operations on a phone
 LRs, trips and the delivery timeline are entered on mobile. Delivery requests are no longer a screen (an LR is created directly; the request API remains but is unused by the UI, and `/ops/requests` redirects to LRs).
 Use `ResponsiveDrawer` (full screen on a phone) and `useIsMobile` in this module; list pages show cards on a phone, tables elsewhere. Invoice copies (max 10 per LR) come from `PhotoPicker`: camera capture or upload, photos shrunk client-side first.
+
+## File storage
+All blobs go through `IFileStore` (keys are app-generated and saved in the DB). `Storage:Provider` = `Local` (default; `Storage:RootPath`) or `S3` (`Storage:S3:BucketName/Region/Profile/KeyPrefix/ServiceUrl`).
+Development uses S3 bucket `amzn-s3-tms-dev` (ap-south-1) with the SSO profile `logivue-dev` — run `aws sso login --profile logivue-dev` first; the API checks the bucket at start-up and refuses to start if unreachable.
+Production: set `Storage__Provider=S3` and use an IAM role (leave `Profile` empty). Tests run on `Local`.

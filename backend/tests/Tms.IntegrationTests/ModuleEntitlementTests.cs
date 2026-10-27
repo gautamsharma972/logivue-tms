@@ -47,8 +47,15 @@ public class ModuleEntitlementTests(TmsApiFactory factory)
         using var client = await factory.SignedInAsync(code, email, Password);
         var me = await (await client.GetAsync("/api/v1/auth/me")).ReadAsync<Tms.Modules.Platform.Application.Auth.UserProfile>();
         me.Permissions.ShouldContain("ops.read");
+        me.Permissions.ShouldContain("ops.pod.upload"); // a dispatcher can also attach the proof of delivery
         (await client.GetAsync("/api/v1/ops/lrs")).StatusCode.ShouldBe(HttpStatusCode.OK);
         (await client.PostJsonAsync("/api/v1/ops/invoices", new { })).StatusCode.ShouldBe(HttpStatusCode.Forbidden); // reading is implied, issuing invoices is not
+
+        // Cross billing (a price typed on the LR instead of the agreement) needs its own permission.
+        var line = new Tms.Modules.TransportOps.Application.LrLineRequest(null, null, 1, "PKG", 10, null, null, 1);
+        var cross = new Tms.Modules.TransportOps.Application.CreateLrRequest(null, Guid.NewGuid(), null, Guid.NewGuid(), Guid.NewGuid(), null, null, [line], null,
+            Tms.Modules.TransportOps.Domain.MovementType.CrossBilling, new Tms.Modules.TransportOps.Application.CrossBillingRequest(Tms.Modules.TransportOps.Domain.CrossBillingMode.Lumpsum, 5000, null, null));
+        (await client.PostJsonAsync("/api/v1/ops/lrs", cross)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
 
         // Operations and money are separate: a planner never sees rates, billing, invoices or the billing figures on the dashboard.
         me.Permissions.ShouldNotContain("ops.billing.read");
@@ -79,6 +86,53 @@ public class ModuleEntitlementTests(TmsApiFactory factory)
         me.Permissions.ShouldNotContain("platform.tenants.manage");
         (await client.GetAsync("/api/v1/ops/customers")).StatusCode.ShouldBe(HttpStatusCode.OK);
         (await client.GetAsync("/api/v1/transporters")).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task The_platform_administrator_can_edit_an_organisation_and_cap_its_users_and_locations()
+    {
+        var (code, email) = await SeedAsync(false, ["transport-ops"]);
+        var (platformCode, platformEmail) = await SeedAsync(true, null);
+        using var platform = await factory.SignedInAsync(platformCode, platformEmail, Password);
+        using var customer = await factory.SignedInAsync(code, email, Password);
+        var target = (await (await platform.GetAsync("/api/v1/platform/tenants")).ReadAsync<List<TenantDto>>()).Single(t => t.Code == code);
+
+        (await platform.PutJsonAsync($"/api/v1/platform/tenants/{target.Id}", new UpdateTenantRequest("Renamed Org", ["transport-ops"], 0, 5))).StatusCode.ShouldBe(HttpStatusCode.BadRequest); // at least one user
+        var edited = await (await platform.PutJsonAsync($"/api/v1/platform/tenants/{target.Id}", new UpdateTenantRequest("Renamed Org", ["transport-ops"], 2, 1))).ReadAsync<TenantDto>();
+        (edited.Name, edited.Code, edited.MaxUsers, edited.MaxLocations).ShouldBe(("Renamed Org", code, 2, 1));
+        (await customer.PutJsonAsync($"/api/v1/platform/tenants/{target.Id}", new UpdateTenantRequest("x", [], null, null))).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+
+        // Users: the administrator is one of the two allowed.
+        var role = await customer.CreateRoleAsync("ops.read");
+        await customer.CreateUserAsync(ApiExtensions.UniqueEmail("second"), [role.Id]);
+        var third = await customer.PostJsonAsync("/api/v1/users", new Tms.Modules.Platform.Application.Users.CreateUserRequest(ApiExtensions.UniqueEmail("third"), "Third", ApiExtensions.StrongPassword, Tms.Modules.Platform.Domain.UserType.Internal, [role.Id]));
+        third.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        (await third.ProblemCodeAsync()).ShouldBe("tenants.user_limit");
+
+        // Locations: one is allowed.
+        Tms.Modules.TransportOps.Application.SaveLocationRequest Location(string c) => new(c, "Place", Tms.Modules.TransportOps.Domain.LocationKind.Cfa, null, "Gate", "Mumbai", "Maharashtra", null, null, null, 200, null, Tms.Modules.TransportOps.Domain.ActiveStatus.Active);
+        (await customer.PostJsonAsync("/api/v1/ops/locations", Location("L1"))).IsSuccessStatusCode.ShouldBeTrue();
+        var second = await customer.PostJsonAsync("/api/v1/ops/locations", Location("L2"));
+        second.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        (await second.ProblemCodeAsync()).ShouldBe("tenants.location_limit");
+
+        // Raising the limit (or removing it) lets the organisation carry on.
+        (await platform.PutJsonAsync($"/api/v1/platform/tenants/{target.Id}", new UpdateTenantRequest("Renamed Org", ["transport-ops"], null, null))).EnsureSuccessStatusCode();
+        (await customer.PostJsonAsync("/api/v1/ops/locations", Location("L2"))).IsSuccessStatusCode.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task Approval_policies_cover_only_the_document_types_of_the_modules_an_organisation_has()
+    {
+        var (code, email) = await SeedAsync(false, ["transport-ops"]);
+        using var opsOnly = await factory.SignedInAsync(code, email, Password);
+        var types = (await (await opsOnly.GetAsync("/api/v1/approvals/policies")).ReadAsync<List<Tms.Modules.Approvals.Application.PolicyDto>>()).Select(p => p.DocumentType).ToList();
+        types.ShouldBe(["customer_invoice"]); // not transporter onboarding, contracts or claims
+        var step = new Tms.Modules.Approvals.Application.PolicyStepDto("Manager", "ops.invoice.manage", null);
+        (await opsOnly.PutJsonAsync("/api/v1/approvals/policies/freight_contract", new Tms.Modules.Approvals.Application.SavePolicyRequest(true, [step], null))).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+
+        using var all = await factory.AdminAsync(); // an organisation with every module sees every type
+        (await (await all.GetAsync("/api/v1/approvals/policies")).ReadAsync<List<Tms.Modules.Approvals.Application.PolicyDto>>()).Select(p => p.DocumentType).ShouldContain("freight_contract");
     }
 
     [Fact]

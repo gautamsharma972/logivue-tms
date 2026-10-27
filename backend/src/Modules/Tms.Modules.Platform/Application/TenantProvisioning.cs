@@ -11,7 +11,7 @@ namespace Tms.Modules.Platform.Application;
 
 /// <param name="Modules">Module keys to give the organisation (see TmsModules); null gives every module.</param>
 /// <param name="IsPlatform">The operator's own organisation, whose administrators allocate modules to the others.</param>
-public sealed record ProvisionTenantRequest(string Code, string Name, string AdminEmail, string AdminName, IReadOnlyList<string>? Modules = null, bool IsPlatform = false);
+public sealed record ProvisionTenantRequest(string Code, string Name, string AdminEmail, string AdminName, IReadOnlyList<string>? Modules = null, bool IsPlatform = false, int? MaxUsers = null, int? MaxLocations = null);
 
 /// <param name="InviteLink">One-time link for the administrator to choose their password. Hand it over securely; it expires.</param>
 public sealed record ProvisionedTenant(Guid TenantId, string Code, string AdminEmail, string InviteLink, DateTimeOffset InviteExpiresAt);
@@ -56,6 +56,7 @@ internal sealed partial class TenantProvisioning(
         }
 
         var tenant = Tenant.Create(code, request.Name, request.Modules, request.IsPlatform);
+        tenant.SetLimits(request.MaxUsers, request.MaxLocations);
         var admin = Role.Create(tenant.Id, Role.AdministratorName, "Full access to everything in this organisation.", catalog.Codes, isSystem: true);
         // The password hash is of random bytes nobody knows; the account is usable only via the invitation link.
         var unusable = passwords.Hash(Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(48)));

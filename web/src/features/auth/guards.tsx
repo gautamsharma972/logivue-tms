@@ -25,6 +25,12 @@ export function RequirePermission({ permission }: { permission: string }) {
   return can(permission) ? <Outlet /> : <ForbiddenPage />
 }
 
+/** The page belongs to modules: an organisation that has none of them gets the same page as a missing permission. */
+export function RequireAnyModule({ modules }: { modules: string[] }) {
+  const { user } = useAuth()
+  return user?.isPlatform || modules.some((m) => user?.modules.includes(m)) ? <Outlet /> : <ForbiddenPage />
+}
+
 export function RequireAnyPermission({ permissions }: { permissions: string[] }) {
   const { can } = useAuth()
   return permissions.some(can) ? <Outlet /> : <ForbiddenPage />

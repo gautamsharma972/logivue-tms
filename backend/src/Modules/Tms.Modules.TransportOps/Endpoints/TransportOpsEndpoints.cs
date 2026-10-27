@@ -181,10 +181,12 @@ internal static class TransportOpsEndpoints
             .RequirePermission(OpsPermissions.Dispatch).WithName("OpsRevokeQr").Produces<LrDetailDto>();
         api.MapPost("/lrs/{id:guid}/cancel", async (Guid id, LrHandler h, CancellationToken ct) => (await h.CancelAsync(id, ct)).ToHttpResult())
             .RequirePermission(OpsPermissions.Dispatch).WithName("OpsCancelLr").Produces<LrDetailDto>();
+        api.MapDelete("/lrs/{id:guid}", async (Guid id, LrHandler h, CancellationToken ct) => (await h.DeleteAsync(id, ct)).ToHttpResult())
+            .RequirePermission(OpsPermissions.Dispatch).WithName("OpsDeleteLr");
         api.MapPost("/lrs/{id:guid}/destination-events", async (Guid id, DestinationEventRequest body, DestinationEventsHandler h, CancellationToken ct) => (await h.RecordAsync(id, body, ct)).ToHttpResult())
-            .RequirePermission(OpsPermissions.Dispatch).WithValidation<DestinationEventRequest>().WithName("OpsDestinationEvent").Produces<LrDetailDto>();
+            .RequirePermission(OpsPermissions.Read).WithValidation<DestinationEventRequest>().WithName("OpsDestinationEvent").Produces<LrDetailDto>();
         api.MapPost("/lrs/{id:guid}/destination-events/correct", async (Guid id, CorrectDestinationRequest body, DestinationEventsHandler h, CancellationToken ct) => (await h.CorrectAsync(id, body, ct)).ToHttpResult())
-            .RequirePermission(OpsPermissions.Dispatch).WithValidation<CorrectDestinationRequest>().WithName("OpsCorrectDestinationEvent").Produces<LrDetailDto>();
+            .RequirePermission(OpsPermissions.Read).WithValidation<CorrectDestinationRequest>().WithName("OpsCorrectDestinationEvent").Produces<LrDetailDto>();
     }
 
     // ---------------------------------------------------------------- trips and the CFA timeline
@@ -248,6 +250,9 @@ internal static class TransportOpsEndpoints
         api.MapGet("/billing", async (Guid? customerId, DateOnly? from, DateOnly? to, string? search, PodStatus? podStatus, CalculationStatus? calcStatus, bool? invoiced, int? page, int? pageSize, BillingHandler h, CancellationToken ct) =>
                 (await h.WorkbenchAsync(customerId, from, to, search, podStatus, calcStatus, invoiced, page ?? 1, pageSize ?? 25, ct)).ToHttpResult())
             .RequirePermission(OpsPermissions.BillingRead).WithName("OpsBilling").Produces<PagedResult<BillingRowDto>>();
+        api.MapGet("/billing/arrears", async (Guid? customerId, DateOnly? from, DateOnly? to, bool? includeUnchanged, ArrearsHandler h, CancellationToken ct) =>
+                (await h.ReportAsync(customerId, from, to, includeUnchanged ?? false, ct)).ToHttpResult())
+            .RequirePermission(OpsPermissions.BillingRead).WithName("OpsArrears").Produces<ArrearsReportDto>();
         api.MapPost("/billing/calculate", async (CalculateRequest body, BillingHandler h, CancellationToken ct) => (await h.CalculateAsync(body, ct)).ToHttpResult())
             .RequirePermission(OpsPermissions.BillingCalculate).WithValidation<CalculateRequest>().WithName("OpsCalculate").Produces<CalculateResultDto>();
         api.MapGet("/billing/calculations/{id:guid}", async (Guid id, BillingHandler h, CancellationToken ct) => (await h.GetAsync(id, ct)).ToHttpResult())
@@ -266,6 +271,19 @@ internal static class TransportOpsEndpoints
         api.MapGet("/invoices", async (string? search, Guid? customerId, InvoiceStatus? status, SubmissionStatus? submission, PaymentState? payment, DateOnly? from, DateOnly? to, int? page, int? pageSize, InvoiceHandler h, CancellationToken ct) =>
                 (await h.ListAsync(search, customerId, status, submission, payment, from, to, page ?? 1, pageSize ?? 25, ct)).ToHttpResult())
             .RequirePermission(OpsPermissions.BillingRead).WithName("OpsInvoices").Produces<PagedResult<InvoiceSummaryDto>>();
+        api.MapGet("/invoices/{id:guid}/print", async (Guid id, InvoicePrintHandler h, CancellationToken ct) => (await h.GetAsync(id, ct)).ToHttpResult())
+            .RequirePermission(OpsPermissions.BillingRead).WithName("OpsInvoicePrint").Produces<InvoicePrintDto>();
+        api.MapPost("/invoice-branding/{kind}", async (string kind, HttpRequest request, InvoiceBrandingHandler h, CancellationToken ct) =>
+            {
+                var files = await ReadFilesAsync(request, ct);
+                return files.Count != 1 ? Error.Validation("ops.file_count", "Send one picture.").ToProblem() : (await h.UploadAsync(kind, files[0].Content, files[0].FileName, ct)).ToHttpResult();
+            })
+            .RequirePermission(OpsPermissions.Configure).DisableAntiforgery().WithName("OpsUploadBranding");
+        api.MapDelete("/invoice-branding/{kind}", async (string kind, InvoiceBrandingHandler h, CancellationToken ct) => (await h.RemoveAsync(kind, ct)).ToHttpResult())
+            .RequirePermission(OpsPermissions.Configure).WithName("OpsRemoveBranding");
+        api.MapGet("/invoice-branding/{kind}", async (string kind, InvoiceBrandingHandler h, CancellationToken ct) =>
+                await h.OpenAsync(kind, ct) is { } image ? Results.File(image.Stream, image.ContentType) : Results.NotFound())
+            .RequirePermission(OpsPermissions.BillingRead).WithName("OpsBranding");
         api.MapGet("/invoices/{id:guid}", async (Guid id, InvoiceHandler h, CancellationToken ct) => (await h.GetAsync(id, ct)).ToHttpResult())
             .RequirePermission(OpsPermissions.BillingRead).WithName("OpsInvoice").Produces<InvoiceDto>();
         api.MapPost("/invoices", async (CreateInvoiceRequest body, InvoiceHandler h, CancellationToken ct) => (await h.CreateAsync(body, ct)).ToHttpResult())

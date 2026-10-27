@@ -51,6 +51,7 @@ internal sealed class OpsLocationConfiguration : IEntityTypeConfiguration<OpsLoc
         b.Property(l => l.Latitude).HasPrecision(9, 6);
         b.Property(l => l.Longitude).HasPrecision(9, 6);
         b.Property(l => l.AccessNotes).HasMaxLength(500);
+        b.Property(l => l.SacCode).HasMaxLength(8);
         b.Property(l => l.Status).HasConversion<string>().HasMaxLength(12);
         b.HasIndex(l => new { l.TenantId, l.Code }).IsUnique();
         b.HasIndex(l => new { l.TenantId, l.CustomerId });
@@ -180,6 +181,11 @@ internal sealed class LrConfiguration : IEntityTypeConfiguration<Lr>
         b.Property(l => l.Number).HasMaxLength(30).IsRequired();
         b.Property(l => l.CustomerReference).HasMaxLength(100);
         b.Property(l => l.IndentNo).HasMaxLength(60);
+        b.Property(l => l.Movement).HasConversion<string>().HasMaxLength(20).HasDefaultValue(MovementType.Supply);
+        b.Property(l => l.CrossMode).HasConversion<string>().HasMaxLength(20);
+        b.Property(l => l.CrossAmount).HasPrecision(14, 2);
+        b.Property(l => l.CrossKg).HasPrecision(14, 3);
+        b.Property(l => l.CrossRatePerKg).HasPrecision(14, 4);
         b.Property(l => l.VehicleRegistration).HasMaxLength(20);
         b.Property(l => l.Instructions).HasMaxLength(1000);
         b.Property(l => l.Status).HasConversion<string>().HasMaxLength(24);
@@ -213,6 +219,7 @@ internal sealed class LrLineConfiguration : IEntityTypeConfiguration<LrLine>
         b.Property(l => l.VolumeCbm).HasPrecision(14, 3);
         b.Property(l => l.VolumeCuFt).HasPrecision(14, 3);
         b.Property(l => l.NetWeightKg).HasPrecision(14, 3);
+        b.Property(l => l.InvoiceNo).HasMaxLength(60);
         b.Property(l => l.Dimensions).HasMaxLength(100);
     }
 }
@@ -376,6 +383,7 @@ internal sealed class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
         b.Property(i => i.Igst).HasPrecision(14, 2);
         b.Property(i => i.GrandTotal).HasPrecision(14, 2);
         b.Property(i => i.AmountPaid).HasPrecision(14, 2);
+        b.Property(i => i.TdsDeducted).HasPrecision(14, 2);
         b.Property(i => i.CancelReason).HasMaxLength(500);
         b.Property(i => i.Notes).HasMaxLength(500);
         b.Ignore(i => i.Outstanding);
@@ -434,6 +442,7 @@ internal sealed class PaymentConfiguration : IEntityTypeConfiguration<Payment>
         b.HasKey(p => p.Id);
         b.Property(p => p.Id).ValueGeneratedNever();
         b.Property(p => p.Amount).HasPrecision(14, 2);
+        b.Property(p => p.TdsAmount).HasPrecision(14, 2);
         b.Property(p => p.Mode).HasMaxLength(30);
         b.Property(p => p.Reference).HasMaxLength(100);
         b.Property(p => p.Remarks).HasMaxLength(500);

@@ -33,9 +33,10 @@ internal static class PodUploads
         var known = pod.Documents.Select(d => d.Sha256).ToHashSet();
         var stored = new List<StoredBlob>();
         var duplicates = 0;
+        var sequence = pod.Documents.Count;
         foreach (var upload in uploads)
         {
-            var blob = await files.SaveAsync(upload.Content, upload.FileName, "pod", rules.MaxBytes, cancellationToken);
+            var blob = await files.SaveEvidenceAsync(upload.Content, upload.FileName, lr.TenantId, lr.Number, "POD", ++sequence, rules.MaxBytes, cancellationToken);
             if (blob.IsFailure)
             {
                 foreach (var done in stored)
@@ -176,9 +177,9 @@ internal sealed class PodHandler(TransportOpsDbContext db, OpsAccess access, IOp
         }
 
         var rules = await settings.GetAsync(OpsSettingKeys.Pod, new PodSetting(), cancellationToken);
-        if (uploads.Count == 0 || uploads.Count > rules.MaxFiles)
+        if (uploads.Count == 0 || uploads.Count > rules.EffectiveMaxFiles)
         {
-            return Error.Validation("ops.pod_files", $"Choose between 1 and {rules.MaxFiles} files.");
+            return Error.Validation("ops.pod_files", $"Choose between 1 and {rules.EffectiveMaxFiles} files.");
         }
 
         var pod = await db.Pods.Include(p => p.Documents).Include(p => p.Reviews).FirstAsync(p => p.LrId == lrId, cancellationToken);

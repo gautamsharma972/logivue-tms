@@ -12,4 +12,8 @@ public sealed class DocumentTypeCatalog(IEnumerable<ApprovalDocumentType> types)
     public ApprovalDocumentType? Find(string code) => _all.FirstOrDefault(t => t.Code == code);
 
     public string NameOf(string code) => Find(code)?.Name ?? code;
+
+    /// <summary>The types an organisation can use: those of the modules it has. <paramref name="modules"/> null means all modules.</summary>
+    public IReadOnlyList<ApprovalDocumentType> AvailableTo(IReadOnlySet<string>? modules) =>
+        modules is null ? _all : _all.Where(t => t.Module is null || modules.Contains(t.Module)).ToList();
 }

@@ -35,7 +35,7 @@ export type SaveCustomerRequest = Omit<CustomerDto, 'id'>
 
 export interface LocationDto {
   id: string; code: string; name: string; kind: LocationKind; customerId: string | null; customerName: string | null; line1: string; city: string; state: string; pincode: string | null
-  latitude: number | null; longitude: number | null; geofenceRadiusM: number; accessNotes: string | null; status: ActiveStatus; version: number
+  latitude: number | null; longitude: number | null; geofenceRadiusM: number; accessNotes: string | null; status: ActiveStatus; version: number; sacCode?: string | null
 }
 export type SaveLocationRequest = Omit<LocationDto, 'id' | 'customerName'>
 
@@ -61,7 +61,7 @@ export interface SaveAgreementRequest {
   detention: DetentionPolicy; tax: TaxSettings; billing: BillingRules; extraCharges: ExtraCharge[]; rates: RateDto[]; version?: number
 }
 
-export interface MaterialLineDto { materialCode: string | null; materialName: string; quantity: number; unit: string; weightKg: number; volumeCbm: number | null; dimensions: string | null; packages: number; remarks?: string | null; volumeCuFt?: number | null; netWeightKg?: number | null }
+export interface MaterialLineDto { materialCode: string | null; materialName: string; quantity: number; unit: string; weightKg: number; volumeCbm: number | null; dimensions: string | null; packages: number; remarks?: string | null; volumeCuFt?: number | null; netWeightKg?: number | null; invoiceNo?: string | null }
 export interface FileDto { id: string; fileName: string; contentType: string; sizeBytes: number; uploadedAt: string }
 export interface RequestSummaryDto { id: string; number: string; customerId: string; customerName: string; customerReference: string | null; receivedAt: string; cfaName: string; destinationName: string; requestedDate: string | null; priority: string; status: RequestStatus; totalWeightKg: number; lrId: string | null }
 export interface RequestDto {
@@ -75,20 +75,23 @@ export interface SaveRequestRequest {
 }
 
 export interface EventDto { id: string; type: EventType; actualAt: string; recordedAt: string; source: 'Office' | 'QrWeb' | 'System'; userId: string | null; remarks: string | null; verification: string | null; distanceM: number | null; accuracyM: number | null; radiusM: number | null; correctsEventId: string | null; tripId: string | null }
+export type MovementType = 'Supply' | 'Return' | 'CrossBilling'
+export type CrossBillingMode = 'Lumpsum' | 'PerKg'
+export interface CrossBillingTerms { mode: CrossBillingMode; amount?: number | null; kg?: number | null; ratePerKg?: number | null }
 export interface LrSummaryDto {
   id: string; number: string; customerId: string; customerName: string; customerReference: string | null; cfaName: string; destinationName: string; destinationCity: string; tripId: string | null; tripNumber: string | null
   vehicleRegistration: string | null; status: DeliveryStatus; podStatus: PodStatus; deliveryDate: string | null; totalWeightKg: number; totalPackages: number; cfaReachedAt: string | null; loadingStartedAt: string | null
-  loadingCompletedAt: string | null; departedAt: string | null; arrivedAt: string | null; unloadedAt: string | null; qrActive: boolean; createdAt: string
+  loadingCompletedAt: string | null; departedAt: string | null; arrivedAt: string | null; unloadedAt: string | null; qrActive: boolean; createdAt: string; movement?: MovementType
 }
-export interface LrDetailDto { lr: LrSummaryDto; instructions: string | null; qrExpiresAt: string | null; printCount: number; lines: MaterialLineDto[]; events: EventDto[]; requestId: string | null; version: number; indentNo: string | null; files: FileDto[] }
+export interface LrDetailDto { lr: LrSummaryDto; instructions: string | null; qrExpiresAt: string | null; printCount: number; lines: MaterialLineDto[]; events: EventDto[]; requestId: string | null; version: number; indentNo: string | null; files: FileDto[]; crossBilling?: (CrossBillingTerms & { freight: number | null }) | null }
 export interface CreatedLrDto { lr: LrDetailDto; qrPath: string }
-export interface CreateLrRequest { requestId?: string | null; customerId?: string | null; customerReference?: string | null; cfaLocationId?: string | null; destinationLocationId?: string | null; deliveryDate?: string | null; instructions?: string | null; indentNo?: string | null; lines?: LrLineInput[] | null }
+export interface CreateLrRequest { requestId?: string | null; customerId?: string | null; customerReference?: string | null; cfaLocationId?: string | null; destinationLocationId?: string | null; deliveryDate?: string | null; instructions?: string | null; indentNo?: string | null; lines?: LrLineInput[] | null; movement?: MovementType; crossBilling?: CrossBillingTerms | null }
 /** One LR line as the office enters it. The material is optional; volume is in cubic feet. */
-export interface LrLineInput { materialCode?: string | null; materialName?: string | null; quantity: number; unit: string; weightKg: number; netWeightKg: number | null; volumeCuFt: number | null; volumeCbm?: number | null; dimensions?: string | null; packages: number }
+export interface LrLineInput { materialCode?: string | null; materialName?: string | null; quantity: number; unit: string; weightKg: number; invoiceNo?: string | null; volumeCbm?: number | null; dimensions?: string | null; packages: number }
 export interface UomDto { id: string | null; code: string; name: string; isActive: boolean; isDefault: boolean }
 export interface LrPrintDto {
   id: string; number: string; customerName: string; customerReference: string | null; cfaName: string; cfaAddress: string; destinationName: string; destinationAddress: string; vehicleRegistration: string | null
-  driverName: string | null; driverPhone: string | null; deliveryDate: string | null; instructions: string | null; lines: MaterialLineDto[]; totalWeightKg: number; totalPackages: number; qrPath: string; printCount: number; tripNumber: string | null; indentNo: string | null
+  driverName: string | null; driverPhone: string | null; deliveryDate: string | null; instructions: string | null; lines: MaterialLineDto[]; totalWeightKg: number; totalPackages: number; qrPath: string; printCount: number; tripNumber: string | null; indentNo: string | null; createdAt?: string | null
 }
 
 export interface TripSummaryDto {
@@ -125,10 +128,10 @@ export interface BillingRowDto {
 }
 export interface CalculateResultDto { calculations: CalculationDto[]; failures: { lrId: string; code: string; message: string }[] }
 
-export interface InvoiceSummaryDto { id: string; number: string; customerId: string; customerName: string; invoiceDate: string; dueDate: string; status: InvoiceStatus; submission: SubmissionStatus; paymentState: PaymentState; subtotal: number; tax: number; grandTotal: number; amountPaid: number; outstanding: number; lineCount: number; daysOverdue: number }
+export interface InvoiceSummaryDto { id: string; number: string; customerId: string; customerName: string; invoiceDate: string; dueDate: string; status: InvoiceStatus; submission: SubmissionStatus; paymentState: PaymentState; subtotal: number; tax: number; grandTotal: number; amountPaid: number; outstanding: number; lineCount: number; daysOverdue: number; tdsDeducted?: number }
 export interface InvoiceLineDto { id: string; lineNumber: number; lrId: string; lrNumber: string; freightCalculationId: string; calculationVersion: number; agreementRevision: number | null; description: string; basicFreight: number; detention: number; otherCharges: number; taxable: number; cgst: number; sgst: number; igst: number }
 export interface SubmissionDto { id: string; attempt: number; status: SubmissionStatus; submittedAt: string; submittedBy: string | null; portalReference: string | null; documentReference: string | null; decidedAt: string | null; rejectionReason: string | null; notes: string | null }
-export interface PaymentDto { id: string; amount: number; receivedOn: string; mode: string | null; reference: string | null; remarks: string | null; recordedAt: string }
+export interface PaymentDto { id: string; amount: number; receivedOn: string; mode: string | null; reference: string | null; remarks: string | null; recordedAt: string; tdsAmount?: number }
 export interface InvoiceDto {
   summary: InvoiceSummaryDto; customerGstin: string | null; billingAddress: string | null; customerReference: string | null; taxMode: TaxMode; taxRatePercent: number; taxNote: string | null; sac: string | null
   cgst: number; sgst: number; igst: number; notes: string | null; cancelReason: string | null; approvalRequestId: string | null; issuedAt: string | null; supplierGstin: string | null
@@ -146,7 +149,7 @@ export interface OpsSettingsDto {
   arrival: { maxAccuracyM: number; tokenValidityDays: number }
   numbering: { requestPrefix: string; lrPrefix: string; tripPrefix: string; digits: number }
   pod: { maxFiles: number; maxBytes: number }
-  invoice: { seriesPrefix: string; supplierGstin: string | null; supplierStateCode: string | null; requireApproval: boolean }
+  invoice: { seriesPrefix: string; supplierGstin: string | null; supplierStateCode: string | null; requireApproval: boolean; supplierName?: string | null; supplierAddress?: string | null; supplierState?: string | null; declaration?: string | null; logoKey?: string | null; signatureKey?: string | null }
   fleet: { operatingTransporterId: string | null }
 }
 
@@ -189,6 +192,21 @@ export const qrApi = {
   },
 }
 
+export interface InvoicePrintDto {
+  supplierName: string; supplierAddress: string | null; supplierGstin: string | null; supplierState: string | null; hasLogo: boolean; hasSignature: boolean; declaration: string
+  customerName: string; customerAddress: string | null; customerGstin: string | null; customerState: string | null
+  invoiceNumber: string; invoiceDate: string; reference: string; description: string; lrNumbers: string[]; hsnSac: string | null
+  taxable: number; cgst: number; sgst: number; igst: number; taxMode: TaxMode; taxRatePercent: number; taxNote: string | null; grandTotal: number; amountInWords: string; status: InvoiceStatus
+}
+export type BrandingKind = 'logo' | 'signature'
+
+export interface ArrearRowDto {
+  invoiceId: string; invoiceNumber: string; invoiceDate: string; customerId: string; customerName: string; paymentState: PaymentState; lrNumber: string; deliveryDate: string
+  invoicedRevision: number | null; currentRevision: number; invoicedFreight: number; revisedFreight: number | null; freightDifference: number | null; taxDifference: number | null; totalDifference: number | null; note: string | null
+}
+export interface ArrearCustomerDto { customerId: string; customerName: string; invoices: number; lines: number; freightDifference: number; taxDifference: number; totalDifference: number }
+export interface ArrearsReportDto { rows: ArrearRowDto[]; customers: ArrearCustomerDto[]; freightDifference: number; taxDifference: number; totalDifference: number; notPriced: number }
+
 const page = (p: object) => ({ params: p })
 
 export const opsApi = {
@@ -228,6 +246,7 @@ export const opsApi = {
   printLr: (id: string) => http.get<LrPrintDto>(`${ops}/lrs/${id}/print`).then((r) => r.data),
   reissueQr: (id: string) => http.post<CreatedLrDto>(`${ops}/lrs/${id}/qr`).then((r) => r.data),
   revokeQr: (id: string) => http.delete<LrDetailDto>(`${ops}/lrs/${id}/qr`).then((r) => r.data),
+  deleteLr: (id: string) => http.delete(`${ops}/lrs/${id}`).then(() => undefined),
   cancelLr: (id: string) => http.post<LrDetailDto>(`${ops}/lrs/${id}/cancel`).then((r) => r.data),
   destinationEvent: (id: string, b: { type: EventType; actualAt: string | null; reason: string }) => http.post<LrDetailDto>(`${ops}/lrs/${id}/destination-events`, b).then((r) => r.data),
   correctDestinationEvent: (id: string, b: { type: EventType; newActualAt: string; reason: string }) => http.post<LrDetailDto>(`${ops}/lrs/${id}/destination-events/correct`, b).then((r) => r.data),
@@ -246,6 +265,11 @@ export const opsApi = {
   podAction: (lrId: string, action: 'start-review' | 'accept' | 'reject' | 'reopen', reason?: string) => http.post<PodDto>(`${ops}/lrs/${lrId}/pod/${action}`, { reason: reason ?? null }).then((r) => r.data),
   podFile: (documentId: string) => http.get<Blob>(`${ops}/pod-documents/${documentId}/file`, { responseType: 'blob' }).then((r) => r.data),
 
+  invoicePrint: (id: string) => http.get<InvoicePrintDto>(`${ops}/invoices/${id}/print`).then((r) => r.data),
+  brandingImage: (kind: BrandingKind) => http.get<Blob>(`${ops}/invoice-branding/${kind}`, { responseType: 'blob' }).then((r) => r.data),
+  uploadBranding: (kind: BrandingKind, file: File) => { const f = new FormData(); f.append('files', file, file.name); return http.post(`${ops}/invoice-branding/${kind}`, f).then(() => undefined) },
+  removeBranding: (kind: BrandingKind) => http.delete(`${ops}/invoice-branding/${kind}`).then(() => undefined),
+  arrears: (params: { customerId?: string; from?: string; to?: string; includeUnchanged?: boolean }) => http.get<ArrearsReportDto>(`${ops}/billing/arrears`, page(params)).then((r) => r.data),
   billing: (params: { customerId?: string; from?: string; to?: string; search?: string; podStatus?: PodStatus; calcStatus?: CalculationStatus; invoiced?: boolean; page?: number; pageSize?: number }) => http.get<PagedResult<BillingRowDto>>(`${ops}/billing`, page(params)).then((r) => r.data),
   calculate: (lrIds: string[]) => http.post<CalculateResultDto>(`${ops}/billing/calculate`, { lrIds }).then((r) => r.data),
   calculation: (id: string) => http.get<CalculationDto>(`${ops}/billing/calculations/${id}`).then((r) => r.data),
@@ -260,7 +284,7 @@ export const opsApi = {
   submitInvoice: (id: string, b: { portalReference: string | null; documentReference: string | null; notes: string | null }) => http.post<InvoiceDto>(`${ops}/invoices/${id}/submit`, b).then((r) => r.data),
   acknowledgeInvoice: (id: string, portalReference: string | null) => http.post<InvoiceDto>(`${ops}/invoices/${id}/acknowledge`, { portalReference }).then((r) => r.data),
   rejectSubmission: (id: string, reason: string) => http.post<InvoiceDto>(`${ops}/invoices/${id}/reject-submission`, { reason }).then((r) => r.data),
-  recordPayment: (id: string, b: { amount: number; receivedOn: string; mode: string | null; reference: string | null; remarks: string | null }) => http.post<InvoiceDto>(`${ops}/invoices/${id}/payments`, b).then((r) => r.data),
+  recordPayment: (id: string, b: { amount: number; receivedOn: string; mode: string | null; reference: string | null; remarks: string | null; tdsAmount?: number }) => http.post<InvoiceDto>(`${ops}/invoices/${id}/payments`, b).then((r) => r.data),
   receivables: () => http.get<ReceivableRowDto[]>(`${ops}/receivables`).then((r) => r.data),
 
   settings: () => http.get<OpsSettingsDto>(`${ops}/settings`).then((r) => r.data),

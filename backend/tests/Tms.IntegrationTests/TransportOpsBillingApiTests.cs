@@ -324,6 +324,82 @@ public class TransportOpsInvoiceApiTests(TmsApiFactory factory)
     }
 
     [Fact]
+    public async Task The_printed_invoice_carries_the_suppliers_details_the_customer_the_billed_month_the_LRs_and_the_codes_of_the_customers_locations()
+    {
+        var (s, _, calc) = await ReviewedDeliveryAsync(factory);
+        using var _s = s;
+        await OpsScenario.Ok<LocationDto>(s.Admin.PutJsonAsync($"/api/v1/ops/locations/{s.Cfa.Id}", new SaveLocationRequest(s.Cfa.Code, s.Cfa.Name, s.Cfa.Kind, s.Cfa.CustomerId, s.Cfa.Line1, s.Cfa.City, s.Cfa.State, s.Cfa.Pincode,
+            s.Cfa.Latitude, s.Cfa.Longitude, s.Cfa.GeofenceRadiusM, s.Cfa.AccessNotes, s.Cfa.Status, s.Cfa.Version, "9965")));
+        (await s.Admin.PutJsonAsync($"/api/v1/ops/locations/{s.Pune.Id}", new SaveLocationRequest(s.Pune.Code, s.Pune.Name, s.Pune.Kind, s.Pune.CustomerId, s.Pune.Line1, s.Pune.City, s.Pune.State, s.Pune.Pincode,
+            s.Pune.Latitude, s.Pune.Longitude, s.Pune.GeofenceRadiusM, s.Pune.AccessNotes, s.Pune.Status, s.Pune.Version, "996511"))).EnsureSuccessStatusCode();
+        (await s.Admin.PutJsonAsync($"/api/v1/ops/locations/{s.Nashik.Id}", new SaveLocationRequest(s.Nashik.Code, s.Nashik.Name, s.Nashik.Kind, s.Nashik.CustomerId, s.Nashik.Line1, s.Nashik.City, s.Nashik.State, s.Nashik.Pincode,
+            s.Nashik.Latitude, s.Nashik.Longitude, s.Nashik.GeofenceRadiusM, s.Nashik.AccessNotes, s.Nashik.Status, s.Nashik.Version, "abc"))).StatusCode.ShouldBe(HttpStatusCode.BadRequest); // digits only
+        var settings = await OpsScenario.Ok<OpsSettingsDto>(s.Admin.GetAsync("/api/v1/ops/settings"));
+        await OpsScenario.Ok<OpsSettingsDto>(s.Admin.PutJsonAsync("/api/v1/ops/settings", settings with { Invoice = settings.Invoice with { SupplierGstin = "27AAUFT4105H1ZX", SupplierName = "Tanvi Enterprises", SupplierAddress = "Gala No.2, C Wing, Bhiwandi", SupplierState = "Maharashtra", LogoKey = "ops/other/stolen.png" } }));
+
+        var png = new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 0x0D, 0x49, 0x48, 0x44, 0x52 };
+        using (var form = new MultipartFormDataContent { { new ByteArrayContent(png), "files", "logo.png" } })
+        {
+            (await s.Admin.PostAsync("/api/v1/ops/invoice-branding/signature", form)).EnsureSuccessStatusCode();
+        }
+
+        (await s.Admin.PostAsync("/api/v1/ops/invoice-branding/banner", new MultipartFormDataContent { { new ByteArrayContent(png), "files", "x.png" } })).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        var invoice = await OpsScenario.Ok<InvoiceDto>(s.Admin.PostJsonAsync("/api/v1/ops/invoices", new CreateInvoiceRequest([calc.Id], null, null, null)));
+        var print = await OpsScenario.Ok<InvoicePrintDto>(s.Admin.GetAsync($"/api/v1/ops/invoices/{invoice.Summary.Id}/print"));
+
+        print.SupplierName.ShouldBe("Tanvi Enterprises");
+        print.SupplierGstin.ShouldBe("27AAUFT4105H1ZX");
+        (print.HasSignature, print.HasLogo).ShouldBe((true, false)); // the form's attempt to set a logo key is ignored
+        print.Declaration.ShouldBe(InvoiceSetting.StandardDeclaration);
+        print.CustomerName.ShouldBe(s.Customer.Name);
+        print.InvoiceNumber.ShouldBe(invoice.Summary.Number);
+        print.Description.ShouldStartWith("Transportation Charges For the Month of ");
+        print.Description.ShouldContain(DateTime.UtcNow.AddDays(0).ToString("yyyy", System.Globalization.CultureInfo.InvariantCulture));
+        print.LrNumbers.ShouldBe(invoice.Lines.Select(l => l.LrNumber).ToList());
+        print.HsnSac.ShouldBe("9965, 996511"); // every code kept on the customer's CFAs and distributors
+        print.Taxable.ShouldBe(invoice.Summary.Subtotal);
+        print.GrandTotal.ShouldBe(invoice.Summary.GrandTotal);
+        print.AmountInWords.ShouldStartWith("Indian Rupees ");
+        print.AmountInWords.ShouldEndWith(" Only");
+
+        using var image = await s.Admin.GetAsync("/api/v1/ops/invoice-branding/signature");
+        image.StatusCode.ShouldBe(HttpStatusCode.OK);
+        image.Content.Headers.ContentType!.MediaType.ShouldBe("image/png");
+        (await s.Admin.GetAsync("/api/v1/ops/invoice-branding/logo")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await s.Admin.DeleteAsync("/api/v1/ops/invoice-branding/signature")).EnsureSuccessStatusCode();
+        (await OpsScenario.Ok<InvoicePrintDto>(s.Admin.GetAsync($"/api/v1/ops/invoices/{invoice.Summary.Id}/print"))).HasSignature.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task The_arrears_report_lists_invoiced_deliveries_priced_on_a_revision_that_has_since_been_replaced_for_their_date()
+    {
+        var (s, _, calc) = await ReviewedDeliveryAsync(factory);
+        using var _s = s;
+        var invoice = await OpsScenario.Ok<InvoiceDto>(s.Admin.PostJsonAsync("/api/v1/ops/invoices", new CreateInvoiceRequest([calc.Id], null, null, null)));
+        var url = $"/api/v1/ops/billing/arrears?customerId={s.Customer.Id}";
+
+        (await OpsScenario.Ok<ArrearsReportDto>(s.Admin.GetAsync(url))).Rows.ShouldBeEmpty(); // nothing was revised yet
+
+        // A revision that starts before the delivery: the invoice was priced on revision 1, the date now belongs to revision 2 (rates doubled).
+        var draft = await OpsScenario.Ok<AgreementDto>(s.Admin.PostJsonAsync($"/api/v1/ops/agreements/{s.Agreement.Id}/revise", new ReviseAgreementRequest(DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-7))));
+        var pricier = draft.Rates.Select(r => r with { Rate = r.Rate * 2 }).ToList();
+        await OpsScenario.Ok<AgreementDto>(s.Admin.PutJsonAsync($"/api/v1/ops/agreements/{draft.Id}", new SaveAgreementRequest(s.Customer.Id, draft.Title, draft.EffectiveFrom, null, draft.WeightBasis, null, null, draft.Detention,
+            draft.Tax, draft.Billing, [], pricier, draft.Version)));
+        (await s.Admin.PostAsync($"/api/v1/ops/agreements/{draft.Id}/activate", null)).EnsureSuccessStatusCode();
+
+        var report = await OpsScenario.Ok<ArrearsReportDto>(s.Admin.GetAsync(url));
+        var row = report.Rows.Single();
+        row.InvoiceNumber.ShouldBe(invoice.Summary.Number);
+        (row.InvoicedRevision, row.CurrentRevision).ShouldBe((1, 2));
+        row.InvoicedFreight.ShouldBe(invoice.Lines.Single().BasicFreight + invoice.Lines.Single().OtherCharges);
+        row.RevisedFreight.ShouldBe(row.InvoicedFreight * 2); // per-kg rate doubled
+        row.FreightDifference.ShouldBe(row.InvoicedFreight);
+        row.TaxDifference.ShouldBe(Math.Round(row.InvoicedFreight * 12m / 100m, 2)); // the invoice's 12% forward tax
+        report.TotalDifference.ShouldBe(row.TotalDifference!.Value);
+        report.Customers.Single().Invoices.ShouldBe(1);
+    }
+
+    [Fact]
     public async Task An_issued_invoice_does_not_change_when_the_agreement_is_revised_later()
     {
         var (s, _, calc) = await ReviewedDeliveryAsync(factory);
@@ -353,6 +429,11 @@ public class TransportOpsInvoiceApiTests(TmsApiFactory factory)
         var cancelled = await OpsScenario.Ok<InvoiceDto>(s.Admin.PostJsonAsync($"/api/v1/ops/invoices/{invoice.Summary.Id}/cancel", new CancelInvoiceRequest("Wrong PO number")));
         cancelled.Summary.Status.ShouldBe(InvoiceStatus.Cancelled);
         (await OpsScenario.Ok<CalculationDto>(s.Admin.GetAsync($"/api/v1/ops/billing/calculations/{calc.Id}"))).Status.ShouldBe(CalculationStatus.Reviewed);
+
+        // Pressing Calculate again changes nothing, so the approval stands and the delivery is still ready to invoice.
+        var again = await OpsScenario.Ok<CalculateResultDto>(s.Admin.PostJsonAsync("/api/v1/ops/billing/calculate", new CalculateRequest([calc.LrId])));
+        again.Calculations.Single().Id.ShouldBe(calc.Id);
+        again.Calculations.Single().Status.ShouldBe(CalculationStatus.Reviewed);
 
         var rebilled = await OpsScenario.Ok<InvoiceDto>(s.Admin.PostJsonAsync("/api/v1/ops/invoices", new CreateInvoiceRequest([calc.Id], null, null, null)));
 
@@ -409,6 +490,29 @@ public class TransportOpsInvoiceApiTests(TmsApiFactory factory)
         paid.Payments.Count.ShouldBe(2);
         (await OpsScenario.Ok<List<ReceivableRowDto>>(s.Admin.GetAsync("/api/v1/ops/receivables"))).ShouldNotContain(r => r.CustomerId == s.Customer.Id);
         (await s.Admin.PostJsonAsync($"/api/v1/ops/invoices/{id}/payments", new PaymentRequest(1m, today, null, null, null))).StatusCode.ShouldBe(HttpStatusCode.Conflict);
+    }
+
+    [Fact]
+    public async Task TDS_deducted_by_the_customer_settles_the_invoice_but_the_amount_received_stays_the_bank_figure()
+    {
+        var (s, _, calc) = await ReviewedDeliveryAsync(factory);
+        using var _s = s;
+        var invoice = await OpsScenario.Ok<InvoiceDto>(s.Admin.PostJsonAsync("/api/v1/ops/invoices", new CreateInvoiceRequest([calc.Id], null, null, null)));
+        var id = invoice.Summary.Id;
+        var total = invoice.Summary.GrandTotal;
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var tds = Math.Round(invoice.Summary.Subtotal * 0.02m, 2); // 2% of the taxable value
+        var bank = total - tds;
+
+        (await s.Admin.PostJsonAsync($"/api/v1/ops/invoices/{id}/payments", new PaymentRequest(bank, today, "NEFT", "UTR1", null, -1m))).StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        var tooMuch = await s.Admin.PostJsonAsync($"/api/v1/ops/invoices/{id}/payments", new PaymentRequest(total, today, "NEFT", "UTR1", null, tds));
+        tooMuch.StatusCode.ShouldBe(HttpStatusCode.Conflict); // amount plus TDS may not exceed what is owed
+
+        var paid = await OpsScenario.Ok<InvoiceDto>(s.Admin.PostJsonAsync($"/api/v1/ops/invoices/{id}/payments", new PaymentRequest(bank, today, "NEFT", "UTR1", null, tds)));
+        (paid.Summary.PaymentState, paid.Summary.Outstanding, paid.Summary.TdsDeducted).ShouldBe((PaymentState.Paid, 0m, tds));
+        paid.Summary.AmountPaid.ShouldBe(total); // cash + TDS
+        var payment = paid.Payments.Single();
+        (payment.Amount, payment.TdsAmount).ShouldBe((bank, tds)); // the bank statement figure is kept on its own
     }
 
     [Fact]

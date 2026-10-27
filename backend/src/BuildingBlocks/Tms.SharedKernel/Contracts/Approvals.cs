@@ -12,7 +12,8 @@ public enum ApprovalStatus
 }
 
 /// <summary>A kind of business document that can require approval (e.g. a spot rate, a freight bill).</summary>
-public sealed record ApprovalDocumentType(string Code, string Name);
+/// <param name="Module">The business module (see <c>TmsModules</c>) the document belongs to. An organisation only sees, and can only set a policy for, the types of the modules it has; null means every organisation.</param>
+public sealed record ApprovalDocumentType(string Code, string Name, string? Module = null);
 
 public sealed record SubmitApproval(string DocumentType, Guid DocumentId, string Title, decimal? Amount);
 

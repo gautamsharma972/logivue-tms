@@ -9,7 +9,7 @@ using Tms.SharedKernel.Security;
 
 namespace Tms.Modules.Platform.Application.Tenants;
 
-public sealed record TenantDto(Guid Id, string Code, string Name, bool IsActive, bool IsPlatform, IReadOnlyList<string> Modules, int Users, string? FirstAdminEmail = null);
+public sealed record TenantDto(Guid Id, string Code, string Name, bool IsActive, bool IsPlatform, IReadOnlyList<string> Modules, int Users, string? FirstAdminEmail = null, int? MaxUsers = null, int? MaxLocations = null, int ActiveUsers = 0);
 
 /// <param name="ResetLink">Single-use link for choosing a new password. Shown to the platform administrator once; it is also emailed to the administrator.</param>
 public sealed record AdminPasswordResetDto(string AdminEmail, string AdminName, string ResetLink, DateTimeOffset ExpiresAt);
@@ -18,7 +18,22 @@ public sealed record ModuleDto(string Key, string Name, string Description);
 
 public sealed record SetTenantModulesRequest(IReadOnlyList<string> Modules);
 
-public sealed record CreateTenantRequest(string Code, string Name, string AdminName, string AdminEmail, IReadOnlyList<string> Modules);
+public sealed record CreateTenantRequest(string Code, string Name, string AdminName, string AdminEmail, IReadOnlyList<string> Modules, int? MaxUsers = null, int? MaxLocations = null);
+
+/// <summary>Edit an organisation: its name, its modules and its limits (null = unlimited). The code never changes.</summary>
+public sealed record UpdateTenantRequest(string Name, IReadOnlyList<string> Modules, int? MaxUsers, int? MaxLocations);
+
+internal sealed class UpdateTenantRequestValidator : AbstractValidator<UpdateTenantRequest>
+{
+    public UpdateTenantRequestValidator()
+    {
+        RuleFor(x => x.Name).NotEmpty().MaximumLength(200);
+        RuleFor(x => x.Modules).NotNull();
+        RuleForEach(x => x.Modules).Must(TmsModules.Keys.Contains).WithMessage("Unknown module '{PropertyValue}'.");
+        RuleFor(x => x.MaxUsers).GreaterThanOrEqualTo(1).When(x => x.MaxUsers is not null);
+        RuleFor(x => x.MaxLocations).GreaterThanOrEqualTo(0).When(x => x.MaxLocations is not null);
+    }
+}
 
 internal sealed class CreateTenantRequestValidator : AbstractValidator<CreateTenantRequest>
 {
@@ -30,6 +45,8 @@ internal sealed class CreateTenantRequestValidator : AbstractValidator<CreateTen
         RuleFor(x => x.AdminEmail).NotEmpty().EmailAddress().MaximumLength(256);
         RuleFor(x => x.Modules).NotNull();
         RuleForEach(x => x.Modules).Must(TmsModules.Keys.Contains).WithMessage("Unknown module '{PropertyValue}'.");
+        RuleFor(x => x.MaxUsers).GreaterThanOrEqualTo(1).When(x => x.MaxUsers is not null);
+        RuleFor(x => x.MaxLocations).GreaterThanOrEqualTo(0).When(x => x.MaxLocations is not null);
     }
 }
 
@@ -57,11 +74,11 @@ internal sealed class TenantAdminHandler(PlatformDbContext db, ICurrentUser curr
         }
 
         var tenants = await db.Tenants.AsNoTracking().OrderBy(t => t.Name).ToListAsync(cancellationToken);
-        var counts = await db.Users.IgnoreQueryFilters().GroupBy(u => u.TenantId).Select(g => new { g.Key, Count = g.Count() }).ToDictionaryAsync(g => g.Key, g => g.Count, cancellationToken);
+        var counts = await db.Users.IgnoreQueryFilters().GroupBy(u => u.TenantId).Select(g => new { g.Key, Count = g.Count(), Active = g.Count(u => u.IsActive) }).ToListAsync(cancellationToken);
         var admins = await db.Users.IgnoreQueryFilters().Where(u => u.Roles.Any(r => r.IsSystem && r.Name == Role.AdministratorName))
             .Select(u => new { u.TenantId, u.Email, u.CreatedAt }).ToListAsync(cancellationToken);
         var firstAdmin = admins.GroupBy(a => a.TenantId).ToDictionary(g => g.Key, g => g.OrderBy(a => a.CreatedAt).First().Email);
-        return Result.Success<IReadOnlyList<TenantDto>>(tenants.Select(t => ToDto(t, counts.GetValueOrDefault(t.Id)) with { FirstAdminEmail = firstAdmin.GetValueOrDefault(t.Id) }).ToList());
+        return Result.Success<IReadOnlyList<TenantDto>>(tenants.Select(t => ToDto(t, counts.FirstOrDefault(c => c.Key == t.Id)?.Count ?? 0) with { FirstAdminEmail = firstAdmin.GetValueOrDefault(t.Id), ActiveUsers = counts.FirstOrDefault(c => c.Key == t.Id)?.Active ?? 0 }).ToList());
     }
 
     /// <summary>Creates a customer organisation and its first administrator. The administrator chooses their own password through the single-use link (also emailed); the link is shown to the operator once.</summary>
@@ -77,7 +94,7 @@ internal sealed class TenantAdminHandler(PlatformDbContext db, ICurrentUser curr
         await using var scope = scopes.CreateAsyncScope();
         scope.ServiceProvider.GetRequiredService<IAmbientUserContext>().RunAs(null, currentUser.UserId, currentUser.TraceId);
         return await scope.ServiceProvider.GetRequiredService<TenantProvisioning>()
-            .ProvisionAsync(new ProvisionTenantRequest(request.Code, request.Name, request.AdminEmail, request.AdminName, request.Modules), cancellationToken);
+            .ProvisionAsync(new ProvisionTenantRequest(request.Code, request.Name, request.AdminEmail, request.AdminName, request.Modules, MaxUsers: request.MaxUsers, MaxLocations: request.MaxLocations), cancellationToken);
     }
 
     public const int ResetValidMinutes = PasswordResetService.ResetMinutes;
@@ -147,11 +164,37 @@ internal sealed class TenantAdminHandler(PlatformDbContext db, ICurrentUser curr
         return ToDto(tenant, users);
     }
 
+    public async Task<Result<TenantDto>> UpdateAsync(Guid id, UpdateTenantRequest request, CancellationToken cancellationToken)
+    {
+        if (!await IsPlatformCallerAsync(cancellationToken))
+        {
+            return NotFound;
+        }
+
+        var tenant = await db.Tenants.FirstOrDefaultAsync(t => t.Id == id, cancellationToken);
+        if (tenant is null)
+        {
+            return NotFound;
+        }
+
+        if (tenant.IsPlatform)
+        {
+            return Error.Conflict("tenants.platform_fixed", "The platform organisation is not a customer; it cannot be edited here.");
+        }
+
+        tenant.Rename(request.Name);
+        tenant.SetModules(request.Modules);
+        tenant.SetLimits(request.MaxUsers, request.MaxLocations);
+        await db.SaveChangesAsync(cancellationToken);
+        var users = await db.Users.IgnoreQueryFilters().Where(u => u.TenantId == tenant.Id).Select(u => u.IsActive).ToListAsync(cancellationToken);
+        return ToDto(tenant, users.Count) with { ActiveUsers = users.Count(a => a) };
+    }
+
     private static readonly Error NotFound = Error.NotFound("tenants.not_found", "Not found.");
 
     private async Task<bool> IsPlatformCallerAsync(CancellationToken cancellationToken) =>
         currentUser.TenantId is { } tenantId && await db.Tenants.AsNoTracking().AnyAsync(t => t.Id == tenantId && t.IsPlatform, cancellationToken);
 
     private static TenantDto ToDto(Domain.Tenant t, int users) =>
-        new(t.Id, t.Code, t.Name, t.IsActive, t.IsPlatform, (t.Modules ?? TmsModules.Keys).Order(StringComparer.Ordinal).ToList(), users);
+        new(t.Id, t.Code, t.Name, t.IsActive, t.IsPlatform, (t.Modules ?? TmsModules.Keys).Order(StringComparer.Ordinal).ToList(), users, null, t.MaxUsers, t.MaxLocations);
 }

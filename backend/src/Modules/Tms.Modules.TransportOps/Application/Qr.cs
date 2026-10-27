@@ -242,9 +242,9 @@ internal sealed class QrHandler(TransportOpsDbContext db, IAmbientUserContext am
             return Error.Validation("ops.pod_no_files", "Choose at least one photo or file.");
         }
 
-        if (uploads.Count > podRules.MaxFiles)
+        if (uploads.Count > podRules.EffectiveMaxFiles)
         {
-            return Error.Validation("ops.pod_too_many", $"You can upload up to {podRules.MaxFiles} files at a time.");
+            return Error.Validation("ops.pod_too_many", $"You can upload up to {podRules.EffectiveMaxFiles} files at a time.");
         }
 
         var pod = await db.Pods.Include(p => p.Documents).FirstAsync(p => p.LrId == lr.Id, cancellationToken);
@@ -317,7 +317,7 @@ internal sealed class QrHandler(TransportOpsDbContext db, IAmbientUserContext am
         var material = string.Join("; ", lr.Lines.Take(3).Select(l => $"{(string.IsNullOrWhiteSpace(l.MaterialName) ? "Goods" : l.MaterialName)} x {l.Quantity:0.##} {l.Unit}")) + (lr.Lines.Count > 3 ? "; …" : string.Empty);
         return new QrViewDto(lr.Number, customer, lr.VehicleRegistration, places.First(p => p.Id == lr.CfaLocationId).Name, places.First(p => p.Id == lr.DestinationLocationId).Name, places.First(p => p.Id == lr.DestinationLocationId).City,
             $"{material} ({lr.TotalWeightKg:0.##} kg, {lr.TotalPackages} packages)", lr.Status, StatusText(lr.Status), podStatus, lr.ArrivedAt, lr.UnloadedAt, action, note ?? message,
-            podStatus == PodStatus.Rejected ? pod?.RejectionReason : null, podRules.MaxFiles, (int)(Math.Min(podRules.MaxBytes, 10 * 1024 * 1024) / (1024 * 1024)),
+            podStatus == PodStatus.Rejected ? pod?.RejectionReason : null, podRules.EffectiveMaxFiles, (int)(Math.Min(podRules.MaxBytes, 10 * 1024 * 1024) / (1024 * 1024)),
             action == QrActions.UploadPod && podStatus is PodStatus.NotYetDue or PodStatus.Pending, clock.GetUtcNow());
     }
 

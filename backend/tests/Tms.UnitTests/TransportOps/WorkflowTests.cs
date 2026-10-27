@@ -70,7 +70,7 @@ public class TripTests
 
 public class LrAndPodTests
 {
-    private static Lr NewLr() => Lr.Create(Guid.NewGuid(), "LR-000001", Guid.NewGuid(), null, "PO-1", Guid.NewGuid(), Guid.NewGuid(), null, null, [("S1", "Soap", 10, "PKG", 500, null, null, 10, null, null)]);
+    private static Lr NewLr() => Lr.Create(Guid.NewGuid(), "LR-000001", Guid.NewGuid(), null, "PO-1", Guid.NewGuid(), Guid.NewGuid(), null, null, [("S1", "Soap", 10, "PKG", 500, null, null, 10, null, null, null)]);
 
     private static readonly DateTimeOffset T0 = new(2026, 10, 5, 8, 0, 0, TimeSpan.Zero);
 
@@ -215,7 +215,7 @@ public class InvoiceTests
         var customer = Customer.Create(Guid.NewGuid(), "C1", "Test Customer");
         customer.Update("Test Customer", null, "Line", "Mumbai", "Maharashtra", "400001", null, null, null, null, null, null, null, 30, null, null, null, null, ActiveStatus.Active);
         var invoice = Invoice.Create(customer.TenantId, "INV/26-27/00001", "INV", "26-27", customer, new TaxSettings(TaxMode.Forward, 12, null, null), new DateOnly(2026, 10, 5), 30, null, null);
-        var lr = Lr.Create(customer.TenantId, "LR-000001", customer.Id, null, null, Guid.NewGuid(), Guid.NewGuid(), null, null, [("S", "Soap", 1, "PKG", 100, null, null, 1, null, null)]);
+        var lr = Lr.Create(customer.TenantId, "LR-000001", customer.Id, null, null, Guid.NewGuid(), Guid.NewGuid(), null, null, [("S", "Soap", 1, "PKG", 100, null, null, 1, null, null, null)]);
         var calc = FreightCalculation.Create(customer.TenantId, lr, 1, null, new FreightResult(Guid.NewGuid(), 100, "Actual", taxable, 0, taxable, [], []), null, new LrFacts(new DateOnly(2026, 10, 5), null, null, null, null, null, null, null, 100, null), true, false, [], null, DateTimeOffset.UtcNow, null);
         invoice.AddLine(InvoiceLine.Create(customer.TenantId, invoice.Id, 1, calc, null, "x", TaxCalculator.Compute(taxable, new TaxSettings(TaxMode.Forward, 12, null, null), "27", "27").Value));
         invoice.Issue(null, DateTimeOffset.UtcNow);

@@ -4,6 +4,9 @@
     <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
     <PackageReference Include="Serilog" />
     <PackageReference Include="MailKit" />
+    <PackageReference Include="AWSSDK.S3" />
+    <PackageReference Include="AWSSDK.SSO" />
+    <PackageReference Include="AWSSDK.SSOOIDC" />
     <PackageReference Include="System.Security.Cryptography.Pkcs" />
     <ProjectReference Include="..\Tms.SharedKernel\Tms.SharedKernel.csproj" />
   </ItemGroup>

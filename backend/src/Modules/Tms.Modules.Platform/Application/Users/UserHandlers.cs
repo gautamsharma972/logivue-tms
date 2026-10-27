@@ -75,6 +75,21 @@ internal sealed class GetUserHandler(PlatformDbContext db)
     }
 }
 
+/// <summary>The organisation's user limit, set by the platform operator. Only active users count.</summary>
+internal static class UserLimit
+{
+    public static async Task<Error?> ReachedAsync(PlatformDbContext db, Guid tenantId, CancellationToken cancellationToken)
+    {
+        var max = await db.Tenants.AsNoTracking().Where(t => t.Id == tenantId).Select(t => t.MaxUsers).FirstOrDefaultAsync(cancellationToken);
+        if (max is { } limit && await db.Users.CountAsync(u => u.IsActive, cancellationToken) >= limit)
+        {
+            return Error.Conflict("tenants.user_limit", $"Your organisation can have at most {limit} active users. Ask the platform administrator to raise the limit, or deactivate a user first.");
+        }
+
+        return null;
+    }
+}
+
 internal sealed class CreateUserHandler(PlatformDbContext db, ICurrentUser currentUser, IPasswordService passwords, ITransporterDirectory transporters)
 {
     public async Task<Result<UserDto>> HandleAsync(CreateUserRequest request, CancellationToken cancellationToken)
@@ -103,6 +118,11 @@ internal sealed class CreateUserHandler(PlatformDbContext db, ICurrentUser curre
             return roles.Error;
         }
 
+        if (await UserLimit.ReachedAsync(db, currentUser.TenantId!.Value, cancellationToken) is { } full)
+        {
+            return full;
+        }
+
         var user = User.Create(currentUser.TenantId!.Value, email, request.FullName, passwords.Hash(request.Password), request.Type, roles.Value, request.TransporterId, request.RequirePasswordChange);
         db.Users.Add(user);
 
@@ -127,6 +147,11 @@ internal sealed class UpdateUserHandler(PlatformDbContext db, ICurrentUser curre
         if (user is null)
         {
             return Error.NotFound("users.not_found", "User not found.");
+        }
+
+        if (request.IsActive && !user.IsActive && await UserLimit.ReachedAsync(db, user.TenantId, cancellationToken) is { } full)
+        {
+            return full;
         }
 
         var isSelf = user.Id == currentUser.UserId;

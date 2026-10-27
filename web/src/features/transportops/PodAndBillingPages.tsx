@@ -80,8 +80,8 @@ export function PodDrawer({ lrId, onClose, onChanged, canUpload, canReview }: { 
           ))}
           {p.documents.length === 0 && <Typography.Text type="secondary">No document yet.</Typography.Text>}
           {canUpload && delivered && p.status !== 'Accepted' && (
-            <Card size="small" title="Upload a scan or photo" style={{ marginTop: 12 }}>
-              <PhotoPicker files={files} onChange={setFiles} max={20} />
+            <Card size="small" title="Upload a scan or photo (up to 10)" style={{ marginTop: 12 }}>
+              <PhotoPicker files={files} onChange={setFiles} max={10} />
               <Input.TextArea rows={2} placeholder="Remarks (optional)" style={{ margin: '8px 0' }} value={remarks} onChange={(e) => setRemarks(e.target.value)} />
               <Button type="primary" disabled={files.length === 0} loading={upload.isPending} onClick={() => upload.mutate()}>Upload</Button>
             </Card>

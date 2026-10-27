@@ -114,6 +114,18 @@ internal sealed class BillingHandler(TransportOpsDbContext db, OpsAccess access,
         return new PagedResult<BillingRowDto>(items, paged.Page, paged.PageSize, paged.TotalCount);
     }
 
+    private static Result<FreightResult> CrossBilled(Lr lr)
+    {
+        if (lr.CrossFreight is not { } amount || lr.CrossMode is not { } mode)
+        {
+            return Error.NotFound("OPS_CROSS_BILLING_PRICE", "This cross-billing LR has no price. Enter the lumpsum or the kg and rate.");
+        }
+
+        var basis = mode == CrossBillingMode.Lumpsum ? "lumpsum" : $"{lr.CrossKg:0.###} kg x {lr.CrossRatePerKg:0.####}";
+        return new FreightResult(null, mode == CrossBillingMode.PerKg ? lr.CrossKg ?? 0 : lr.TotalWeightKg, "Cross billing", amount, 0, amount,
+            [new FreightLine("CROSS_BILLING", "Cross-billing freight", amount, basis)], [$"Cross billing ({basis}): {amount:0.00}. The customer agreement's rates were not used."]);
+    }
+
     public async Task<Result<CalculateResultDto>> CalculateAsync(CalculateRequest request, CancellationToken cancellationToken)
     {
         if (access.Tenant() is { IsFailure: true } noTenant)
@@ -226,10 +238,15 @@ internal sealed class BillingHandler(TransportOpsDbContext db, OpsAccess access,
         else
         {
             agreement = selected.Value;
-            var priced = CustomerFreightCalculator.Calculate(agreement, facts);
+            // Cross billing: the price was agreed outside the agreement and typed on the LR. The agreement still supplies tax, detention and the POD rule.
+            var priced = lr.Movement == MovementType.CrossBilling ? CrossBilled(lr) : CustomerFreightCalculator.Calculate(agreement, facts);
             if (priced.IsSuccess)
             {
                 freight = priced.Value;
+                if (lr.Movement == MovementType.Return)
+                {
+                    freight = freight with { Trace = [.. freight.Trace, "Return movement (distributor to CFA): priced on the agreed CFA to distributor lane."] };
+                }
             }
             else
             {
@@ -257,12 +274,19 @@ internal sealed class BillingHandler(TransportOpsDbContext db, OpsAccess access,
         }
 
         var version = (await db.Calculations.Where(c => c.LrId == lrId).MaxAsync(c => (int?)c.CalcVersion, cancellationToken) ?? 0) + 1;
+        var calc = FreightCalculation.Create(lr.TenantId, lr, version, agreement, freight, detention, facts, pod.Status == PodStatus.Accepted, billedWithoutPod, holds, failure, clock.GetUtcNow(), access.UserId);
+
+        // Nothing changed since the charges were reviewed (for example after an invoice was cancelled): keep that approval instead of asking for a second review.
+        if (previous.FirstOrDefault(c => c.Status == CalculationStatus.Reviewed && c.InvoiceId is null) is { } approved && approved.SameOutcomeAs(calc))
+        {
+            return ToDto(approved);
+        }
+
         foreach (var old in previous)
         {
             old.Supersede();
         }
 
-        var calc = FreightCalculation.Create(lr.TenantId, lr, version, agreement, freight, detention, facts, pod.Status == PodStatus.Accepted, billedWithoutPod, holds, failure, clock.GetUtcNow(), access.UserId);
         db.Calculations.Add(calc);
         await db.SaveChangesAsync(cancellationToken);
         return ToDto(calc);

@@ -42,7 +42,23 @@ public static class ServiceCollectionExtensions
                 : ActivatorUtilities.CreateInstance<LoggingEmailSender>(sp));
 
         services.AddOptions<StorageOptions>().Bind(configuration.GetSection(StorageOptions.SectionName));
-        services.TryAddSingleton<IFileStore, LocalFileStore>();
+        var storage = configuration.GetSection(StorageOptions.SectionName).Get<StorageOptions>() ?? new StorageOptions();
+        if (storage.UsesS3)
+        {
+            if (string.IsNullOrWhiteSpace(storage.S3.BucketName))
+            {
+                throw new InvalidOperationException("Storage:S3:BucketName is required when Storage:Provider is S3.");
+            }
+
+            services.TryAddSingleton(_ => S3Registration.CreateClient(storage.S3));
+            services.TryAddSingleton<IFileStore, S3FileStore>();
+            services.AddHostedService<S3Registration.BucketCheck>();
+        }
+        else
+        {
+            services.TryAddSingleton<IFileStore, LocalFileStore>();
+        }
+
         services.TryAddSingleton<IFileScanner, NoFileScanner>();
 
         services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();

@@ -25,6 +25,11 @@ public enum RequestStatus { Received, UnderReview, Incomplete, Validated, ReadyF
 /// <summary>Where a consignment is on its way. Independent of the POD status.</summary>
 public enum DeliveryStatus { Created, Assigned, AtCfa, Loading, Loaded, InTransit, Arrived, UnloadingCompleted, Cancelled }
 
+/// <summary>Supply: CFA to distributor, priced from the agreement. Return: distributor back to the CFA, priced from the same agreed lane. CrossBilling: CFA to distributor at a price agreed outside the agreement.</summary>
+public enum MovementType { Supply, Return, CrossBilling }
+
+public enum CrossBillingMode { Lumpsum, PerKg }
+
 public enum TripStatus { Planned, AtCfa, Loading, Loaded, InTransit, Completed, Cancelled }
 
 public enum EventType

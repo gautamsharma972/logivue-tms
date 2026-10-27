@@ -21,6 +21,8 @@ internal static class TenantEndpoints
             .WithValidation<CreateTenantRequest>().WithName("PlatformCreateTenant").Produces<ProvisionedTenant>();
         g.MapPost("/tenants/{id:guid}/reset-admin-password", async (Guid id, TenantAdminHandler h, CancellationToken ct) => (await h.ResetFirstAdminPasswordAsync(id, ct)).ToHttpResult())
             .WithName("PlatformResetAdminPassword").Produces<AdminPasswordResetDto>();
+        g.MapPut("/tenants/{id:guid}", async (Guid id, UpdateTenantRequest body, TenantAdminHandler h, CancellationToken ct) => (await h.UpdateAsync(id, body, ct)).ToHttpResult())
+            .WithValidation<UpdateTenantRequest>().WithName("PlatformUpdateTenant").Produces<TenantDto>();
         g.MapPut("/tenants/{id:guid}/modules", async (Guid id, SetTenantModulesRequest body, TenantAdminHandler h, CancellationToken ct) => (await h.SetModulesAsync(id, body, ct)).ToHttpResult())
             .WithValidation<SetTenantModulesRequest>().WithName("PlatformSetTenantModules").Produces<TenantDto>();
     }

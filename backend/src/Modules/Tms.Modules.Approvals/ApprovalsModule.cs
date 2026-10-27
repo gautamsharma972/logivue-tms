@@ -9,6 +9,7 @@ using Tms.Modules.Approvals.Endpoints;
 using Tms.Modules.Approvals.Infrastructure.Persistence;
 using Tms.SharedKernel;
 using Tms.SharedKernel.Contracts;
+using Tms.SharedKernel.Security;
 
 namespace Tms.Modules.Approvals;
 
@@ -21,11 +22,11 @@ public static class ApprovalsModule
     /// </summary>
     private static readonly ApprovalDocumentType[] BuiltInDocumentTypes =
     [
-        new("transporter_onboarding", "Transporter onboarding"),
-        new("freight_contract", "Freight contract"),
-        new("spot_rate", "Spot rate"),
-        new("freight_bill", "Freight bill"),
-        new("claim", "Claim"),
+        new("transporter_onboarding", "Transporter onboarding", TmsModules.Transporters),
+        new("freight_contract", "Freight contract", TmsModules.Contracts),
+        new("spot_rate", "Spot rate", TmsModules.Contracts),
+        new("freight_bill", "Freight bill", TmsModules.Contracts),
+        new("claim", "Claim", TmsModules.Deliveries),
     ];
 
     public static IServiceCollection AddApprovalsModule(this IServiceCollection services, IConfiguration configuration)

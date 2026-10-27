@@ -47,9 +47,14 @@ export interface NavItem {
   icon: ReactNode
   /** Shown only to users holding at least one of these permissions. Omit for items everyone sees. */
   anyPermission?: string[]
+  /** Shown only when the organisation has at least one of these modules (the platform operator's own organisation always sees it). Omit for items every organisation has. */
+  anyModule?: string[]
   /** Restrict to staff (`internal`) or to vendor-portal users (`vendor`). Omit for both. */
   audience?: 'internal' | 'vendor'
 }
+
+/** The modules that have documents going through approval (kept in step with the document types the modules register on the server). Without one of them there is nothing to approve. */
+export const approvalModules = ['transport-ops', 'transporters', 'contracts', 'deliveries']
 
 export interface NavGroup {
   label: string
@@ -83,6 +88,7 @@ export const navigation: NavGroup[] = [
       { path: '/ops/trips', label: 'Trips & timeline', icon: <CarOutlined />, anyPermission: ['ops.read'], audience: 'internal' },
       { path: '/ops/pod', label: 'POD management', icon: <SolutionOutlined />, anyPermission: ['ops.read'], audience: 'internal' },
       { path: '/ops/billing', label: 'Freight & detention billing', icon: <CalculatorOutlined />, anyPermission: ['ops.billing.read'], audience: 'internal' },
+      { path: '/ops/billing/arrears', label: 'Rate revision arrears', icon: <CalculatorOutlined />, anyPermission: ['ops.billing.read'], audience: 'internal' },
       { path: '/ops/invoices', label: 'Invoices', icon: <FileProtectOutlined />, anyPermission: ['ops.billing.read'], audience: 'internal' },
       { path: '/ops/agreements', label: 'Customer commercial terms', icon: <AuditOutlined />, anyPermission: ['ops.billing.read'], audience: 'internal' },
       { path: '/ops/customers', label: 'Customers', icon: <BankOutlined />, anyPermission: ['ops.read'], audience: 'internal' },
@@ -228,7 +234,7 @@ export const navigation: NavGroup[] = [
   {
     label: 'Workflow',
     icon: <CheckSquareOutlined />,
-    items: [{ path: '/approvals', label: 'Approvals', icon: <CheckSquareOutlined />, audience: 'internal' }],
+    items: [{ path: '/approvals', label: 'Approvals', icon: <CheckSquareOutlined />, audience: 'internal', anyModule: approvalModules }],
   },
   {
     label: 'Administration',
@@ -236,7 +242,7 @@ export const navigation: NavGroup[] = [
     items: [
       { path: '/admin/users', label: 'Users', icon: <TeamOutlined />, anyPermission: ['users.read'] },
       { path: '/admin/roles', label: 'Roles & permissions', icon: <SafetyCertificateOutlined />, anyPermission: ['roles.read'] },
-      { path: '/admin/approval-policies', label: 'Approval policies', icon: <PartitionOutlined />, anyPermission: ['approvals.policies.manage'] },
+      { path: '/admin/approval-policies', label: 'Approval policies', icon: <PartitionOutlined />, anyPermission: ['approvals.policies.manage'], anyModule: approvalModules },
       { path: '/admin/audit', label: 'Audit trail', icon: <AuditOutlined />, anyPermission: ['audit.read'] },
     ],
   },

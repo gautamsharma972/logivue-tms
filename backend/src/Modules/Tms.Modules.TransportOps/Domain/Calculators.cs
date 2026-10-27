@@ -150,7 +150,7 @@ public sealed record FreightLine(string Code, string Description, decimal Amount
 public sealed record LrFacts(DateOnly Date, Guid? OriginLocationId, string? OriginCity, string? OriginState, Guid? DestinationLocationId, string? DestinationCity, string? DestinationState, string? Material,
     decimal ActualWeightKg, decimal? VolumeCbm);
 
-public sealed record FreightResult(Guid RateId, decimal BillableWeightKg, string WeightBasisUsed, decimal BasicFreight, decimal OtherCharges, decimal Total, IReadOnlyList<FreightLine> Lines, IReadOnlyList<string> Trace);
+public sealed record FreightResult(Guid? RateId, decimal BillableWeightKg, string WeightBasisUsed, decimal BasicFreight, decimal OtherCharges, decimal Total, IReadOnlyList<FreightLine> Lines, IReadOnlyList<string> Trace);
 
 /// <summary>Prices one consignment from a customer's agreement. Pure and deterministic: it never reads the clock or the database.</summary>
 public static class CustomerFreightCalculator

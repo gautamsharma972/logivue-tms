@@ -282,6 +282,14 @@ namespace Tms.Modules.Platform.Infrastructure.Persistence.Migrations
                         .HasColumnType("tinyint(1)")
                         .HasColumnName("is_platform");
 
+                    b.Property<int?>("MaxLocations")
+                        .HasColumnType("int")
+                        .HasColumnName("max_locations");
+
+                    b.Property<int?>("MaxUsers")
+                        .HasColumnType("int")
+                        .HasColumnName("max_users");
+
                     b.Property<DateTimeOffset?>("ModifiedAt")
                         .HasColumnType("datetime(6)")
                         .HasColumnName("modified_at");

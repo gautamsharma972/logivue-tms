@@ -14,6 +14,7 @@ using Tms.Modules.TransportOps.Endpoints;
 using Tms.Modules.TransportOps.Infrastructure.Persistence;
 using Tms.SharedKernel;
 using Tms.SharedKernel.Contracts;
+using Tms.SharedKernel.Security;
 using Tms.SharedKernel.Messaging;
 
 namespace Tms.Modules.TransportOps;
@@ -49,7 +50,7 @@ public static class TransportOpsModule
         services.AddScoped<IOpsSettings, OpsSettings>();
         services.AddScoped<FileIntake>();
         services.AddHandlers(typeof(TransportOpsModule).Assembly, "Tms.Modules.TransportOps.Application");
-        services.AddSingleton(new ApprovalDocumentType(InvoiceHandler.DocumentType, "Customer invoice"));
+        services.AddSingleton(new ApprovalDocumentType(InvoiceHandler.DocumentType, "Customer invoice", TmsModules.TransportOps));
         services.AddScoped<IDomainEventHandler<ApprovalCompleted>, InvoiceApprovalSubscriber>();
         services.AddScoped<IOperationsReportingProvider, OperationsReportingProvider>();
         services.AddValidatorsFrom<TransportOpsDbContext>();

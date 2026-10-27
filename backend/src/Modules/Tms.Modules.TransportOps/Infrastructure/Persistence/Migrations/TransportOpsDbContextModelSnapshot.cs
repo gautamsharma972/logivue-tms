@@ -950,6 +950,11 @@ namespace Tms.Modules.TransportOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("decimal(6,2)")
                         .HasColumnName("tax_rate_percent");
 
+                    b.Property<decimal>("TdsDeducted")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("decimal(14,2)")
+                        .HasColumnName("tds_deducted");
+
                     b.Property<Guid>("TenantId")
                         .HasColumnType("char(36)")
                         .HasColumnName("tenant_id");
@@ -1213,6 +1218,26 @@ namespace Tms.Modules.TransportOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("char(36)")
                         .HasColumnName("created_by");
 
+                    b.Property<decimal?>("CrossAmount")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("decimal(14,2)")
+                        .HasColumnName("cross_amount");
+
+                    b.Property<decimal?>("CrossKg")
+                        .HasPrecision(14, 3)
+                        .HasColumnType("decimal(14,3)")
+                        .HasColumnName("cross_kg");
+
+                    b.Property<string>("CrossMode")
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)")
+                        .HasColumnName("cross_mode");
+
+                    b.Property<decimal?>("CrossRatePerKg")
+                        .HasPrecision(14, 4)
+                        .HasColumnType("decimal(14,4)")
+                        .HasColumnName("cross_rate_per_kg");
+
                     b.Property<Guid>("CustomerId")
                         .HasColumnType("char(36)")
                         .HasColumnName("customer_id");
@@ -1259,6 +1284,14 @@ namespace Tms.Modules.TransportOps.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("ModifiedBy")
                         .HasColumnType("char(36)")
                         .HasColumnName("modified_by");
+
+                    b.Property<string>("Movement")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)")
+                        .HasDefaultValue("Supply")
+                        .HasColumnName("movement");
 
                     b.Property<string>("Number")
                         .IsRequired()
@@ -1378,6 +1411,11 @@ namespace Tms.Modules.TransportOps.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("varchar(100)")
                         .HasColumnName("dimensions");
+
+                    b.Property<string>("InvoiceNo")
+                        .HasMaxLength(60)
+                        .HasColumnType("varchar(60)")
+                        .HasColumnName("invoice_no");
 
                     b.Property<Guid>("LrId")
                         .HasColumnType("char(36)")
@@ -1521,6 +1559,11 @@ namespace Tms.Modules.TransportOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("varchar(10)")
                         .HasColumnName("pincode");
 
+                    b.Property<string>("SacCode")
+                        .HasMaxLength(8)
+                        .HasColumnType("varchar(8)")
+                        .HasColumnName("sac_code");
+
                     b.Property<string>("State")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -1631,6 +1674,11 @@ namespace Tms.Modules.TransportOps.Infrastructure.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("varchar(500)")
                         .HasColumnName("remarks");
+
+                    b.Property<decimal>("TdsAmount")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("decimal(14,2)")
+                        .HasColumnName("tds_amount");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("char(36)")

@@ -17,26 +17,31 @@ public sealed record EventDto(
 public sealed record LrSummaryDto(
     Guid Id, string Number, Guid CustomerId, string CustomerName, string? CustomerReference, string CfaName, string DestinationName, string DestinationCity, Guid? TripId, string? TripNumber,
     string? VehicleRegistration, DeliveryStatus Status, PodStatus PodStatus, DateOnly? DeliveryDate, decimal TotalWeightKg, int TotalPackages, DateTimeOffset? CfaReachedAt, DateTimeOffset? LoadingStartedAt,
-    DateTimeOffset? LoadingCompletedAt, DateTimeOffset? DepartedAt, DateTimeOffset? ArrivedAt, DateTimeOffset? UnloadedAt, bool QrActive, DateTimeOffset CreatedAt);
+    DateTimeOffset? LoadingCompletedAt, DateTimeOffset? DepartedAt, DateTimeOffset? ArrivedAt, DateTimeOffset? UnloadedAt, bool QrActive, DateTimeOffset CreatedAt, MovementType Movement = MovementType.Supply);
 
 public sealed record LrDetailDto(
     LrSummaryDto Lr, string? Instructions, DateTimeOffset? QrExpiresAt, int PrintCount, IReadOnlyList<MaterialLineDto> Lines, IReadOnlyList<EventDto> Events, Guid? RequestId, long Version,
-    string? IndentNo = null, IReadOnlyList<FileDto>? Files = null);
+    string? IndentNo = null, IReadOnlyList<FileDto>? Files = null, CrossBillingDto? CrossBilling = null);
+
+/// <summary>The price agreed for a cross-billing LR. Shown only to people who may see prices or create such LRs.</summary>
+public sealed record CrossBillingDto(CrossBillingMode Mode, decimal? Amount, decimal? Kg, decimal? RatePerKg, decimal? Freight);
+
+public sealed record CrossBillingRequest(CrossBillingMode Mode, decimal? Amount, decimal? Kg, decimal? RatePerKg);
 
 /// <summary><see cref="Packages"/> is the number of packages; the material is optional on an LR. Volume is given in cubic feet.</summary>
 public sealed record LrLineRequest(
-    string? MaterialCode, string? MaterialName, decimal Quantity, string Unit, decimal WeightKg, decimal? VolumeCbm, string? Dimensions, int Packages, decimal? VolumeCuFt = null, decimal? NetWeightKg = null);
+    string? MaterialCode, string? MaterialName, decimal Quantity, string Unit, decimal WeightKg, decimal? VolumeCbm, string? Dimensions, int Packages, decimal? VolumeCuFt = null, decimal? NetWeightKg = null, string? InvoiceNo = null);
 
 /// <summary>Create an LR from a ready delivery request (give <see cref="RequestId"/>), or directly (customer, CFA, destination and lines).</summary>
 public sealed record CreateLrRequest(
-    Guid? RequestId, Guid? CustomerId, string? CustomerReference, Guid? CfaLocationId, Guid? DestinationLocationId, DateOnly? DeliveryDate, string? Instructions, IReadOnlyList<LrLineRequest>? Lines, string? IndentNo = null);
+    Guid? RequestId, Guid? CustomerId, string? CustomerReference, Guid? CfaLocationId, Guid? DestinationLocationId, DateOnly? DeliveryDate, string? Instructions, IReadOnlyList<LrLineRequest>? Lines, string? IndentNo = null, MovementType? Movement = null, CrossBillingRequest? CrossBilling = null);
 
 public sealed record CreatedLrDto(LrDetailDto Lr, string QrPath);
 
 public sealed record LrPrintDto(
     Guid Id, string Number, string CustomerName, string? CustomerReference, string CfaName, string CfaAddress, string DestinationName, string DestinationAddress, string? VehicleRegistration, string? DriverName,
     string? DriverPhone, DateOnly? DeliveryDate, string? Instructions, IReadOnlyList<MaterialLineDto> Lines, decimal TotalWeightKg, int TotalPackages, string QrPath, int PrintCount, string? TripNumber,
-    string? IndentNo = null);
+    string? IndentNo = null, DateTimeOffset? CreatedAt = null);
 
 internal sealed class CreateLrRequestValidator : AbstractValidator<CreateLrRequest>
 {
@@ -44,6 +49,13 @@ internal sealed class CreateLrRequestValidator : AbstractValidator<CreateLrReque
     {
         RuleFor(x => x).Must(x => x.RequestId is not null || (x.CustomerId is not null && x.CfaLocationId is not null && x.DestinationLocationId is not null && x.Lines is { Count: > 0 }))
             .WithMessage("Give a delivery request, or the customer, CFA, destination and at least one material line.").WithName("LR");
+        RuleFor(x => x.CrossBilling).NotNull().When(x => x.Movement == MovementType.CrossBilling).WithMessage("Enter how the cross-billing freight is priced.");
+        When(x => x.Movement == MovementType.CrossBilling && x.CrossBilling is not null, () =>
+        {
+            RuleFor(x => x.CrossBilling!.Amount).NotNull().GreaterThan(0).When(x => x.CrossBilling!.Mode == CrossBillingMode.Lumpsum).WithName("Lumpsum amount");
+            RuleFor(x => x.CrossBilling!.Kg).NotNull().GreaterThan(0).When(x => x.CrossBilling!.Mode == CrossBillingMode.PerKg).WithName("Material (kg)");
+            RuleFor(x => x.CrossBilling!.RatePerKg).NotNull().GreaterThan(0).When(x => x.CrossBilling!.Mode == CrossBillingMode.PerKg).WithName("Rate per kg");
+        });
         RuleFor(x => x.CustomerReference).MaximumLength(100);
         RuleFor(x => x.Instructions).MaximumLength(1000);
         RuleFor(x => x.IndentNo).MaximumLength(60);
@@ -53,6 +65,7 @@ internal sealed class CreateLrRequestValidator : AbstractValidator<CreateLrReque
             l.RuleFor(m => m.Unit).NotEmpty().MaximumLength(12);
             l.RuleFor(m => m.Quantity).GreaterThan(0);
             l.RuleFor(m => m.WeightKg).GreaterThan(0);
+            l.RuleFor(m => m.InvoiceNo).MaximumLength(60);
             l.RuleFor(m => m.VolumeCuFt).GreaterThanOrEqualTo(0).When(m => m.VolumeCuFt is not null);
             l.RuleFor(m => m.NetWeightKg).GreaterThanOrEqualTo(0).When(m => m.NetWeightKg is not null);
             l.RuleFor(m => m).Must(m => m.NetWeightKg is null || m.NetWeightKg <= m.WeightKg).WithMessage("Net weight cannot be more than gross weight.").WithName("Net weight");
@@ -88,7 +101,7 @@ internal sealed class Lookups(TransportOpsDbContext db)
         new(l.Id, l.Number, l.CustomerId, Customers.GetValueOrDefault(l.CustomerId, "?"), l.CustomerReference, Locations.TryGetValue(l.CfaLocationId, out var cfa) ? cfa.Name : "?",
             Locations.TryGetValue(l.DestinationLocationId, out var d) ? d.Name : "?", d?.City ?? "?", l.TripId, l.TripId is { } t ? Trips.GetValueOrDefault(t) : null, l.VehicleRegistration, l.Status,
             Pods.GetValueOrDefault(l.Id, PodStatus.NotYetDue), l.DeliveryDate, l.TotalWeightKg, l.TotalPackages, l.CfaReachedAt, l.LoadingStartedAt, l.LoadingCompletedAt, l.DepartedAt, l.ArrivedAt, l.UnloadedAt,
-            l.TokenActiveAt(now), l.CreatedAt);
+            l.TokenActiveAt(now), l.CreatedAt, l.Movement);
 }
 
 internal sealed class LrHandler(TransportOpsDbContext db, OpsAccess access, ISequenceGenerator sequences, IOpsSettings settings, IFieldEncryptor encryptor, TimeProvider clock, UomHandler uoms, FileIntake files)
@@ -152,6 +165,11 @@ internal sealed class LrHandler(TransportOpsDbContext db, OpsAccess access, ISeq
 
     public async Task<Result<CreatedLrDto>> CreateAsync(CreateLrRequest request, CancellationToken cancellationToken)
     {
+        if (request.Movement == MovementType.CrossBilling && !access.Has(OpsPermissions.CrossBilling))
+        {
+            return Error.Forbidden("ops.crossbilling_forbidden", "You are not allowed to create cross-billing LRs.");
+        }
+
         if (access.Tenant() is { IsFailure: true } noTenant)
         {
             return noTenant.Error;
@@ -162,7 +180,7 @@ internal sealed class LrHandler(TransportOpsDbContext db, OpsAccess access, ISeq
         Guid customerId, cfa, destination;
         string? reference, instructions;
         DateOnly? deliveryDate;
-        List<(string? Code, string? Name, decimal Quantity, string Unit, decimal WeightKg, decimal? VolumeCbm, string? Dimensions, int Packages, decimal? VolumeCuFt, decimal? NetWeightKg)> lines;
+        List<(string? Code, string? Name, decimal Quantity, string Unit, decimal WeightKg, decimal? VolumeCbm, string? Dimensions, int Packages, decimal? VolumeCuFt, decimal? NetWeightKg, string? InvoiceNo)> lines;
 
         if (request.RequestId is { } rid)
         {
@@ -183,7 +201,7 @@ internal sealed class LrHandler(TransportOpsDbContext db, OpsAccess access, ISeq
             reference = source.CustomerReference;
             instructions = source.Instructions;
             deliveryDate = source.RequestedDate;
-            lines = source.Lines.Select(l => (l.MaterialCode, (string?)l.MaterialName, l.Quantity, l.Unit, l.WeightKg, l.VolumeCbm, l.Dimensions, l.Packages, (decimal?)null, (decimal?)null)).ToList();
+            lines = source.Lines.Select(l => (l.MaterialCode, (string?)l.MaterialName, l.Quantity, l.Unit, l.WeightKg, l.VolumeCbm, l.Dimensions, l.Packages, (decimal?)null, (decimal?)null, (string?)null)).ToList();
         }
         else
         {
@@ -193,7 +211,7 @@ internal sealed class LrHandler(TransportOpsDbContext db, OpsAccess access, ISeq
             reference = request.CustomerReference;
             instructions = request.Instructions;
             deliveryDate = request.DeliveryDate;
-            lines = request.Lines!.Select(l => (l.MaterialCode, l.MaterialName, l.Quantity, l.Unit, l.WeightKg, l.VolumeCbm, l.Dimensions, l.Packages, l.VolumeCuFt, l.NetWeightKg)).ToList();
+            lines = request.Lines!.Select(l => (l.MaterialCode, l.MaterialName, l.Quantity, l.Unit, l.WeightKg, l.VolumeCbm, l.Dimensions, l.Packages, l.VolumeCuFt, l.NetWeightKg, l.InvoiceNo)).ToList();
         }
 
         if (source is null)
@@ -233,7 +251,8 @@ internal sealed class LrHandler(TransportOpsDbContext db, OpsAccess access, ISeq
         var arrival = await settings.GetAsync(OpsSettingKeys.Arrival, new ArrivalSetting(), cancellationToken);
         var number = Numbers.Format(numbering.LrPrefix, await sequences.NextAsync(tenant, "ops-lr", cancellationToken), numbering.Digits);
         var now = clock.GetUtcNow();
-        var lr = Lr.Create(tenant, number, customerId, source?.Id, reference, cfa, destination, deliveryDate, instructions, lines, request.IndentNo);
+        var cross = request.Movement == MovementType.CrossBilling ? request.CrossBilling : null;
+        var lr = Lr.Create(tenant, number, customerId, source?.Id, reference, cfa, destination, deliveryDate, instructions, lines, request.IndentNo, request.Movement ?? MovementType.Supply, cross?.Mode, cross?.Amount, cross?.Kg, cross?.RatePerKg);
         var token = Tokens.New();
         lr.IssueToken(Tokens.Hash(token), encryptor.Encrypt(token), now, now.AddDays(arrival.TokenValidityDays));
         db.Lrs.Add(lr);
@@ -268,12 +287,13 @@ internal sealed class LrHandler(TransportOpsDbContext db, OpsAccess access, ISeq
             return OpsErrors.LrNotFound;
         }
 
-        if (await db.Files.CountAsync(f => f.OwnerId == lr.Id, cancellationToken) >= MaxInvoiceFiles)
+        var existing = await db.Files.CountAsync(f => f.OwnerId == lr.Id, cancellationToken);
+        if (existing >= MaxInvoiceFiles)
         {
             return Error.Validation("ops.file_limit", $"An LR can hold at most {MaxInvoiceFiles} invoice copies.");
         }
 
-        var blob = await files.SaveAsync(content, fileName, "lrs", FileIntakeLimits.Attachment, cancellationToken);
+        var blob = await files.SaveEvidenceAsync(content, fileName, lr.TenantId, lr.Number, "INV", existing + 1, FileIntakeLimits.Attachment, cancellationToken);
         if (blob.IsFailure)
         {
             return blob.Error;
@@ -317,8 +337,8 @@ internal sealed class LrHandler(TransportOpsDbContext db, OpsAccess access, ISeq
         await db.SaveChangesAsync(cancellationToken);
         static string Address(OpsLocation l) => $"{l.Line1}, {l.City}, {l.State}{(string.IsNullOrWhiteSpace(l.Pincode) ? string.Empty : " " + l.Pincode)}";
         return new LrPrintDto(lr.Id, lr.Number, customer.Name, lr.CustomerReference, cfa.Name, Address(cfa), dest.Name, Address(dest), lr.VehicleRegistration, trip?.DriverName, trip?.DriverPhone, lr.DeliveryDate,
-            lr.Instructions, lr.Lines.Select(l => new MaterialLineDto(l.MaterialCode, l.MaterialName ?? string.Empty, l.Quantity, l.Unit, l.WeightKg, l.VolumeCbm, l.Dimensions, l.Packages, null, l.VolumeCuFt, l.NetWeightKg)).ToList(), lr.TotalWeightKg, lr.TotalPackages,
-            $"/q/{encryptor.Decrypt(lr.TokenCipher)}", lr.PrintCount, trip?.Number, lr.IndentNo);
+            lr.Instructions, lr.Lines.Select(l => new MaterialLineDto(l.MaterialCode, l.MaterialName ?? string.Empty, l.Quantity, l.Unit, l.WeightKg, l.VolumeCbm, l.Dimensions, l.Packages, null, l.VolumeCuFt, l.NetWeightKg, l.InvoiceNo)).ToList(), lr.TotalWeightKg, lr.TotalPackages,
+            $"/q/{encryptor.Decrypt(lr.TokenCipher)}", lr.PrintCount, trip?.Number, lr.IndentNo, lr.CreatedAt);
     }
 
     /// <summary>A new code replaces the old one at once: a lost or leaked printout stops working.</summary>
@@ -374,6 +394,55 @@ internal sealed class LrHandler(TransportOpsDbContext db, OpsAccess access, ISeq
         return await DetailAsync(lr, cancellationToken);
     }
 
+    /// <summary>
+    /// Removes an LR that was created by mistake. Only while nothing has happened to it: it has not left the CFA, and has no recorded events, POD, charges or invoice.
+    /// Anything further is cancelled instead, so the history stays.
+    /// </summary>
+    public async Task<Result> DeleteAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var lr = await db.Lrs.Include(l => l.Lines).FirstOrDefaultAsync(l => l.Id == id, cancellationToken);
+        if (lr is null)
+        {
+            return OpsErrors.LrNotFound;
+        }
+
+        if (lr.Status is not (DeliveryStatus.Created or DeliveryStatus.Assigned or DeliveryStatus.Cancelled))
+        {
+            return Error.Conflict("ops.lr_delete_state", "An LR that has started loading or left the CFA cannot be deleted.");
+        }
+
+        if (await db.Events.AnyAsync(e => e.LrId == id, cancellationToken)
+            || await db.Calculations.AnyAsync(c => c.LrId == id, cancellationToken)
+            || await db.InvoiceLines.AnyAsync(l => l.LrId == id, cancellationToken))
+        {
+            return Error.Conflict("ops.lr_delete_used", "This LR already has events, charges or an invoice, so it cannot be deleted. Cancel it instead.");
+        }
+
+        var pod = await db.Pods.Include(p => p.Documents).FirstOrDefaultAsync(p => p.LrId == id, cancellationToken);
+        if (pod is { Documents.Count: > 0 })
+        {
+            return Error.Conflict("ops.lr_delete_used", "This LR already has proof of delivery, so it cannot be deleted. Cancel it instead.");
+        }
+
+        var stored = await db.Files.Where(f => f.OwnerId == id).ToListAsync(cancellationToken);
+        if (pod is not null)
+        {
+            db.Pods.Remove(pod);
+        }
+
+        db.Files.RemoveRange(stored);
+        db.Lrs.Remove(lr);
+        await db.SaveChangesAsync(cancellationToken);
+
+        // Blobs go last: a failed delete leaves an orphan object, never a record pointing at nothing.
+        foreach (var file in stored)
+        {
+            await files.DeleteAsync(file.FileKey, cancellationToken);
+        }
+
+        return Result.Success();
+    }
+
     private async Task<LrDetailDto> DetailAsync(Lr lr, CancellationToken cancellationToken)
     {
         var lookups = await new Lookups(db).LoadAsync([lr], cancellationToken);
@@ -381,8 +450,13 @@ internal sealed class LrHandler(TransportOpsDbContext db, OpsAccess access, ISeq
         var files = (await db.Files.AsNoTracking().Where(f => f.OwnerId == lr.Id).OrderBy(f => f.UploadedAt).ToListAsync(cancellationToken))
             .Select(f => new FileDto(f.Id, f.FileName, f.ContentType, f.SizeBytes, f.UploadedAt)).ToList();
         return new LrDetailDto(lookups.Summary(lr, clock.GetUtcNow()), lr.Instructions, lr.TokenExpiresAt, lr.PrintCount,
-            lr.Lines.Select(l => new MaterialLineDto(l.MaterialCode, l.MaterialName ?? string.Empty, l.Quantity, l.Unit, l.WeightKg, l.VolumeCbm, l.Dimensions, l.Packages, null, l.VolumeCuFt, l.NetWeightKg)).ToList(), events.Select(ToDto).ToList(), lr.RequestId, lr.Version, lr.IndentNo, files);
+            lr.Lines.Select(l => new MaterialLineDto(l.MaterialCode, l.MaterialName ?? string.Empty, l.Quantity, l.Unit, l.WeightKg, l.VolumeCbm, l.Dimensions, l.Packages, null, l.VolumeCuFt, l.NetWeightKg, l.InvoiceNo)).ToList(), events.Select(ToDto).ToList(), lr.RequestId, lr.Version, lr.IndentNo, files, CrossBillingTerms(lr));
     }
+
+    private CrossBillingDto? CrossBillingTerms(Lr lr) =>
+        lr.Movement == MovementType.CrossBilling && lr.CrossMode is { } mode && (access.Has(OpsPermissions.BillingRead) || access.Has(OpsPermissions.CrossBilling))
+            ? new CrossBillingDto(mode, lr.CrossAmount, lr.CrossKg, lr.CrossRatePerKg, lr.CrossFreight)
+            : null;
 
     internal static EventDto ToDto(DeliveryEvent e) =>
         new(e.Id, e.Type, e.ActualAt, e.RecordedAt, e.Source, e.UserId, e.Remarks, e.Verification, e.DistanceM, e.AccuracyM, e.RadiusM, e.CorrectsEventId, e.TripId);

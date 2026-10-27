@@ -5,7 +5,7 @@ const YEAR = new Date().getFullYear()
 
 export function AppFooter({ style }: { style?: React.CSSProperties }) {
   return (
-    <Typography.Text type="secondary" style={{ display: 'block', textAlign: 'center', fontSize: 13, ...style }}>
+    <Typography.Text className="app-footer" type="secondary" style={{ display: 'block', textAlign: 'center', fontSize: 13, ...style }}>
       © {YEAR} {COMPANY}
     </Typography.Text>
   )

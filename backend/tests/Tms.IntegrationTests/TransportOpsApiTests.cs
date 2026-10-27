@@ -156,10 +156,73 @@ internal sealed class OpsScenario : IDisposable
 public class TransportOpsRequestAndDispatchApiTests(TmsApiFactory factory)
 {
     [Fact]
+    public async Task An_arrival_recorder_can_enter_arrival_and_unloading_but_a_plain_dispatcher_cannot_enter_an_arrival()
+    {
+        using var s = await OpsScenario.CreateAsync(factory);
+        var lr = await s.CreateLrAsync();
+        var trip = await s.CreateTripAsync(lr.Lr.Lr.Id);
+        await s.DepartAsync(trip.Trip.Id, null);
+        var arrive = OpsScenario.Base.AddHours(4);
+        var arrival = new DestinationEventRequest(EventType.DestinationArrival, arrive, "Driver had no signal");
+
+        using var dispatcher = await factory.UserWithPermissionsAsync(s.Admin, "ops.dispatch");
+        (await dispatcher.PostJsonAsync($"/api/v1/ops/lrs/{lr.Lr.Lr.Id}/destination-events", arrival)).StatusCode.ShouldBe(HttpStatusCode.Forbidden); // arrival replaces the GPS check
+
+        using var viewer = await factory.UserWithPermissionsAsync(s.Admin, "ops.read");
+        (await viewer.PostJsonAsync($"/api/v1/ops/lrs/{lr.Lr.Lr.Id}/destination-events", arrival)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+
+        using var recorder = await factory.UserWithPermissionsAsync(s.Admin, "ops.destination.record");
+        (await recorder.GetAsync("/api/v1/ops/lrs")).StatusCode.ShouldBe(HttpStatusCode.OK); // reading is implied
+        (await recorder.PostJsonAsync("/api/v1/ops/trips", new { })).StatusCode.ShouldBe(HttpStatusCode.Forbidden); // but not dispatching
+        var arrived = await OpsScenario.Ok<LrDetailDto>(recorder.PostJsonAsync($"/api/v1/ops/lrs/{lr.Lr.Lr.Id}/destination-events", arrival));
+        arrived.Lr.Status.ShouldBe(DeliveryStatus.Arrived);
+        var unloaded = await OpsScenario.Ok<LrDetailDto>(recorder.PostJsonAsync($"/api/v1/ops/lrs/{lr.Lr.Lr.Id}/destination-events",
+            new DestinationEventRequest(EventType.UnloadingCompleted, arrive.AddHours(2), "Recorded from the delivery note")));
+        unloaded.Lr.Status.ShouldBe(DeliveryStatus.UnloadingCompleted);
+    }
+
+    [Fact]
+    public async Task Return_is_priced_like_supply_and_cross_billing_uses_the_price_typed_on_the_LR()
+    {
+        using var s = await OpsScenario.CreateAsync(factory);
+        LrLineRequest[] lines = [new("SOAP", "Soap cartons", 100, "PKG", 500, null, null, 100)];
+
+        async Task<CalculationDto> PricedAsync(MovementType movement, CrossBillingRequest? cross)
+        {
+            var lr = await OpsScenario.Ok<CreatedLrDto>(s.Admin.PostJsonAsync("/api/v1/ops/lrs", new CreateLrRequest(null, s.Customer.Id, "PO-X", s.Cfa.Id, s.Pune.Id, DateOnly.FromDateTime(DateTime.UtcNow), null, lines, null, movement, cross)));
+            lr.Lr.Lr.Movement.ShouldBe(movement);
+            var trip = await s.CreateTripAsync(lr.Lr.Lr.Id);
+            await s.DepartAsync(trip.Trip.Id, null);
+            var arrive = OpsScenario.Base.AddHours(4);
+            (await s.Admin.PostJsonAsync($"/api/v1/ops/lrs/{lr.Lr.Lr.Id}/destination-events", new DestinationEventRequest(EventType.DestinationArrival, arrive, "x"))).EnsureSuccessStatusCode();
+            (await s.Admin.PostJsonAsync($"/api/v1/ops/lrs/{lr.Lr.Lr.Id}/destination-events", new DestinationEventRequest(EventType.UnloadingCompleted, arrive.AddHours(1), "x"))).EnsureSuccessStatusCode();
+            await s.AcceptedPodAsync(lr.Lr.Lr.Id);
+            return await s.CalculateAsync(lr.Lr.Lr.Id);
+        }
+
+        var supply = await PricedAsync(MovementType.Supply, null);
+        var back = await PricedAsync(MovementType.Return, null);
+        back.BasicFreight.ShouldBe(supply.BasicFreight);
+        back.Trace.ShouldContain(t => t.Contains("Return movement"));
+
+        var lump = await PricedAsync(MovementType.CrossBilling, new CrossBillingRequest(CrossBillingMode.Lumpsum, 7777.5m, null, null));
+        lump.BasicFreight.ShouldBe(7777.5m);
+        lump.Lines.Single(l => l.Code == "CROSS_BILLING").Amount.ShouldBe(7777.5m);
+
+        var perKg = await PricedAsync(MovementType.CrossBilling, new CrossBillingRequest(CrossBillingMode.PerKg, null, 320, 12.5m));
+        perKg.BasicFreight.ShouldBe(4000m);
+        perKg.BillableWeightKg.ShouldBe(320);
+
+        // Incomplete cross-billing terms are refused.
+        (await s.Admin.PostJsonAsync("/api/v1/ops/lrs", new CreateLrRequest(null, s.Customer.Id, null, s.Cfa.Id, s.Pune.Id, null, null, lines, null, MovementType.CrossBilling, new CrossBillingRequest(CrossBillingMode.PerKg, null, 320, null))))
+            .StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
     public async Task An_lr_keeps_indent_net_weight_and_cubic_feet_takes_units_from_the_master_and_holds_at_most_ten_invoice_copies()
     {
         using var s = await OpsScenario.CreateAsync(factory);
-        CreateLrRequest Body(string unit) => new(null, s.Customer.Id, "PO-7", s.Cfa.Id, s.Pune.Id, null, null, [new LrLineRequest(null, null, 5, unit, 100, null, null, 5, 100, 90)], "IND-42");
+        CreateLrRequest Body(string unit) => new(null, s.Customer.Id, "PO-7", s.Cfa.Id, s.Pune.Id, null, null, [new LrLineRequest(null, null, 5, unit, 100, null, null, 5, 100, 90, " INV-A1 ")], "IND-42");
 
         (await s.Admin.PostJsonAsync("/api/v1/ops/lrs", Body("ZZZ"))).StatusCode.ShouldBe(HttpStatusCode.BadRequest); // not in the master
         (await s.Admin.PostJsonAsync("/api/v1/ops/lrs", new CreateLrRequest(null, s.Customer.Id, null, s.Cfa.Id, s.Pune.Id, null, null,
@@ -168,6 +231,7 @@ public class TransportOpsRequestAndDispatchApiTests(TmsApiFactory factory)
         var lr = (await OpsScenario.Ok<CreatedLrDto>(s.Admin.PostJsonAsync("/api/v1/ops/lrs", Body("BOX")))).Lr;
         lr.IndentNo.ShouldBe("IND-42");
         lr.Lines.Single().NetWeightKg.ShouldBe(90);
+        lr.Lines.Single().InvoiceNo.ShouldBe("INV-A1");
         lr.Lines.Single().VolumeCuFt.ShouldBe(100);
         lr.Lines.Single().VolumeCbm.ShouldBe(2.832m); // 100 cu ft, kept in cubic metres for rating
 
@@ -181,6 +245,23 @@ public class TransportOpsRequestAndDispatchApiTests(TmsApiFactory factory)
         using var eleventh = new MultipartFormDataContent { { new ByteArrayContent(png), "files", "invoice10.png" } };
         (await s.Admin.PostAsync($"/api/v1/ops/lrs/{lr.Lr.Id}/files", eleventh)).StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         (await OpsScenario.Ok<LrDetailDto>(s.Admin.GetAsync($"/api/v1/ops/lrs/{lr.Lr.Id}"))).Files!.Count.ShouldBe(10);
+
+        // Evidence is filed as delivery-evidence/{tenantCode}/{yyyy}/{MM}/{lrNo}/{lrNo}-INV-nn.ext
+        var lrFolder = Directory.GetDirectories(Path.Combine(TmsApiFactory.StorageRoot, "delivery-evidence"), lr.Lr.Number, SearchOption.AllDirectories).Single();
+        var parts = Path.GetRelativePath(TmsApiFactory.StorageRoot, lrFolder).Split(Path.DirectorySeparatorChar);
+        parts.Length.ShouldBe(5);
+        parts[1].ShouldBe(parts[1].ToUpperInvariant());
+        parts[2].Length.ShouldBe(4);
+        parts[3].Length.ShouldBe(2);
+        Directory.GetFiles(lrFolder, "*.png").Length.ShouldBe(10);
+        Directory.GetFiles(lrFolder).Select(Path.GetFileName).Order().First().ShouldBe($"{lr.Lr.Number}-INV-01.png");
+        File.Exists(Path.Combine(lrFolder, $"{lr.Lr.Number}-INV-10.png")).ShouldBeTrue();
+
+        // A mistaken LR that nothing has happened to can be deleted, with its files.
+        (await s.Admin.DeleteAsync($"/api/v1/ops/lrs/{lr.Lr.Id}")).IsSuccessStatusCode.ShouldBeTrue();
+        (await s.Admin.GetAsync($"/api/v1/ops/lrs/{lr.Lr.Id}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await s.Admin.DeleteAsync($"/api/v1/ops/lrs/{lr.Lr.Id}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        Directory.GetFiles(lrFolder).ShouldBeEmpty();
     }
 
     [Fact]

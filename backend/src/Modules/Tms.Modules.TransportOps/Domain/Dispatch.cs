@@ -34,13 +34,16 @@ public sealed class LrLine : Entity, ITenantScoped
 
     public decimal? NetWeightKg { get; private set; }
 
+    /// <summary>The customer's invoice number for the goods on this line.</summary>
+    public string? InvoiceNo { get; private set; }
+
     public const decimal CubicMetresPerCubicFoot = 0.0283168466m;
 
     public static LrLine Create(Guid tenantId, Guid lrId, string? code, string? name, decimal quantity, string unit, decimal weightKg, decimal? volumeCbm, string? dimensions, int packages,
-        decimal? volumeCuFt = null, decimal? netWeightKg = null) => new()
+        decimal? volumeCuFt = null, decimal? netWeightKg = null, string? invoiceNo = null) => new()
     {
         TenantId = tenantId, LrId = lrId, MaterialCode = code, MaterialName = string.IsNullOrWhiteSpace(name) ? null : name.Trim(), Quantity = quantity, Unit = unit, WeightKg = weightKg,
-        VolumeCbm = volumeCuFt is { } cuFt ? Math.Round(cuFt * CubicMetresPerCubicFoot, 3) : volumeCbm, Dimensions = dimensions, Packages = packages, VolumeCuFt = volumeCuFt, NetWeightKg = netWeightKg,
+        VolumeCbm = volumeCuFt is { } cuFt ? Math.Round(cuFt * CubicMetresPerCubicFoot, 3) : volumeCbm, Dimensions = dimensions, Packages = packages, VolumeCuFt = volumeCuFt, NetWeightKg = netWeightKg, InvoiceNo = string.IsNullOrWhiteSpace(invoiceNo) ? null : invoiceNo.Trim(),
     };
 }
 
@@ -66,6 +69,25 @@ public sealed class Lr : AggregateRoot, ITenantScoped
 
     /// <summary>The customer's indent number for this consignment.</summary>
     public string? IndentNo { get; private set; }
+
+    public MovementType Movement { get; private set; } = MovementType.Supply;
+
+    /// <summary>Only for <see cref="MovementType.CrossBilling"/>: how the freight is priced and the amounts typed in.</summary>
+    public CrossBillingMode? CrossMode { get; private set; }
+
+    public decimal? CrossAmount { get; private set; }
+
+    public decimal? CrossKg { get; private set; }
+
+    public decimal? CrossRatePerKg { get; private set; }
+
+    /// <summary>The agreed freight for a cross-billing LR: the lumpsum, or kilograms times the rate.</summary>
+    public decimal? CrossFreight => CrossMode switch
+    {
+        CrossBillingMode.Lumpsum => CrossAmount is { } a ? Money.Round(a) : null,
+        CrossBillingMode.PerKg when CrossKg is { } kg && CrossRatePerKg is { } rate => Money.Round(kg * rate),
+        _ => null,
+    };
 
     public Guid CfaLocationId { get; private set; }
 
@@ -124,17 +146,20 @@ public sealed class Lr : AggregateRoot, ITenantScoped
     public string? TokenRef => TokenHash?[..12];
 
     public static Lr Create(Guid tenantId, string number, Guid customerId, Guid? requestId, string? customerReference, Guid cfa, Guid destination, DateOnly? deliveryDate, string? instructions,
-        IEnumerable<(string? Code, string? Name, decimal Quantity, string Unit, decimal WeightKg, decimal? VolumeCbm, string? Dimensions, int Packages, decimal? VolumeCuFt, decimal? NetWeightKg)> lines,
-        string? indentNo = null)
+        IEnumerable<(string? Code, string? Name, decimal Quantity, string Unit, decimal WeightKg, decimal? VolumeCbm, string? Dimensions, int Packages, decimal? VolumeCuFt, decimal? NetWeightKg, string? InvoiceNo)> lines,
+        string? indentNo = null, MovementType movement = MovementType.Supply, CrossBillingMode? crossMode = null, decimal? crossAmount = null, decimal? crossKg = null, decimal? crossRatePerKg = null)
     {
         var lr = new Lr
         {
             TenantId = tenantId, Number = number, CustomerId = customerId, RequestId = requestId, CustomerReference = customerReference, CfaLocationId = cfa, DestinationLocationId = destination,
             DeliveryDate = deliveryDate, Instructions = instructions, IndentNo = string.IsNullOrWhiteSpace(indentNo) ? null : indentNo.Trim(),
+            Movement = movement,
+            CrossMode = movement == MovementType.CrossBilling ? crossMode : null, CrossAmount = movement == MovementType.CrossBilling && crossMode == CrossBillingMode.Lumpsum ? crossAmount : null,
+            CrossKg = movement == MovementType.CrossBilling && crossMode == CrossBillingMode.PerKg ? crossKg : null, CrossRatePerKg = movement == MovementType.CrossBilling && crossMode == CrossBillingMode.PerKg ? crossRatePerKg : null,
         };
         foreach (var l in lines)
         {
-            lr.Lines.Add(LrLine.Create(tenantId, lr.Id, l.Code, l.Name, l.Quantity, l.Unit, l.WeightKg, l.VolumeCbm, l.Dimensions, l.Packages, l.VolumeCuFt, l.NetWeightKg));
+            lr.Lines.Add(LrLine.Create(tenantId, lr.Id, l.Code, l.Name, l.Quantity, l.Unit, l.WeightKg, l.VolumeCbm, l.Dimensions, l.Packages, l.VolumeCuFt, l.NetWeightKg, l.InvoiceNo));
         }
 
         lr.TotalWeightKg = lr.Lines.Sum(l => l.WeightKg);

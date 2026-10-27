@@ -2,6 +2,7 @@ using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using Tms.Modules.TransportOps.Domain;
 using Tms.Modules.TransportOps.Infrastructure.Persistence;
+using Tms.SharedKernel.Contracts;
 using Tms.SharedKernel.India;
 using Tms.SharedKernel.Paging;
 using Tms.SharedKernel.Results;
@@ -112,11 +113,11 @@ internal sealed class CustomerHandler(TransportOpsDbContext db, OpsAccess access
 
 public sealed record LocationDto(
     Guid Id, string Code, string Name, LocationKind Kind, Guid? CustomerId, string? CustomerName, string Line1, string City, string State, string? Pincode, double? Latitude, double? Longitude,
-    int GeofenceRadiusM, string? AccessNotes, ActiveStatus Status, long Version);
+    int GeofenceRadiusM, string? AccessNotes, ActiveStatus Status, long Version, string? SacCode = null);
 
 public sealed record SaveLocationRequest(
     string Code, string Name, LocationKind Kind, Guid? CustomerId, string Line1, string City, string State, string? Pincode, double? Latitude, double? Longitude, int GeofenceRadiusM,
-    string? AccessNotes, ActiveStatus Status, long Version = 0);
+    string? AccessNotes, ActiveStatus Status, long Version = 0, string? SacCode = null);
 
 internal sealed class SaveLocationRequestValidator : AbstractValidator<SaveLocationRequest>
 {
@@ -128,6 +129,7 @@ internal sealed class SaveLocationRequestValidator : AbstractValidator<SaveLocat
         RuleFor(x => x.City).NotEmpty().MaximumLength(100);
         RuleFor(x => x.State).NotEmpty().MaximumLength(100);
         RuleFor(x => x.Pincode).Must(p => IndianIdentifiers.IsValidPincode(p)).When(x => !string.IsNullOrWhiteSpace(x.Pincode)).WithMessage("Enter a 6-digit pincode.");
+        RuleFor(x => x.SacCode).Matches("^[0-9]{4,8}$").When(x => !string.IsNullOrWhiteSpace(x.SacCode)).WithMessage("An HSN/SAC code is 4 to 8 digits, for example 9965.");
         RuleFor(x => x.GeofenceRadiusM).InclusiveBetween(20, 5000).WithMessage("The geofence radius must be between 20 and 5000 metres.");
         RuleFor(x => x).Must(x => (x.Latitude is null) == (x.Longitude is null)).WithMessage("Enter both latitude and longitude, or neither.").WithName("Coordinates");
         RuleFor(x => x).Must(x => x.Latitude is null || x.Longitude is null || OpsLocation.InIndia(x.Latitude.Value, x.Longitude.Value))
@@ -135,7 +137,7 @@ internal sealed class SaveLocationRequestValidator : AbstractValidator<SaveLocat
     }
 }
 
-internal sealed class LocationHandler(TransportOpsDbContext db, OpsAccess access)
+internal sealed class LocationHandler(TransportOpsDbContext db, OpsAccess access, ITenantLimits limits)
 {
     public async Task<Result<PagedResult<LocationDto>>> ListAsync(string? search, LocationKind? kind, Guid? customerId, ActiveStatus? status, int page, int pageSize, CancellationToken cancellationToken)
     {
@@ -185,6 +187,11 @@ internal sealed class LocationHandler(TransportOpsDbContext db, OpsAccess access
             return Error.Conflict("ops.location_code_taken", "A location with this code already exists.");
         }
 
+        if ((await limits.GetAsync(access.TenantId!.Value, cancellationToken)).MaxLocations is { } max && await db.Locations.CountAsync(cancellationToken) >= max)
+        {
+            return Error.Conflict("tenants.location_limit", $"Your organisation can have at most {max} CFAs and distributors. Ask the platform administrator to raise the limit.");
+        }
+
         if (request.CustomerId is { } cid && !await db.Customers.AnyAsync(c => c.Id == cid, cancellationToken))
         {
             return OpsErrors.CustomerNotFound;
@@ -225,7 +232,7 @@ internal sealed class LocationHandler(TransportOpsDbContext db, OpsAccess access
     }
 
     private static void Apply(OpsLocation l, SaveLocationRequest r) =>
-        l.Update(r.Name, r.Kind, r.CustomerId, r.Line1, r.City, r.State, r.Pincode, r.Latitude, r.Longitude, r.GeofenceRadiusM, r.AccessNotes, r.Status);
+        l.Update(r.Name, r.Kind, r.CustomerId, r.Line1, r.City, r.State, r.Pincode, r.Latitude, r.Longitude, r.GeofenceRadiusM, r.AccessNotes, r.Status, r.SacCode);
 
     private async Task<Dictionary<Guid, string>> CustomerNamesAsync(IEnumerable<Guid?> ids, CancellationToken cancellationToken)
     {
@@ -235,5 +242,5 @@ internal sealed class LocationHandler(TransportOpsDbContext db, OpsAccess access
 
     internal static LocationDto ToDto(OpsLocation l, IReadOnlyDictionary<Guid, string> customers) =>
         new(l.Id, l.Code, l.Name, l.Kind, l.CustomerId, l.CustomerId is { } c && customers.TryGetValue(c, out var n) ? n : null, l.Line1, l.City, l.State, l.Pincode, l.Latitude, l.Longitude,
-            l.GeofenceRadiusM, l.AccessNotes, l.Status, l.Version);
+            l.GeofenceRadiusM, l.AccessNotes, l.Status, l.Version, l.SacCode);
 }
